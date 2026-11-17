@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-merge.js'] = '1.0.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-merge.js'] = '1.0.1';
 // Merge a data file (File menu > Merge a data file): the screen for datamerge.js. Three steps, nothing is saved until Apply on the last one:
 //   1. Summary of everything the merge would do, as a categorized diff (counts, filters, a download).
 //   2. The real conflicts, if there are any: each one needs a choice (Keep mine, Take theirs, or Edit).
@@ -72,7 +72,7 @@
     else if (k === 'back') { step = step === 'final' ? 'conflicts' : 'summary'; if (step === 'summary' && P.conflicts.length === 0) step = 'summary'; render(); }
     else if (k === 'final') { if (DM.summary(P, choices).counts.Undecided) return; step = 'final'; render(); }
     else if (k === 'all-mine') { P.conflicts.forEach(c => { choices[c.id] = { pick: 'mine' }; }); render(); }
-    else if (k === 'all-theirs') { if (!confirm('Take the other file’s value for all ' + P.conflicts.length + ' conflicts?')) return; P.conflicts.forEach(c => { choices[c.id] = { pick: 'other' }; }); render(); }
+    else if (k === 'all-theirs') { App.ask.confirm('Take the other file’s value for all ' + P.conflicts.length + ' conflicts?', { title: 'Take all of the other file’s values?', ok: 'Take them all' }).then(yes => { if (!yes) return; P.conflicts.forEach(c => { choices[c.id] = { pick: 'other' }; }); render(); }); }
     else if (k === 'dl-text') download('text'); else if (k === 'dl-csv') download('csv');
     else if (k === 'apply') {
       const first = P.conflicts.length ? DM.summary(P, choices).counts.Undecided : 0; if (first) return;
@@ -88,11 +88,11 @@
     const left = DM.summary(P, choices).counts.Undecided; $('mgLeft').textContent = left ? left + ' still to decide' : 'All decided'; $('mgNext').disabled = !!left;
   }
   // The other file's text in, the dialog out. Roster and calendar of the open file are brought up to date first, so the merge starts from exactly what is on screen.
-  App.mergeFile = (text, name) => {
-    if (!App.season) return alert('Open or start a data file first: a merge adds another file’s changes to the one that is open.');
-    let other; try { other = Season.fromJson(text); } catch (err) { return alert('That file is not a data file this app can read.\n\n' + err.message); }
+  App.mergeFile = async (text, name) => {
+    if (!App.season) return App.ask.alert('Open or start a data file first: a merge adds another file’s changes to the one that is open.');
+    let other; try { other = Season.fromJson(text); } catch (err) { return App.ask.alert('That file is not a data file this app can read.\n\n' + err.message); }
     const mine = App.mergeIn.current();
-    if (other.year && mine.year && other.year !== mine.year && !confirm('That file is for club year ' + other.year + ' and this one is ' + mine.year + '. Merge anyway?')) return;
+    if (other.year && mine.year && other.year !== mine.year && !(await App.ask.confirm('That file is for club year ' + other.year + ' and this one is ' + mine.year + '. Merge anyway?', { title: 'Different club year', ok: 'Merge anyway' }))) return;      /* a merge replaces the session, which clears Undo: it stays a confirmation */
     const plan = DM.plan(mine, other, Object.assign({ from: name }, App.mergeNames(mine)));
     return App.mergeScreen(plan, { name }).then(r => {
       if (!r) return; const out = DM.finish(plan, r.choices), n = r.counts; App.mergeIn.apply(out);

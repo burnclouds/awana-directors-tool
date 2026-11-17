@@ -101,5 +101,28 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
     assert(!/\bAbsent\b/.test(txt), 'Absent is never shown');
     await ctx.close();
   });
+  await test('a person id that contains | does not break any Clear button (CR-11): Attendance panel and To do', async () => {
+    const { p, ctx } = await open(); const odd = '9900001|x_A|B_Pipe_Test';
+    const nights = await p.evaluate(() => App.absenceClubDates().filter(d => d >= App.today()).slice(0, 3)); assert.strictEqual(nights.length, 3, 'three nights ahead');
+    const count = () => p.evaluate(id => App.absenceList().filter(r => r.personId === id).length, odd);
+    const add = () => p.evaluate(([id, n]) => { App.season.absences = App.season.absences || {}; return App.addAbsence(id, n[0], n[2], 'Pipe'); }, [odd, nights]);
+    await add(); assert.strictEqual(await count(), 3, 'three nights stored under the odd id');
+    await p.evaluate(() => document.querySelector('.tabs button[data-tab="attend"]').click()); await p.waitForTimeout(300); await p.selectOption('#attRoom', 'Volunteers'); await p.waitForTimeout(250);
+    await p.click('#attendWrap button[data-absnight]'); await p.waitForTimeout(250); assert.strictEqual(await count(), 2, 'Clear this night removed one night');
+    await p.click('#attendWrap button[data-absrem]'); await p.waitForTimeout(250); assert.strictEqual(await count(), 0, 'Clear remaining nights removed the rest');
+    await add(); await p.evaluate(() => App.refresh()); await p.waitForTimeout(250); await p.click('#attendWrap button[data-absall]'); await p.waitForTimeout(250); assert.strictEqual(await count(), 0, 'Clear whole absence removed every night');
+    await add(); await p.evaluate(() => document.querySelector('.tabs button[data-tab="todo"]').click()); await p.waitForTimeout(300);
+    await p.click('#tab-todo button[data-absnight]'); await p.waitForTimeout(250); assert.strictEqual(await count(), 2, 'To do: Clear this night removed exactly one night');
+    await ctx.close();
+  });
+  for (const [w, h] of [[1280, 900], [390, 844]]) {
+    await test('Person page, volunteer (' + w + ' wide): the rows not greyed as "not held" equal the held nights in the expected-nights sentence (CR-12)', async () => {
+      const { p, ctx } = await open(); await p.setViewportSize({ width: w, height: h }); const pid = await volunteer(p);
+      await p.evaluate(id => App.showPerson(id, { sub: 'attendance' }), pid); await p.waitForTimeout(350);
+      const r = await p.evaluate(() => { const t = document.getElementById('personWrap'), line = [...t.querySelectorAll('p.status')].find(x => /expected held club nights/.test(x.textContent)); const rows = [...t.querySelectorAll('table.roster.att tbody tr')]; return { line: line ? line.textContent : '', counted: rows.filter(x => !x.classList.contains('notheld')).length, all: rows.length, grey: rows.filter(x => x.classList.contains('notheld')).length }; });
+      const m = /of (\d+) expected held club nights/.exec(r.line); assert(m, 'the sentence says held club nights: ' + r.line); assert.strictEqual(r.counted, +m[1], 'rows counted ' + r.counted + ' vs sentence ' + m[1]); assert(r.grey + r.counted === r.all);
+      await ctx.close();
+    });
+  }
   await browser.close(); console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);
 })();

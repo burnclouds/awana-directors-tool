@@ -126,8 +126,8 @@ const server = http.createServer((req, res) => {
   await test('New season in the browser: pending Planning Center changes and uniform order dates are gone from the people, and stay gone after the next edit', async () => {
     const { page } = await open();
     await page.evaluate(() => { const p = App.master.people.find(x => Model.isClubber(x)); window.__id = p.x_ClubberID; p['ov:Grade'] = '9'; p.x_Uni_OrderedDate = '2026-09-01'; p.x_Uni_ReceivedDate = '2026-09-20'; p.x_Uni_SizeVerified = 'M'; App.commitScope(() => App.changed()); });
-    page.removeAllListeners('dialog'); page.on('dialog', d => (d.type() === 'prompt' ? d.accept('2027-28') : d.accept()));
-    await page.evaluate(() => document.querySelector('.tabs button[data-tab="options"]').click()); await page.waitForTimeout(400); await page.click('#btnNewSeason'); await page.waitForTimeout(600);
+    page.removeAllListeners('dialog'); page.on('dialog', d => (d.type() === 'prompt' ? d.accept('2027-28') : /^You have unsaved changes/.test(d.message()) && d.press ? d.press('go') : d.accept()));      /* unsaved work: "Continue without saving" (what the old OK meant) */
+    await page.evaluate(() => document.querySelector('.tabs button[data-tab="options"]').click()); await page.waitForTimeout(400); await page.click('#btnNewSeason'); await page.waitForTimeout(900);
     const look = () => page.evaluate(() => { const p = App.master.people.find(x => x.x_ClubberID === window.__id); return { year: App.season.year, ov: Object.keys(p).filter(k => k.startsWith('ov:') && p[k] !== ''), ordered: p.x_Uni_OrderedDate || '', received: p.x_Uni_ReceivedDate || '', size: p.x_Uni_SizeVerified || '' }; });
     let r = await look(); assert.strictEqual(r.year, '2027-28'); assert.deepStrictEqual(r.ov, []); assert.strictEqual(r.ordered, ''); assert.strictEqual(r.received, ''); assert.strictEqual(r.size, 'M', 'size verified carries over');
     await page.evaluate(() => App.commitScope(() => App.changed())); r = await look(); assert.deepStrictEqual(r.ov, []); assert.strictEqual(r.ordered, '');
@@ -288,8 +288,15 @@ const server = http.createServer((req, res) => {
   });
   await test('Open Person page from To do: a banner lists what is left, those fields are highlighted, and a highlight goes away when the field is fixed', async () => {
     const { page } = await open(); await tab(page, 'todo'); await page.waitForTimeout(200);
-    const id = await page.evaluate(() => { const r = Todo.compute({ master: App.master, season: App.season, quarter: App.quarterOf(App.today()), today: App.today() }); return r.people.find(p => p.items.some(i => i.fields.includes('Emergency Contact')) && p.items.some(i => i.fields.includes('handbook'))).id; });
-    await page.click('button[data-person-open="' + id + '"]'); await page.waitForTimeout(300);
+    /* The missing emergency phone is its own item (CR-08) and points at the Emergency Contact box when that box holds a name with no number: make that case for a child who also has a handbook item. */
+    const id = await page.evaluate(() => {
+      const calc = () => Todo.compute({ master: App.master, season: App.season, quarter: App.quarterOf(App.today()), today: App.today() });
+      const pick = calc().people.find(p => p.items.some(i => i.fields.includes('handbook'))); const person = App.master.people.find(x => x[Model.X.ID] === pick.id);
+      person[Model.C.EMERG] = 'Pat Example'; person[Model.C.PARENT_PHONE] = ''; person[Model.X.EMERG_PHONE] = '';
+      if (App.tabs && App.tabs.todo) App.tabs.todo();
+      const r = calc(); return r.people.find(p => p.id === pick.id && p.items.some(i => i.fields.includes('Emergency Contact')) && p.items.some(i => i.fields.includes('handbook'))).id;
+    });
+    await page.evaluate(i => { const d = document.querySelector('details.tdclass:has(a[data-person="' + CSS.escape(i) + '"])'); if (d) d.open = true; }, id); await page.click('a[data-person="' + id.replace(/"/g, '\\"') + '"]'); await page.waitForTimeout(300);      /* the name link opens the Person page with what needs attention highlighted (the duplicate button was removed, UX-23) */
     assert.strictEqual(await page.evaluate(() => App.tab), 'person'); assert(/Needs attention \(\d+\)/.test(await page.textContent('#personWrap .attnbanner')), await page.textContent('#personWrap .attnbanner'));
     assert(await page.$('label.pf.attn textarea[data-pc="Emergency Contact"]'), 'emergency contact is highlighted'); assert(await page.$('.hbbox.attn, .attn .hbbox'), 'the handbook box is highlighted');
     assert(!(await page.$('label.pf.attn input[data-pc="Last Name"]')), 'other fields are not');
@@ -416,7 +423,7 @@ const server = http.createServer((req, res) => {
   });
   await test('CSV templates: Color teams and Calendar each have a Save CSV button that downloads a file the app can read back', async () => {
     const { page } = await open(); await page.evaluate(() => App.showTab('teams')); await page.waitForTimeout(150);
-    const grab = async (btn, name) => { const dl = page.waitForEvent('download', { timeout: 8000 }); await page.click(btn); await page.click(btn); const d = await dl; assert(name.test(d.suggestedFilename()), d.suggestedFilename()); return fs.readFileSync(await d.path(), 'utf8'); };
+    const grab = async (btn, name) => { const dl = page.waitForEvent('download', { timeout: 8000 }); const more = async () => { if (/btnTeam/.test(btn)) await page.click('#btnTeamMore'); }; await more(); await page.click(btn); await more(); await page.click(btn); const d = await dl; assert(name.test(d.suggestedFilename()), d.suggestedFilename()); return fs.readFileSync(await d.path(), 'utf8'); };
     const colors = await grab('#btnTeamCsv', /^Color teams .*TEST.*\.csv$/); assert(/^\uFEFF?Unique ID,Name,Group,Class,Q1,Q2,Q3,Q4/.test(colors));
     await tab(page, 'calendar'); await page.waitForTimeout(150); const cal = await grab('#btnCalCsv', /^Calendar .*TEST.*\.csv$/); assert(/Date,Type,Quarter/.test(cal));
     await page.close();
@@ -473,8 +480,7 @@ const server = http.createServer((req, res) => {
     assert(await page.evaluate(i => Model.isGuest(App.master.people.find(p => p.x_ClubberID === i)), id)); assert.strictEqual(await page.$$eval('#rosterWrap .guesttag', g => g.length), 1, 'the guest tag is in the Roster');
     await page.evaluate(i => { App.commitScope(() => { Season.setMark(App.season, '2026-10-21', i, 'a', 1); App.changed(); }); }, id);
     await page.evaluate(i => App.showPerson(i, { sub: 'registration' }), id); await page.waitForTimeout(250); assert(/Guest: not in Planning Center/.test(await page.textContent('#personWrap')), 'guest card');
-    await page.click('[data-linkpc]'); await page.waitForTimeout(200); await page.waitForTimeout(100);
-    assert(await page.evaluate(() => true));       // no export yet: the alert (auto-accepted) asked for one
+    await page.click('[data-linkpc]'); await page.waitForTimeout(400);      /* no export yet: the app's message asks for one, and the page's dialog handler answers it */
     const NEWER = path.join(td, fs.readdirSync(td).filter(f => /TEST.*\.csv$/.test(f)).sort().pop());
     await page.setInputFiles('#fileAny', [NEWER]); await page.waitForTimeout(800); if (await page.isVisible('#review')) await page.click('#rvCancel');
     await page.evaluate(i => App.showPerson(i, { sub: 'registration' }), id); await page.waitForTimeout(250); await page.click('[data-linkpc]'); await page.waitForTimeout(250);
@@ -482,6 +488,7 @@ const server = http.createServer((req, res) => {
     const target = await rows[0].$eval('td', c => c.textContent), reg = await rows[0].$eval('td:nth-child(5)', c => c.textContent);
     await page.fill('#lgFind', target.slice(0, 3)); await page.waitForTimeout(100);
     await rows[0].$eval('button[data-link]', b => b.click()); await page.waitForTimeout(300);
+    assert(/Linked .* to /.test(await page.textContent('#doneFlash')), 'linked at once, with an Undo message');
     const after = await page.evaluate(i => { const p = App.master.people.find(x => x.x_ClubberID === i); return { guest: Model.isGuest(p), reg: p['Registration ID'], first: p['First Name'], marks: !!(App.season.attendance['2026-10-21'] || {})[i] }; }, id);
     assert.strictEqual(after.guest, false); assert.strictEqual(after.reg, reg); assert(after.marks, 'attendance stayed with the same ID'); await tab(page, 'roster'); assert.strictEqual(await page.$$eval('#rosterWrap .guesttag', g => g.length), 0);
     await page.close();
@@ -569,7 +576,7 @@ const server = http.createServer((req, res) => {
   await test('Editing keeps your place on the other tabs too: Games select, Awards, To do Ignore, Store weight, Person club-record box', async () => {
     const { page } = await open(); const holds = async (sel, act) => { await page.focus(sel); await act(); await page.waitForTimeout(250); const a = await page.evaluate(() => { const e = document.activeElement; return e && e !== document.body ? e.tagName : 'BODY'; }); return a; };
     await tab(page, 'games'); await page.waitForTimeout(250);
-    assert.notStrictEqual(await holds('#gamesWrap select[data-f="place"]', () => page.keyboard.press('ArrowDown')), 'BODY', 'Games');
+    assert.notStrictEqual(await holds('#gamesWrap button[data-f="place"][data-v="2"]', () => page.keyboard.press('Enter')), 'BODY', 'Games');
     await tab(page, 'store'); await page.waitForTimeout(250); assert.notStrictEqual(await holds('input[data-w="extra"]', async () => { await page.fill('input[data-w="extra"]', '2'); await page.keyboard.press('Tab'); }), 'BODY', 'Store weight, Tab away');
     await tab(page, 'todo'); await page.waitForTimeout(250); assert.notStrictEqual(await holds('#todoWrap button[data-ign]', () => page.keyboard.press('Enter')), 'BODY', 'To do Ignore');
     await tab(page, 'person'); await page.click('#peSub button[data-sub="registration"]'); await page.waitForTimeout(250); assert.notStrictEqual(await holds('input[data-flag="x_NoPhotos"]', () => page.keyboard.press('Space')), 'BODY', 'Person club record');
@@ -591,7 +598,7 @@ const server = http.createServer((req, res) => {
     const kidsOnPage = await page.$$eval('#report section.sheet .achild', h => h.length), inRoom = await page.evaluate(r => App.master.people.filter(p => Model.isClubber(p) && Model.isActive(p) && Model.room(p) === r).length, rooms[1]); assert.strictEqual(kidsOnPage, inRoom, 'one block per child in that class (B9: children share pages)');
     await page.close();
   });
-  await test('Roster: the Active filter is Active only / Inactive only / Active and inactive, the same list in the bar and the column filter', async () => {
+  await test('Roster: the Active filter is Active / Inactive / Everyone, the same list in the bar and the column filter', async () => {
     const { page } = await open(); await page.waitForTimeout(200); const total = await page.evaluate(() => App.master.people.length), act = await page.evaluate(() => App.master.people.filter(Model.isActive).length);
     assert.strictEqual(await page.$('#fInactive').then(e => e.evaluate(x => x.tagName)), 'SELECT'); assert.strictEqual((await rowsOf(page, 0)).length, act, 'default: active only');
     await page.evaluate(() => { const p = App.master.people.find(x => Model.isClubber(x)); Model.setActive(p, false); App.commitScope(() => App.changed()); App.refresh(); });

@@ -1,11 +1,11 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-todo.js'] = '1.20.2';
+(this.AwanaVersions = this.AwanaVersions || {})['app-todo.js'] = '1.21.0';
 // To do tab: opens when a Planning Center export has been imported. Shows the file check for that export, what the import did,
 // and everything that still needs doing (todo.js computes it from the roster, so it stays right as you fix things).
 // An item can be ignored (accepted as it is): it is hidden and not counted until you bring it back. Ignored items are kept in the data file (config.todoIgnored), so they stay ignored next week; without a data file they last for the session.
 (function () {
   const { C, X } = Model;
   const App = window.App, esc = App.esc, $ = id => document.getElementById(id);
-  const ui = { onlyNew: true, showIgnored: false, view: 'person' };      // a view choice for this visit only: not stored
+  const ui = { onlyNew: true, showIgnored: false, view: 'person', tdOpen: {} };      // a view choice for this visit only: not stored
   // The ignored list: in the data file when there is one (it travels with the file and is undoable), else just for this session. quiet = do not log yet (used when ignoring a whole list at once).
   const sessionIgnored = new Set(), listOf = () => App.season ? (Array.isArray(App.season.config.todoIgnored) ? App.season.config.todoIgnored : (App.season.config.todoIgnored = [])) : null;
   const ignored = {
@@ -76,12 +76,17 @@
     const row = (pp, i, off) => '<tr' + (off ? ' class="off"' : '') + ' data-id="' + esc(pp.id) + '" data-k="' + esc(i.group + '|' + pp.id + '|' + i.text) + '"><td><span class="status">' + (i.level === 'action' ? 'to do' : i.level === 'note' ? 'note' : 'check') + '</span></td><td>' + esc(i.title) + '</td><td class="wrap">' + esc(i.text) + (off ? ' <i>(ignored)</i>' : '') + '</td>' +
       '<td>' + (!off && (i.group === 'class' || i.group === 'classfit') ? '<select data-room>' + roomOptions(i.suggest) + '</select>' : '') +
       (!off && i.recvBook ? '<label class="pf"><span class="status">Date received</span> <input type="date" data-recv-id="' + esc(pp.id) + '" data-recv-book="' + esc(i.recvBook) + '" aria-label="Date received for ' + esc(pp.name || '') + '"></label> <label class="uov"><input type="checkbox" data-recv-nodate="' + esc(pp.id) + '" data-recv-book="' + esc(i.recvBook) + '"> no date</label>' : '') + (!off && i.bookFix !== undefined ? bookBox(pp.id, i.bookFix) : '') + (!off && i.medRead ? medBox(pp.id) : '') + (!off && i.bestColor !== undefined ? teamBox(pp.id, /Q[1-4]/.exec(i.title)[0], i.bestColor) : '') + (!off && i.printRoom ? printBtn(i.printRoom) : '') + '</td><td>' + (!off && i.group === 'teams' && /Q[1-4]/.test(i.title) ? '<button data-noteam="' + /Q[1-4]/.exec(i.title)[0] + '" title="This child joined after the quarter began and is deliberately on no team: no color, no game points, and no effect on the team sizes or who plays with whom">No team</button> ' : '') + '<button ' + (off ? 'data-unign="1">Bring back' : 'data-ign="1" title="Accept as it is and hide it (kept in the data file)">Ignore') + '</button></td></tr>';
-    return people.map(pp => {
+    const card = pp => {
       const n = pp.open.filter(i => i.level === 'action').length, nn = pp.open.filter(i => i.level === 'note').length, c = pp.open.length - n - nn;
       return '<section class="pcard todocard"><h3><a href="#" data-person="' + esc(pp.id) + '">' + esc(pp.name) + '</a> <span class="status">' + esc(pp.room) + ' &middot; ' + [n ? n + ' to do' : '', c ? c + ' to check' : '', nn ? (nn === 1 ? '1 note' : nn + ' notes') + ' †' : ''].filter(Boolean).join(', ') + (!n && !c && !nn ? 'all ignored' : '') + '</span> ' +
-        '<button data-person-open="' + esc(pp.id) + '" title="Open the Person tab with the fields that need attention highlighted">Open Person page</button></h3>' +
+        '</h3>' +
         '<table class="roster"><tbody>' + pp.open.map(i => row(pp, i, false)).join('') + (ui.showIgnored ? pp.off.map(i => row(pp, i, true)).join('') : '') + '</tbody></table></section>';
-    }).join('');
+    };
+    /* UX-23: the cards sit under one collapsible line per class ("Sparks A (6)"); a class with something to do starts open, a class with only things to check starts closed. Kept while the page is open. */
+    const rooms = []; people.forEach(pp => { if (!rooms.includes(pp.room)) rooms.push(pp.room); });
+    if (rooms.length < 2) return people.map(card).join('');
+    return rooms.map(room => { const ps = people.filter(pp => pp.room === room), key = 'person|' + room, open = key in ui.tdOpen ? ui.tdOpen[key] : ps.some(pp => pp.open.some(i => i.level === 'action'));
+      return '<details class="tdclass" data-tdkey="' + esc(key) + '"' + (open ? ' open' : '') + '><summary>' + esc(room || 'No class') + ' (' + ps.length + ')</summary>' + ps.map(card).join('') + '</details>'; }).join('');
   }
   // The number on the To do tab: the open actions only. Awards are not on this page: the Awards tab lists them and its badge counts them (to announce or hand out, ignored and given ones left out). Worked out the same way wherever it is refreshed.
   // The number says in words what it counts (hover title and screen-reader label): each "to do" card and its count, and that "to check" items and awards are not in it.
@@ -93,6 +98,17 @@
   // Awards are worked out from the record (a block finished on Progress, a Blue Jewel reached by attendance), so any edit of the season can earn one: the badge is brought up to date after every edit.
   let badgeTimer = 0;
   App.updateTodoBadge = () => { clearTimeout(badgeTimer); badgeTimer = setTimeout(() => { if (App.master && $('tab-todo').hidden) setBadge(open(compute().groups)); }, 120); };
+  // UX-23: inside a group the rows sit under one collapsible line per class ("Sparks A (6)"). To do groups start open, to check and note groups start closed; what you open or close is kept while the page is open (not in the file).
+  // A group whose items are all in one class (or that has few) is a plain table, with no extra lines.
+  function classTables(g, rowFix, rowOf, ignRowOf) {
+    const head = '<table class="roster"><thead><tr><th>Name</th><th>Class</th><th>What</th>' + (rowFix ? '<th>Assign class</th>' : '') + '<th></th></tr></thead><tbody>';
+    const classes = []; g.items.concat(ui.showIgnored ? g.ignored : []).forEach(i => { if (!classes.includes(i.room)) classes.push(i.room); });
+    if (classes.length < 2 && g.items.length + g.ignored.length <= 6) return head + g.items.map(rowOf).join('') + (ui.showIgnored ? g.ignored.map(ignRowOf).join('') : '') + '</tbody></table>';
+    return classes.map(room => {
+      const its = g.items.filter(i => i.room === room), offs = ui.showIgnored ? g.ignored.filter(i => i.room === room) : [], key = g.id + '|' + room, open = key in ui.tdOpen ? ui.tdOpen[key] : g.level === 'action';
+      return '<details class="tdclass" data-tdkey="' + esc(key) + '"' + (open ? ' open' : '') + '><summary>' + esc(room || 'No class') + ' (' + (its.length + offs.length) + ')</summary>' + head + its.map(rowOf).join('') + offs.map(ignRowOf).join('') + '</tbody></table></details>';
+    }).join('');
+  }
   function render() {
     const el = $('todoWrap');
     if (!App.master) { el.innerHTML = '<p class="status">Load a roster first (Import&hellip;).</p>'; $('todoBadge').textContent = ''; return; }
@@ -102,7 +118,10 @@
     const view = all.map(g => Object.assign({}, g, { items: keep(g.items), ignored: keep(g.ignored) })).filter(g => g.items.length || g.ignored.length);
     const shown = view.filter(g => g.items.length || ui.showIgnored), total = view.filter(g => g.level !== 'note').reduce((n, g) => n + g.items.length, 0), notes = view.filter(g => g.level === 'note').reduce((n, g) => n + g.items.length, 0), actions = openActions(view), nIgnored = view.reduce((n, g) => n + g.ignored.length, 0);
     setBadge(all);
-    let h = App.staleCalendarHtml() + (li ? importSection(li, only) : '<p class="status">No export imported yet this session. This page lists everything that still needs doing for the people in the roster.</p>');
+    let tonight = ''; const tn = App.tonight && App.tonight();
+    if (tn) { const dt = new Date(tn.date + 'T12:00:00'), lab = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dt.getDay()] + ' ' + (dt.getMonth() + 1) + '/' + dt.getDate(), go = (k, t) => ' <button type="button" data-tonight="' + k + '">' + t + '</button>';
+      tonight = '<section class="tonightstrip" aria-label="Tonight, ' + esc(lab) + '"><b>' + esc(lab) + ':</b> classes entered ' + tn.roomsEntered + ' of ' + tn.rooms + go('attend', 'Go') + ' &middot; games entered ' + tn.gamesEntered + ' of ' + tn.games + go('games', 'Go') + ' &middot; awards to announce ' + tn.toAnnounce + go('awards', 'Go') + ' <span class="status">(not counted in the To do number)</span></section>'; }
+    let h = tonight + App.staleCalendarHtml() + (li ? importSection(li, only) : '<p class="status">No export imported yet this session. This page lists everything that still needs doing for the people in the roster.</p>');
     h += '<p>' + (total ? '<b>' + actions + ' to do, ' + (total - actions) + ' to check</b>' : '<span class="ok">Nothing left to do.</span>') + (notes ? ' <span class="status">&middot; ' + notes + (notes === 1 ? ' note' : ' notes') + ' † (not counted)</span>' : '') +
       (li && li.newIds.size ? ' &nbsp; <label><input type="checkbox" id="tdOnlyNew"' + (ui.onlyNew ? ' checked' : '') + '> only the ' + li.newIds.size + ' people this import added</label>' : '') +
       (ignored.size ? ' &nbsp; <label><input type="checkbox" id="tdShowIgn"' + (ui.showIgnored ? ' checked' : '') + '> show the ' + ignored.size + ' ignored</label> <button id="tdBack">Bring all back</button>' : '') + '</p>' +
@@ -112,7 +131,7 @@
       const nightsAhead = (App.absenceClubDates ? App.absenceClubDates() : []).filter(d => d >= App.today()).slice(0, 2), rows = App.absenceList();
       const nameOf = pid => { const p = App.master.people.find(x => x[X.ID] === pid); return p ? Model.fullName(p) + (Model.isVolunteer(p) && Model.isActive(p) ? '' : ' (not on the volunteer list)') : pid + ' (not on the roster)'; };
       h += '<section class="pcard absencecard"><h3>Volunteer absences <span class="status">' + (nightsAhead.length ? 'the next club nights on the calendar' : 'no club nights ahead on the calendar') + '</span></h3>' +
-        (nightsAhead.length ? nightsAhead.map(d => { const list = rows.filter(r => r.date === d); return '<h4>' + esc(Model.md ? Model.md(d) : d) + '</h4>' + (list.length ? '<table class="roster"><thead><tr><th>Volunteer</th><th>Reason</th><th></th></tr></thead><tbody>' + list.map(r => '<tr><td><a href="#" data-person="' + esc(r.personId) + '">' + esc(nameOf(r.personId)) + '</a></td><td>' + esc(r.reason) + '</td><td><button type="button" data-absnight="' + esc(r.personId + '|' + r.absId + '|' + r.date) + '">Clear this night</button></td></tr>').join('') + '</tbody></table>' : '<p class="status">No absences.</p>'); }).join('') : '') + '</section>';
+        (nightsAhead.length ? nightsAhead.map(d => { const list = rows.filter(r => r.date === d); return '<h4>' + esc(Model.md ? Model.md(d) : d) + '</h4>' + (list.length ? '<table class="roster"><thead><tr><th>Volunteer</th><th>Reason</th><th></th></tr></thead><tbody>' + list.map(r => '<tr><td><a href="#" data-person="' + esc(r.personId) + '">' + esc(nameOf(r.personId)) + '</a></td><td>' + esc(r.reason) + '</td><td><button type="button" data-absnight="1" data-pid="' + esc(r.personId) + '" data-aid="' + esc(r.absId) + '" data-date="' + esc(r.date) + '">Clear this night</button></td></tr>').join('') + '</tbody></table>' : '<p class="status">No absences.</p>'); }).join('') : '') + '</section>';
     }
     const flagRows = App.season && App.flagWhere ? Season.noteList(App.season) : [];      // notes and flags only: bug reports live on the Debug tab and never count here      // Notes and flags: places pinned for later review (set on the Progress sheet); Clear removes one
     // Notes and flags card: always there when a data file is open, because it is also where a general note (about nothing in particular) is typed.
@@ -127,15 +146,13 @@
       const bookBulk = g.id === 'handbook' && g.items.length > 1 ? ' ' + bookOptions('tdBookPick') : '';
       return '<section class="pcard"><h3>' + esc(g.title) + ' (' + g.items.length + ') <span class="status">' + (g.level === 'action' ? 'to do' : g.level === 'note' ? 'note' : 'to check') + '</span></h3><p class="status">' + esc(g.hint) +
         (link ? ' <button data-go="' + link[1] + '"' + (g.id === 'pc' ? ' data-report="pcChanges"' : '') + '>' + link[0] + '</button>' : '') + (g.items.length > 1 ? ' <button data-ignall="' + esc(g.id) + '" title="Accept everything listed here as it is">Ignore all ' + g.items.length + '</button>' : '') + bookBulk + '</p>' +
-        '<table class="roster"><thead><tr><th>Name</th><th>Class</th><th>What</th>' + (rowFix ? '<th>Assign class</th>' : '') + '<th></th></tr></thead><tbody>' +
-        g.items.map(i => '<tr data-id="' + esc(i.id) + '" data-k="' + esc(keyOf(g, i)) + '"><td><a href="#" data-person="' + esc(i.id) + '">' + esc(i.name) + '</a></td><td>' + esc(i.room) + '</td><td class="wrap">' + esc(i.text) + '</td>' +
-          (rowFix ? '<td><select data-room>' + roomOptions(i.suggest) + '</select></td>' : '') + '<td>' + (i.recvBook ? '<label class="pf"><span class="status">Date received</span> <input type="date" data-recv-id="' + esc(i.id) + '" data-recv-book="' + esc(i.recvBook) + '" aria-label="Date received for ' + esc(i.name || '') + '"></label> <label class="uov"><input type="checkbox" data-recv-nodate="' + esc(i.id) + '" data-recv-book="' + esc(i.recvBook) + '"> no date</label> ' : '') + (i.bookFix !== undefined ? bookBox(i.id, i.bookFix) : '') + (i.medRead ? medBox(i.id) : '') + (i.bestColor !== undefined ? teamBox(i.id, /Q[1-4]/.exec(g.title)[0], i.bestColor) : '') + (i.printRoom ? printBtn(i.printRoom) : '') + (g.id === 'teams' && /Q[1-4]/.test(g.title) ? '<button data-noteam="' + /Q[1-4]/.exec(g.title)[0] + '" title="This child joined after the quarter began and is deliberately on no team: no color, no game points, and no effect on the team sizes or who plays with whom">No team</button> ' : '') + '<button data-ign="1" title="Accept as it is and hide it (kept in the data file)">Ignore</button></td></tr>').join('') +
-        (ui.showIgnored ? g.ignored.map(i => '<tr class="off" data-id="' + esc(i.id) + '" data-k="' + esc(keyOf(g, i)) + '"><td><a href="#" data-person="' + esc(i.id) + '">' + esc(i.name) + '</a></td><td>' + esc(i.room) + '</td><td class="wrap">' + esc(i.text) + ' <i>(ignored)</i></td>' + (rowFix ? '<td></td>' : '') + '<td><button data-unign="1">Bring back</button></td></tr>').join('') : '') +
-        '</tbody></table></section>';
+        classTables(g, rowFix, i => '<tr data-id="' + esc(i.id) + '" data-k="' + esc(keyOf(g, i)) + '"><td><a href="#" data-person="' + esc(i.id) + '">' + esc(i.name) + '</a></td><td>' + esc(i.room) + '</td><td class="wrap">' + esc(i.text) + '</td>' +
+          (rowFix ? '<td><select data-room>' + roomOptions(i.suggest) + '</select></td>' : '') + '<td>' + (i.recvBook ? '<label class="pf"><span class="status">Date received</span> <input type="date" data-recv-id="' + esc(i.id) + '" data-recv-book="' + esc(i.recvBook) + '" aria-label="Date received for ' + esc(i.name || '') + '"></label> <label class="uov"><input type="checkbox" data-recv-nodate="' + esc(i.id) + '" data-recv-book="' + esc(i.recvBook) + '"> no date</label> ' : '') + (i.bookFix !== undefined ? bookBox(i.id, i.bookFix) : '') + (i.medRead ? medBox(i.id) : '') + (i.bestColor !== undefined ? teamBox(i.id, /Q[1-4]/.exec(g.title)[0], i.bestColor) : '') + (i.printRoom ? printBtn(i.printRoom) : '') + (g.id === 'teams' && /Q[1-4]/.test(g.title) ? '<button data-noteam="' + /Q[1-4]/.exec(g.title)[0] + '" title="This child joined after the quarter began and is deliberately on no team: no color, no game points, and no effect on the team sizes or who plays with whom">No team</button> ' : '') + '<button data-ign="1" title="Accept as it is and hide it (kept in the data file)">Ignore</button></td></tr>', i => '<tr class="off" data-id="' + esc(i.id) + '" data-k="' + esc(keyOf(g, i)) + '"><td><a href="#" data-person="' + esc(i.id) + '">' + esc(i.name) + '</a></td><td>' + esc(i.room) + '</td><td class="wrap">' + esc(i.text) + ' <i>(ignored)</i></td>' + (rowFix ? '<td></td>' : '') + '<td><button data-unign="1">Bring back</button></td></tr>') + '</section>';
     }).join('');
     el.innerHTML = h;
   }
 
+  $('todoWrap').addEventListener('toggle', e => { const d = e.target; if (d && d.classList && d.classList.contains('tdclass')) ui.tdOpen[d.dataset.tdkey] = d.open; }, true);      /* toggle does not bubble, so it is caught on the way down */
   $('todoWrap').addEventListener('change', e => {
     const t = e.target;
     // A corrected handbook code: kept only if it is one of the books; otherwise the reason is shown and the typed text stays in the box.
@@ -159,7 +176,7 @@
     // A date received (or no date) typed on the To do page: saved the same way as on Progress, then the list is worked out again.
     if (t.dataset && (t.dataset.recvId !== undefined || t.dataset.recvNodate !== undefined)) {
       const isNoDate = t.dataset.recvNodate !== undefined, id = isNoDate ? t.dataset.recvNodate : t.dataset.recvId, book = t.dataset.recvBook;
-      try { Season.setReceived(App.season, id, book, isNoDate ? '' : t.value, isNoDate ? { noDate: t.checked } : undefined); } catch (err) { alert(err.message); t.value = ''; t.checked = false; }
+      try { Season.setReceived(App.season, id, book, isNoDate ? '' : t.value, isNoDate ? { noDate: t.checked } : undefined); } catch (err) { App.ask.alert(err.message); t.value = ''; t.checked = false; }
       App.touch(); render(); return;
     }
     if (t.name === 'tdView') { ui.view = t.value; render(); return; }
@@ -178,13 +195,14 @@
     if (e.target.id === 'tdNoteAdd') { const box = $('tdNoteText'); try { App.addNote(box.value); } catch (err) { App.flash(err.message, 'error'); return; } render(); const again = $('tdNoteText'); if (again) again.focus(); return; }
     const gf = e.target.closest('button[data-goflag]'); if (gf) { App.goFlag(gf.dataset.goflag); return; }
     const cfl = e.target.closest('button[data-clearflag2]'); if (cfl) { App.clearFlag(cfl.dataset.clearflag2); render(); return; }
-    const can = e.target.closest('button[data-absnight]'); if (can) { const [pid, aid, date] = can.dataset.absnight.split('|'); App.clearAbsenceNights(pid, aid, [date]); render(); return; }
+    const can = e.target.closest('button[data-absnight]'); if (can) { App.clearAbsenceNights(can.dataset.pid, can.dataset.aid, [can.dataset.date]); render(); return; }
     // Edit a general note in place: its text becomes a box with Save and Cancel. Saving keeps the note's date and place.
     const en = e.target.closest('button[data-editnote]');
     if (en) { const td = en.closest('tr').querySelector('td.wrap'), cur = td.textContent; td.innerHTML = '<textarea rows="2" style="width:100%" data-noteedit="' + esc(en.dataset.editnote) + '" aria-label="Edit note">' + esc(cur) + '</textarea><div><button type="button" class="primary" data-notesave="' + esc(en.dataset.editnote) + '">Save</button> <button type="button" data-notecancel="1">Cancel</button></div>'; td.querySelector('textarea').focus(); return; }
     const ns = e.target.closest('button[data-notesave]');
     if (ns) { const ta = ns.closest('td').querySelector('textarea'); try { App.setFlagNote(ns.dataset.notesave, ta.value); } catch (err) { App.flash(err.message, 'error'); return; } render(); return; }
     if (e.target.closest('button[data-notecancel]')) { render(); return; }
+    const tg = e.target.closest('button[data-tonight]'); if (tg) { App.tonightGo(tg.dataset.tonight); return; }
     const b = e.target.closest('button[data-go]');
     if (b) { if (b.dataset.report) App.showReport(b.dataset.report); else App.showTab(b.dataset.go); return; }
     // Set the color shown on the row (the best choice unless it was changed). A color that is the best choice is recorded as the plan's projection, as Assign blanks does; another is a hand-set color.
@@ -213,18 +231,17 @@
     if (sb) {
       const sel = document.getElementById(sb.dataset.setbook);
       const code = sel && sel.value;
-      if (!code) { alert('Pick a book first.'); return; }
-      const rows = el_rows(sb.closest('section'));
+      if (!code) { App.ask.alert('Pick a book first.'); return; }
+      const rows = [...sb.closest('section').querySelectorAll('tbody tr:not(.off)')].map(tr => tr.dataset.id);      // the person id comes from the row's own attribute: the stored key is "group|id|text", and a name with | would break a split (CR-11)
       let changed = 0;
-      rows.forEach(k => {
-        const id = k.split('|')[1];
+      rows.forEach(id => {
         const p = byId(id); if (!p) return;
         const cur = Season.handbookParts(App.season.handbooks[id]);
         if (cur.code) return;      // already has a book — skip
         try { Season.setHandbook(App.season, id, { code, date: cur.date, note: cur.note }); changed++; } catch (err) { /* ignore invalid code warnings */ }
       });
       if (changed) { App.touch(); App.refresh(); }
-      else { alert('No one without a book in this list (or no valid book chosen).'); }
+      else { App.ask.alert('No one without a book in this list (or no valid book chosen).'); }
       return;
     }
     if (e.target.id === 'tdBack') { ignored.clear(); render(); }

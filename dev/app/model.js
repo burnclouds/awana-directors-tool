@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['model.js'] = '1.10.3';
+(this.AwanaVersions = this.AwanaVersions || {})['model.js'] = '1.10.4';
 // Roster data model: Planning Center import/merge, plus the roster section of the data JSON.
 //
 // The Planning Center export is the only CSV and is read-only input. Everything you own (colors, uniforms, notes, pending
@@ -492,6 +492,11 @@
   const isActive = p => p[X.ACTIVE] !== '0';
   const isVolunteer = p => /volunteer/i.test(eff(p, C.SELECTION)) || eff(p, C.ROOM) === 'Volunteers';
   const isClubber = p => !isVolunteer(p);
+  /* The "is this id a child?" test for a data file's own roster (CR-09), built the same way fromRoster builds a person (pc and v together), so a pending room or selection change counts. An id that is not on the roster counts as a child (an earlier year's person who has left). A fresh test per call: the roster may be edited in place. */
+  function childTestOf(roster) {
+    const people = (roster && roster.people) || {}, memo = new Map();
+    return id => { if (memo.has(id)) return memo.get(id); const e = people[id]; let r = true; if (e) { const p = Object.assign({}, e.pc, e.v); p[X.ID] = id; r = isClubber(p); } memo.set(id, r); return r; };
+  }
   const room = p => eff(p, C.ROOM) || 'Unassigned';
   const fullName = p => (eff(p, C.FIRST) + ' ' + eff(p, C.LAST)).trim();
   // Shared text helpers (used by the reports, the Person tab and the Progress sheets): a yyyy-mm-dd date as month/day ("10/4"); anything else is returned as it is.
@@ -558,7 +563,7 @@
   const api = {
     hasPhoneDigits, parentPhone, regContactPhone, C, X, UNI, uniGiven, uniToOrder, uniToReceive, canon, normalizePc, readExport, columnReport, PC_ROLES, PC_KNOWN, uniformItems, uniformKind, wantsUniform, uniformLegacy, BASE_USER_COLS, ROOM_ORDER, IMPORTANT_COLS, isUserCol, norm, eff, setField, clubPhone, emergencyPhone,
     HIDDEN_COLS, ROSTER_KEYS, isGuest, unlinkedRecords, linkToPc, emptyMaster, loadMaster, pendingChanges, pendingText, toRows, toCsv, toRoster, fromRoster, hashText, captureExport, exportBack, CAPTURE_KEYS, exportDate, olderExport, needsReview, setActive, TRACKED, addUserCol, planImport, applyPlan, addManualPerson,
-    isActive, isVolunteer, isClubber, room, fullName, groupOf, hasColorTeams, roomRank,
+    isActive, isVolunteer, isClubber, childTestOf, room, fullName, groupOf, hasColorTeams, roomRank,
     md, esc, byRoomThenName, byFirstName, medicalText, noPhotos, teamOf, NO_TEAM, noTeam, setTeamChoice, photoRequest, matchKey, similarity,
   };
   if (typeof module !== 'undefined') module.exports = api; else root.Model = api;

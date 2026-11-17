@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-update.js'] = '1.5.3';
+(this.AwanaVersions = this.AwanaVersions || {})['app-update.js'] = '1.5.4';
 // App updates and auto-save.
 //  Updates: every few minutes (10 by default) the page asks the site for its index.html and compares the version in it with the one running. A newer one shows a bar with Update now / Later; nothing happens until you choose.
 //  Update now: anything held on a tab is settled, an unsaved data file is SAVED FIRST (the Save button's way: this computer or Drive), the open session is put in this tab's sessionStorage, the page reloads, and the new version
@@ -52,7 +52,7 @@
   }
   async function apply() {
     if (!U.found) return false;
-    if (App.resolveDraft && !App.resolveDraft()) return false;
+    if (App.resolveDraft && !App.resolveDraft(() => apply())) return false;
     if (App.master && App.dirty()) { const ok = await App.saveNow(); if (!ok) { App.flash('The update was not applied: your changes were not saved.', 'error'); return false; }
       if (App.dirty()) { App.flash('The update was not applied: you changed something while it was saving. Press Update now again.', 'info'); return false; } }      // the reload carries the file as saved, so an edit made during the save would be lost or wrongly merged (R7)
     // The new release's service worker takes over first (it is looked for and waited for here), so the reload fetches the new files. Reloading while the old worker still controls the page would run the OLD scripts under the new index.html.
@@ -61,11 +61,15 @@
     try { stash(); } catch (e) { App.flash('The update was not applied: this browser would not keep your session for the reload. Save your file and reload the page yourself.', 'error'); return false; }
     location.replace(location.pathname + '?updated=' + encodeURIComponent(U.found.version)); return true;
   }
+  // A carried copy older than this was left by an update that never finished: it is given back as a file, not opened over a fresh page (CR-13).
+  const STALE_MS = 10 * 60 * 1000;
+  const recoverFile = raw => { const a = doc.createElement('a'); a.href = URL.createObjectURL(new Blob([raw], { type: 'application/json' })); a.download = 'awana-session-recovered-' + Date.now() + '.json'; doc.body.appendChild(a); a.click(); a.remove(); };
   function restore() {
     let raw = null; try { raw = sessionStorage.getItem(HANDOFF); sessionStorage.removeItem(HANDOFF); } catch (e) { /* nothing carried */ }
     if (!raw) return;
     try {
       const h = JSON.parse(raw);
+      if (Number.isFinite(h.t) && Date.now() - h.t > STALE_MS) { recoverFile(raw); App.flash('An unfinished update left an old copy of your session. It was not opened; it was downloaded as awana-session-recovered-….json.', 'warn'); return; }
       (h.test || []).forEach(n => App.markTest(n));
       if (h.season) App.openSeason(h.season); else if (h.master) App.openFiles([{ name: 'carried-over.csv', lastModified: Date.now(), text: async () => h.master }]);
       if (App.driveHandoff) App.driveHandoff.set(h.drive);
@@ -75,8 +79,8 @@
       if (history.replaceState) history.replaceState(null, '', location.pathname);
       App.flash('Updated to version ' + RUN.version + '. Your open data and place were carried over (undo history starts fresh).', 'info');
     } catch (e) {      // never lose the work: give it back as a file
-      try { const a = doc.createElement('a'); a.href = URL.createObjectURL(new Blob([raw], { type: 'application/json' })); a.download = 'awana-session-recovered-' + Date.now() + '.json'; doc.body.appendChild(a); a.click(); a.remove(); } catch (e2) { /* last resort below */ }
-      alert('The update finished, but your open session could not be put back (' + (e && e.message) + '). It was downloaded as awana-session-recovered-….json: import that file.');
+      try { recoverFile(raw); } catch (e2) {/* last resort below */ }
+      App.ask.alert('The update finished, but your open session could not be put back (' + (e && e.message) + '). It was downloaded as awana-session-recovered-….json: import that file.');
     }
   }
   $('updateNow').addEventListener('click', apply);

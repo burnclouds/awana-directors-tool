@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.5.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.6.0';
 // Debug and Validate tabs. Debug: which version of every file is running, what is open, and the dates of the CSV/JSON files.
 // Validate: check a data file, Planning Center export or older CSV for problems without opening it into the app.
 (function () {
@@ -100,14 +100,14 @@
       try { App.setBugReply(t.dataset.bugsave, { status, reply }); } catch (err) { App.flash(err.message, 'error'); return; }
       bugEditing = ''; renderDebug(); return;
     }
-    if (t.dataset.bugdel) { if (!confirm('Delete this bug report? Undo brings it back.')) return; App.clearFlag(t.dataset.bugdel); renderDebug(); return; }
+    if (t.dataset.bugdel) { App.clearFlag(t.dataset.bugdel); renderDebug(); App.done('Bug report deleted.'); return; }      /* one Undo step: done at once, with an Undo message (UX-20) */
     if (t.dataset.buggo) { const f = Season.bugList(App.season).find(x => x.id === t.dataset.buggo); if (f && App.goElement) App.goElement(f); return; }
   });
   $('debugWrap').addEventListener('click', e => {
     const id = e.target.id, s = App.season; if (!s || !['dbgAssumedCount', 'dbgAssumedClear'].includes(id)) return;
     if (id === 'dbgAssumedCount') { const l = Season.assumedGiven(s), by = {}; l.forEach(x => { by[x.date] = (by[x.date] || 0) + 1; }); assumed = { n: l.length, kids: new Set(l.map(x => x.id)).size, days: Object.keys(by).sort().map(d => [d, by[d]]) }; renderDebug(); return; }
-    if (!assumed || !confirm('Clear ' + assumed.n + ' Given dates that nobody entered?\n\nThe awards stay announced and wait under "Announced, not yet given". Undo takes it back.')) return;
-    const n = Season.clearAssumedGiven(s); assumed = null; App.touch(); renderDebug(); App.flash(n + ' Given date' + (n === 1 ? '' : 's') + ' cleared.', 'info');
+    if (!assumed) return;      /* the count came first; clearing is done at once, with Undo (UX-20) */
+    const n = Season.clearAssumedGiven(s); assumed = null; App.touch(); renderDebug(); App.done(n + ' Given date' + (n === 1 ? '' : 's') + ' that nobody entered cleared. The awards stay announced and wait under "Announced, not yet given".');
   });
   $('debugWrap').addEventListener('change', async e => {
     if (e.target.id !== 'dbgFiles') return;

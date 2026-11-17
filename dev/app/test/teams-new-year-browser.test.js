@@ -2,7 +2,7 @@
 // ("No team" marks, dated moves, accepted repeats), and New season says the calendar still has to be replaced. Invented test club only.
 // Usage: NODE_PATH=<dir with playwright> node test/teams-new-year-browser.test.js
 const assert = require('assert'), fs = require('fs'), http = require('http'), path = require('path');
-const { chromium } = require('playwright');
+const { chromium } = require('playwright'), { onAppDialog } = require('./lib/app-dialogs');
 const app = path.join(__dirname, '..'), td = path.join(app, '..', 'test-data');
 const DATA = path.join(td, fs.readdirSync(td).find(f => /TEST.*\.json$/.test(f)));
 let passed = 0, failed = 0;
@@ -18,7 +18,7 @@ const server = http.createServer((req, res) => {
   const browser = await chromium.launch(), url = 'http://localhost:' + server.address().port + '/index.html';
   const open = async answer => {
     const ctx = await browser.newContext(), page = await ctx.newPage(), seen = { dialogs: [], errors: [] };
-    page.on('dialog', d => { seen.dialogs.push(d.message()); d.type() === 'prompt' ? d.accept(answer) : d.accept(); }); page.on('pageerror', e => seen.errors.push(e.message));
+    onAppDialog(page, d => { seen.dialogs.push(d.message()); return d.type() === 'prompt' ? d.accept(answer) : d.accept(); }); page.on('pageerror', e => seen.errors.push(e.message));
     await page.goto(url); await page.setInputFiles('#splashFiles', [DATA]); await page.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent));
     return { page, seen, ctx };
   };
@@ -37,7 +37,7 @@ const server = http.createServer((req, res) => {
 
   await test('A6: Start new year archives the colors and clears No team marks, dated moves and accepted repeats', async () => {
     const { page, seen, ctx } = await open('2025-26'); const ids = await dirty(page);
-    await page.evaluate(() => App.showTab('teams')); await page.waitForTimeout(400); await page.click('#btnTeamYear'); await page.waitForTimeout(600);
+    await page.evaluate(() => App.showTab('teams')); await page.waitForTimeout(400); await page.click('#btnTeamMore'); await page.click('#btnTeamYear'); await page.waitForTimeout(600);
     const r = await look(page, ids);
     assert(r.archived.length >= 1, 'archived: ' + JSON.stringify(r.archived)); assert.strictEqual(r.noteam, '', 'No team mark cleared'); assert.strictEqual(r.q1, '', 'Q1 is blank');
     assert.strictEqual(r.moves, 0, 'moves cleared'); assert.strictEqual(r.ok, '{"repeats":[],"uneven":[]}', 'accepted repeats cleared'); assert.deepStrictEqual(seen.errors, []); await ctx.close();

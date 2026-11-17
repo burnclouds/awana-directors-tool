@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-options.js'] = '1.20.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-options.js'] = '1.23.0';
 // Options tab: the list of books, the club settings in one place (including the team color order, this year's T&T book, game points, the store settings and the Drive folders), and the data checks. Changes to the books are held as a draft like the other record-editing tabs (Apply changes / Discard).
 // The club settings here are the same settings as on the Reports and Calendar tabs (this tab changes those controls), so nothing is stored twice.
 (function () {
@@ -89,6 +89,13 @@
     return '<section class="pcard" id="optBugs"><h3>Bug reports and feature requests</h3><p><label><input type="checkbox" id="optBugOn"' + (on ? ' checked' : '') + '> Show the Bug button (report a problem with the app, or ask for a feature)</label></p>' +
       '<p class="status">The Bug button sits beside Flag. A report goes on the Debug tab (Options, then Debug), where it can be answered; it never goes on To do. Turning this off only hides the button: the ' + n + ' report' + (n === 1 ? '' : 's') + ' in this file stay. Everyone who opens this file sees the same setting and the same reports.</p></section>';
   }
+  // Start on (config.startTab): which tab opens after a data file is opened. Absent = Roster. Kept in the data file, so every leader of that file gets it.
+  function startHtml() {
+    if (!App.season) return '';
+    const cur = App.season.config.startTab || 'roster', opt = (v, t) => '<option value="' + v + '"' + (cur === v ? ' selected' : '') + '>' + t + '</option>';
+    return '<section class="pcard" id="optStart"><h3>Start on</h3><p><label>After a data file opens, show <select id="optStartTab">' + opt('roster', 'Roster') + opt('tonight', 'Tonight\'s tab (Attendance on a club night or the day after, otherwise To do)') + opt('todo', 'To do') + '</select></label></p>' +
+      '<p class="status">Shared by everyone who opens this file. It applies once when a file opens; it never moves you after Update now.</p></section>';
+  }
   function updatesHtml() {
     if (!App.updates) return '';
     const u = App.updates.state(), a = App.autosave.state(), sel = (id, list, cur) => '<select id="' + id + '">' + list.map(m => '<option value="' + m + '"' + (+cur === m ? ' selected' : '') + '>' + m + '</option>').join('') + '</select>';
@@ -161,15 +168,47 @@
   }
   const editBundles = () => { const c = App.season.config; if (!Array.isArray(c.bundles) || !c.bundles.length) c.bundles = Reports.DEFAULT_BUNDLES(); return c.bundles; };
   // Starting next year's data file (the button's click is handled in app-season.js); it used to sit on the Attendance tab.
+  // UX-13: the steps of a new club year in one list. Each state is worked out from the open file, nothing is stored: (1) the file is this year's, (2) the calendar has club nights ahead, (3) every Sparks and T&T child has a Q1 color or No team, (4) every year-book group has its book.
+  // Order is free; each step has a Go to where it is done.
+  function newYearSteps() {
+    const s = App.season, today = App.today(); if (!s) return [];
+    const kids = (App.master ? App.master.people : []).filter(p => Model.isActive(p) && Model.isClubber(p) && Model.hasColorTeams(Model.groupOf(Model.room(p))));
+    return [
+      { id: 'season', title: 'A new season for this year', done: s.year === Season.defaultYear(today), why: 'The file is for ' + (s.year || '?') + (s.year === Season.defaultYear(today) ? '.' : '; this year is ' + Season.defaultYear(today) + '.'), go: 'New season\u2026' },
+      { id: 'calendar', title: 'This year\'s calendar', done: !App.staleCalendar(), why: App.staleCalendar() ? 'No club night is today or later: the calendar still has last season\'s dates.' : 'There are club nights ahead.', go: 'Open the Calendar' },
+      { id: 'colors', title: 'Team colors started', done: !!kids.length && kids.every(p => p['team:Q1'] || Model.noTeam(p, 'Q1')), why: !kids.length ? 'No Sparks or T&T children yet.' : kids.filter(p => !(p['team:Q1'] || Model.noTeam(p, 'Q1'))).length + ' of ' + kids.length + ' Sparks and T&T children have no Q1 color.', go: 'Open Color teams' },
+      { id: 'books', title: 'This year\'s books chosen', done: Season.YEAR_BOOK_GROUPS.every(g => !Season.usesYearBook(s, g) || !!Season.yearBook(s, g)), why: Season.YEAR_BOOK_GROUPS.filter(g => Season.usesYearBook(s, g) && !Season.yearBook(s, g)).join(', ') ? 'No book chosen for ' + Season.YEAR_BOOK_GROUPS.filter(g => Season.usesYearBook(s, g) && !Season.yearBook(s, g)).join(', ') + '.' : 'Every group has its book.', go: 'Go to Books' }
+    ];
+  }
+  function newYearHtml() {
+    const steps = newYearSteps(); if (!steps.length) return '';
+    return '<div class="nychecklist" aria-label="New club year checklist"><h4>New club year: four steps, in any order</h4><ol class="nylist">' + steps.map(st => '<li class="' + (st.done ? 'nydone' : 'nytodo') + '" data-ny="' + st.id + '"><span class="nymark" aria-hidden="true">' + (st.done ? '\u2713' : '\u25CB') + '</span> <b>' + esc(st.title) + '</b> <span class="status">' + (st.done ? 'done' : 'to do') + ' &middot; ' + esc(st.why) + '</span> ' + (st.done ? '' : '<button type="button" data-nygo="' + st.id + '">' + esc(st.go) + '</button>') + '</li>').join('') + '</ol></div>';
+  }
   function newSeasonHtml() {
     return '<section class="pcard" id="optNewSeason"><h3>New season' + Info.html('attend.season') + '</h3><p class="status">Starts next year’s data file: people, colors, calendar and award lists carry over, and so does last year&rsquo;s <b>progress and awards</b> (every sign-off, handbooks, awards told and given), once, as earlier-year work that is never announced or counted again. Attendance, games and history start empty, but each child&rsquo;s attendance <b>counts</b> are kept for team balance. Save it as a new file; last year’s file is left alone.</p>' +
-      '<p><button type="button" id="btnNewSeason">New season&hellip;</button> <label class="btn">Add an earlier year&hellip;<input type="file" id="fileEarlierYear" accept=".json,application/json" class="vh"></label> <span class="status">Reads an older data file and keeps only each child&rsquo;s attendance counts for that year (for color team balance). No names are read out.</span></p></section>';
+      '<p><button type="button" id="btnNewSeason">New season&hellip;</button> <label class="btn">Add an earlier year&hellip;<input type="file" id="fileEarlierYear" accept=".json,application/json" class="vh"></label> <span class="status">Reads an older data file and keeps only each child&rsquo;s attendance counts for that year (for color team balance). No names are read out.</span></p>' + newYearHtml() + '</section>';
   }
   function render() {
     const el = $('optionsWrap'); if (!el) return;
     if (!App.master) { el.innerHTML = '<p class="status">Load a roster first (Import&hellip;).</p>' + updatesHtml() + driveHtml(); return; }      // the Google Drive card is about this browser, so it is here even with nothing open
-    el.innerHTML = '<section class="pcard" id="optBooksTop"><h3>Books' + Info.html('options.books') + '' + Info.html('options.thisyear') + '</h3>' + booksHtml() + tntOrderHtml() + '</section><section class="pcard"><h3>Club settings' + Info.html('options.clubnight') + '</h3>' + settingsHtml() + '</section><section class="pcard"><h3>Awana store points</h3>' + storeHtml() + '</section>' + bundlesHtml() + pastHtml() + newSeasonHtml() + updatesHtml() + bugsHtml() + driveHtml() + '<section class="pcard" id="optChecks"><h3>Data checks' + Info.html('tools.checks') + '</h3>' + checksHtml() + '</section>';
+    el.innerHTML = '<section class="pcard" id="optBooksTop"><h3>Books' + Info.html('options.books') + '' + Info.html('options.thisyear') + '</h3>' + booksHtml() + tntOrderHtml() + '</section><section class="pcard"><h3>Club settings' + Info.html('options.clubnight') + '</h3>' + settingsHtml() + '</section><section class="pcard"><h3>Awana store points</h3>' + storeHtml() + '</section>' + bundlesHtml() + pastHtml() + newSeasonHtml() + updatesHtml() + bugsHtml() + startHtml() + driveHtml() + '<section class="pcard" id="optChecks"><h3>Data checks' + Info.html('tools.checks') + '</h3>' + checksHtml() + '</section>';
+    decorate(el);
   }
+  // UX-29: every section is a clearly separated card with a heading bar, and a sticky index at the top moves focus to the section you pick (a "Go to section" list on a phone). Validate and Debug are the index's last entry.
+  function decorate(el) {
+    const secs = [...el.querySelectorAll(':scope > section.pcard')], used = new Set();
+    const items = secs.map((s, i) => { if (!s.id) s.id = 'optsec' + (i + 1); used.add(s.id); s.classList.add('optsec'); const h = s.querySelector('h3'); let title = ''; if (h) { h.tabIndex = -1; const c = h.cloneNode(true); c.querySelectorAll('i, .status, button, .info').forEach(x => x.remove()); title = c.textContent.trim().replace(/\s+/g, ' '); } return { id: s.id, title: title || 'Section ' + (i + 1) }; });
+    el.insertAdjacentHTML('afterbegin', '<nav class="optindex" aria-label="Options sections"><span class="optlinks">' + items.map((x, i) => '<a href="#' + esc(x.id) + '" data-optgo="' + esc(x.id) + '">' + (i + 1) + '. ' + esc(x.title) + '</a>').join('') + '</span>' +
+      '<label class="optgosel">Go to section <select id="optGo" aria-label="Go to section"><option value="">Choose&hellip;</option>' + items.map((x, i) => '<option value="' + esc(x.id) + '">' + (i + 1) + '. ' + esc(x.title) + '</option>').join('') + '</select></label>' +
+      '<span class="optsubs" role="group" aria-label="Other pages"><span class="status">Other pages:</span> <button type="button" data-optsub="validate">Validate</button><button type="button" data-optsub="debug">Debug</button></span></nav>');
+  }
+  $('optionsWrap').addEventListener('click', e => {
+    const b = e.target.closest('button[data-nygo]'); if (!b) return; const id = b.dataset.nygo;
+    if (id === 'season') { const n = $('btnNewSeason'); if (n) n.click(); } else if (id === 'calendar') App.showTab('calendar'); else if (id === 'colors') App.showTab('teams'); else if (id === 'books') goSection('optBooksTop');
+  });
+  function goSection(id) { const s = id && document.getElementById(id); if (!s) return; s.scrollIntoView({ block: 'start' }); const h = s.querySelector('h3'); if (h) h.focus({ preventScroll: true }); }
+  $('optionsWrap').addEventListener('click', e => { const a = e.target.closest('a[data-optgo]'); if (a) { e.preventDefault(); goSection(a.dataset.optgo); } });
+  $('optionsWrap').addEventListener('change', e => { if (e.target.id === 'optGo') { goSection(e.target.value); e.target.value = ''; e.stopPropagation(); } }, true);
 
   // ---- editing the books ----
   // One field at a time. An error (an impossible code, a duplicate) puts the old value back and says why; the edit is not made.
@@ -216,6 +255,7 @@
       else if (f === 'group') { b[old].group = v; const yb = App.season.config.yearBook || {}; Object.keys(yb).forEach(g => { if (yb[g] === old && g !== v) yb[g] = ''; }); }      // a book moved to another group is no longer this year's book for the old one
       App.touch(); render();
     }
+    if (t.id === 'optStartTab' && App.season) { if (t.value === 'roster') delete App.season.config.startTab; else App.season.config.startTab = t.value; App.touch(); return render(); }
     if (t.id === 'optBugOn' && App.season) { if (t.checked) App.season.config.bugButton = true; else delete App.season.config.bugButton; App.touch(); if (App.syncBugButton) App.syncBugButton(); return render(); }
     if (t.id === 'optUpdOn' || t.id === 'optUpdMin') { App.updates.set($('optUpdOn').checked, +$('optUpdMin').value); return render(); }      // settings of this browser: they work with nothing open
     if (t.id === 'optAutoOn' || t.id === 'optAutoMin') { App.autosave.set($('optAutoOn').checked, +$('optAutoMin').value); return render(); }
@@ -234,7 +274,7 @@
         if (n < 0) return saySet('Days are a whole number, 0 or more (0 = never keep a version). "' + t.value + '" was not used.');
         c.drivePinDays = n; smsg.text = ''; App.touch(); return render();
       }
-      if (t.name === 'optCubbies') { try { Season.setCubbiesDetail(App.season, t.value); smsg.text = ''; App.touch(); } catch (err) { alert(err.message); } return render(); }
+      if (t.name === 'optCubbies') { try { Season.setCubbiesDetail(App.season, t.value); smsg.text = ''; App.touch(); } catch (err) { App.ask.alert(err.message); } return render(); }
       if (t.name === 'optSparks') { Season.setSparksBooks(App.season, t.value); smsg.text = ''; App.touch(); return render(); }
       if (t.id === 'optJewels') {
         const w = t.value.split(/[,\s]+/).filter(Boolean).map(Number);
@@ -273,28 +313,29 @@
       b[code] = { name: 'New book', emblem: '', group: 'Sparks' }; msg.text = 'Added the book ' + code + ': change its code, name, color and group.'; msg.level = 'info'; App.touch(); render();
       const first = $('optionsWrap').querySelector('tr[data-code="' + code + '"] input'); if (first) first.focus();
     }
-    if (t.id === 'optBookReset' && App.season && confirm('Put the standard list of books back? Books you added or changed here are replaced.')) { App.season.config.books = JSON.parse(JSON.stringify(Catalog.defaultConfig().books)); msg.text = ''; App.touch(); render(); }
+    if (t.id === 'optBookReset' && App.season) { App.season.config.books = JSON.parse(JSON.stringify(Catalog.defaultConfig().books)); msg.text = ''; App.touch(); render(); App.done('The standard list of books is back. Books you added or changed here were replaced.'); }
     const del = t.closest('[data-bdel]');
-    if (del && App.season) { const code = del.dataset.bdel, n = usedBy(code); if (confirm('Delete the book ' + code + ' (' + (books()[code] || {}).name + ')?' + (n ? '\n\n' + n + ' child' + (n === 1 ? ' has' : 'ren have') + ' this book in their handbook record; it will show as unrecognized on the To do tab.' : ''))) { delete books()[code]; const yb = App.season.config.yearBook || {}; Object.keys(yb).forEach(g => { if (yb[g] === code) yb[g] = ''; }); msg.text = ''; App.touch(); render(); } }
+    if (del && App.season) { const code = del.dataset.bdel, n = usedBy(code), nm = (books()[code] || {}).name; delete books()[code]; const yb = App.season.config.yearBook || {}; Object.keys(yb).forEach(g => { if (yb[g] === code) yb[g] = ''; }); msg.text = ''; App.touch(); render();
+      App.done('Deleted the book ' + code + ' (' + nm + ').' + (n ? ' ' + n + ' child' + (n === 1 ? ' has' : 'ren have') + ' this book in their handbook record; it shows as unrecognized on the To do tab.' : '')); }      /* done at once, with Undo (UX-20) */
     if (t.id === 'optTidy' && App.season) { const n = Season.tidyHandbookCodes(App.season, true).length; msg.text = 'Tidied ' + n + ' handbook code' + (n === 1 ? '' : 's') + '.'; msg.level = 'info'; App.touch(); render(); }
     const bt = t.closest && t.closest('[data-bmove],[data-brem],[data-bundledel]');
     if (bt && App.season) {
       const bs = editBundles();
       if (bt.dataset.bmove) { const [i, j, d] = bt.dataset.bmove.split(':').map(Number), a = bs[i].items; if (a[j + d]) { [a[j], a[j + d]] = [a[j + d], a[j]]; } }
       else if (bt.dataset.brem) { const [i, j] = bt.dataset.brem.split(':').map(Number); bs[i].items.splice(j, 1); }
-      else if (bs.length > 1 && confirm('Delete the bundle "' + bs[+bt.dataset.bundledel].name + '"? The reports themselves are not affected.')) bs.splice(+bt.dataset.bundledel, 1);
+      else if (bs.length > 1) { const nm = bs[+bt.dataset.bundledel].name; bs.splice(+bt.dataset.bundledel, 1); App.touch(); render(); App.done('Deleted the bundle "' + nm + '". The reports themselves are not affected.'); return; }
       App.touch(); render(); return;
     }
     if (t.id === 'optBundleNew' && App.season) { const bs = editBundles(); bs.push({ name: 'New bundle', items: [] }); App.touch(); render(); const f = $('optionsWrap').querySelector('input[data-bname="' + (bs.length - 1) + '"]'); if (f) { f.focus(); f.select(); } return; }
-    if (t.id === 'optBundleReset' && App.season && confirm('Put the standard Quarterly Printables bundle back? Your own bundles are removed.')) { delete App.season.config.bundles; App.touch(); render(); return; }
+    if (t.id === 'optBundleReset' && App.season) { delete App.season.config.bundles; App.touch(); render(); App.done('The standard Quarterly Printables bundle is back. Your own bundles were removed.'); return; }
     if (t.id === 'optPastCount' && App.season) {
       let n = 0, kids = 0; Object.keys(App.season.progress).forEach(id => { const k = Season.pastYearAwards(App.season, id).length; if (k) { n += k; kids++; } });
       past.n = n; past.kids = kids; render(); return;
     }
     if (t.id === 'optPastGo' && App.season) {
-      if (!confirm('Mark ' + past.n + ' award' + (past.n === 1 ? '' : 's') + ' for ' + past.kids + ' child' + (past.kids === 1 ? '' : 'ren') + ' as given, with no date?\n\nThis covers every child with a Progress record, including children who have left. Undo takes it back.')) return;
-      let r; try { r = Season.markPastYearsGiven(App.season, App.today()); } catch (err) { alert(err.message); return; }
-      past.n = null; App.touch(); render(); App.flash(r.awards + ' award' + (r.awards === 1 ? '' : 's') + ' for ' + r.kids + ' child' + (r.kids === 1 ? '' : 'ren') + ' marked given, no date.', 'info'); return;
+      /* the count came first (the button reads "Mark N awards ..."); marking is done at once, with Undo (UX-20) */
+      let r; try { r = Season.markPastYearsGiven(App.season, App.today()); } catch (err) { App.ask.alert(err.message); return; }
+      past.n = null; App.touch(); render(); App.done(r.awards + ' award' + (r.awards === 1 ? '' : 's') + ' for ' + r.kids + ' child' + (r.kids === 1 ? '' : 'ren') + ' marked as given, with no date. This covers every child with a Progress record, including children who have left.'); return;
     }
     if (t.id === 'optRecheck') render();
     if (t.id === 'optUpdNow') { App.updates.check().then(render); render(); return; }

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['validate.js'] = '1.13.1';
+(this.AwanaVersions = this.AwanaVersions || {})['validate.js'] = '1.14.0';
 // File checks for the Validate and Debug tabs. Pure functions: text in, findings out (nothing is read from or written to disk).
 //   validate(text, name) -> { kind, findings: [{ level: 'error' | 'warn' | 'info', msg, check }] }   (check: the part of the file the finding is about: a section name, 'config', 'roster', 'ghosts', 'calendar', 'history', 'replay' or 'file')
 //   inspect(text, name, lastModifiedMs) -> { kind, nameStamp, modified, facts }   (the dates and counts shown on the Debug tab)
@@ -30,7 +30,7 @@
   // What the data-file check covers. test/validate.test.js fails when a section (Season.SECTIONS) or a config key the code uses is missing here, so a new
   // one cannot be added without a check; each entry is exercised by a mutation test there.
   const CHECKED_SECTIONS = ['config', 'handbooks', 'attendance', 'awards', 'given', 'givenNoDate', 'held', 'flags', 'doneBooks', 'received', 'adults', 'teamMoves', 'games', 'progress', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout', 'absences', 'roster', 'calendar', 'rotation'];      // (history is checked too, but is not one of Season.SECTIONS: it is the record of changes to them)
-  const CHECKED_CONFIG = ['clubDay', 'blueJewelWeeks', 'teamOrder', 'saveStyleDrive', 'saveStyleLocal', 'autoUpdate', 'autoSave', 'drivePinDays', 'sparksBooks', 'yearBook', 'placePoints', 'books', 'progress', 'awardLists', 'exclude', 'completion', 'endOfYear', 'store', 'teamPlan', 'teamsOk', 'todoIgnored', 'driveDirs', 'bundles', 'bookOrder', 'slideNames', 'medRead', 'medPrinted', 'clubTitle', 'driveKeepName', 'cubbiesDetail', 'tntBook', 'carriedThrough', 'bugButton'];
+  const CHECKED_CONFIG = ['clubDay', 'blueJewelWeeks', 'teamOrder', 'saveStyleDrive', 'saveStyleLocal', 'autoUpdate', 'autoSave', 'drivePinDays', 'sparksBooks', 'yearBook', 'placePoints', 'books', 'progress', 'awardLists', 'exclude', 'completion', 'endOfYear', 'store', 'teamPlan', 'teamsOk', 'todoIgnored', 'driveDirs', 'bundles', 'bookOrder', 'slideNames', 'medRead', 'medPrinted', 'clubTitle', 'driveKeepName', 'cubbiesDetail', 'tntBook', 'carriedThrough', 'bugButton', 'startTab'];
 
   // ---------- the data file ----------
   function validateData(text, name, out) {
@@ -57,6 +57,7 @@
     if (cfg.teamOrder !== undefined && !(Array.isArray(cfg.teamOrder) && cfg.teamOrder.length === TEAMS.length && TEAMS.every(t => cfg.teamOrder.includes(t)))) err('The team color order must list Red, Blue, Green and Yellow once each (it is ' + JSON.stringify(cfg.teamOrder) + ').');
     if (cfg.saveStyleDrive !== undefined && !['inplace', 'dated'].includes(cfg.saveStyleDrive)) err('The Drive save style is ' + JSON.stringify(cfg.saveStyleDrive) + ' (inplace or dated).');
     if (cfg.saveStyleLocal !== undefined && !['single', 'dated'].includes(cfg.saveStyleLocal)) err('The local save style is ' + JSON.stringify(cfg.saveStyleLocal) + ' (single or dated).');
+    if (cfg.startTab !== undefined && !['roster', 'tonight', 'todo'].includes(cfg.startTab)) err('The startTab setting should be roster, tonight or todo.');      // which tab a file opens on (absent means Roster)
     if (cfg.bugButton !== undefined && typeof cfg.bugButton !== 'boolean') err('The bugButton setting should be true or false.');      // the Bug button on or off (absent means off)
     ['autoUpdate', 'autoSave'].forEach(k => { if (cfg[k] !== undefined && !(cfg[k] && typeof cfg[k].on === 'boolean' && Number.isFinite(+cfg[k].minutes) && +cfg[k].minutes > 0)) err('The ' + k + ' setting is not a valid on/minutes pair.'); });
     if (cfg.drivePinDays !== undefined && !(Number.isInteger(cfg.drivePinDays) && cfg.drivePinDays >= 0)) err('The Drive keep-a-version interval is ' + JSON.stringify(cfg.drivePinDays) + ' (a whole number of days, 0 or more).');
@@ -227,7 +228,7 @@
     }
     { // volunteer absences (kept by person, then absence id, then club night; DATA-FORMAT 5.26)
       cur = 'absences';
-      const club = new Set((Array.isArray(o.calendar) ? o.calendar : []).filter(r => r && r.Type !== 'Event' && r['No Club'] !== '1').map(r => r.Date));
+      const club = new Set((Array.isArray(o.calendar) ? o.calendar : []).filter(r => r && Calendar.isNight(r)).map(r => r.Date));
       Object.keys(sect('absences')).forEach(pid => {
         known(pid);
         const person = o.absences[pid]; if (!isObj(person)) return err('Absences for "' + pid + '" are not an object.');

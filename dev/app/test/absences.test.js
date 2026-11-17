@@ -49,9 +49,9 @@ test('absences are a History section with their own area label', () => {
 test('a club night is held only when a child is present (volunteers do not count)', () => {
   const s = fresh(), cal = [{ Date: '2026-11-18', Type: 'Club night', Quarter: 'Q2' }];
   s.attendance['2026-11-18'] = { '70002_Vol': { a: 1 } };
-  Season.setChildTest(id => id !== '70002_Vol');
+  s.roster = { people: { '70002_Vol': { pc: {}, v: { Selection: 'Volunteer' } }, '70001_Kid': { pc: {}, v: {} } } };      /* who is a child comes from the file's own roster (CR-09) */
   try { assert.deepStrictEqual(Season.heldNights(s, cal), [], 'a volunteer-only night is not held'); s.attendance['2026-11-18']['70001_Kid'] = { a: 1 }; assert.deepStrictEqual(Season.heldNights(s, cal), ['2026-11-18'], 'a night with a child is held'); }
-  finally { Season.setChildTest(null); }
+  finally { /* nothing to reset: the roster is the file's own */ }
 });
 
 test('the validator: a good absence is clean; an empty one is an error; a night no longer on the calendar is a warning', () => {
@@ -84,12 +84,25 @@ test('expected club nights: held, less planned-out nights not attended; a planne
   for (const x of [n1, n2, n3, n4, n5, n6]) { s.attendance[x] = { '70001_Kid': { a: 1 }, '70003_Kid': { a: 1 } }; }
   [n1, n2, n4, n6].forEach(x => { s.attendance[x][V] = { a: 1 }; });
   Season.addAbsence(s, V, [n3, n4, n5], 'Trip', d, new Date(2026, 8, 1));
-  Season.setChildTest(id => id !== V);
+  s.roster = { people: { [V]: { pc: {}, v: { Selection: 'Volunteer' } }, '70001_Kid': { pc: {}, v: {} }, '70003_Kid': { pc: {}, v: {} } } };
   try {
     const e = Season.volunteerExpected(s, V, cal);
     assert.deepStrictEqual(e, { held: 6, present: 4, plannedOut: 2, expected: 4 });
     assert(e.present <= e.expected, 'present never exceeds expected');
-  } finally { Season.setChildTest(null); }
+  } finally { /* nothing to reset: the roster is the file's own */ }
+});
+
+test('each night in a volunteer\'s table says whether it was held, and the held rows add up to the expected-nights figure (CR-12)', () => {
+  const s = fresh(), V = '70002_Vol', cal = [0, 1, 2, 3, 4, 5, 6, 7].map(i => { const dt = new Date(Date.UTC(2026, 8, 9 + 7 * i)); return { Date: dt.toISOString().slice(0, 10), Type: 'Club night', Quarter: i < 4 ? 'Q1' : 'Q2' }; });
+  const d = cal.map(r => r.Date), [n1, n2, n3, n4, n5, n6, n7] = d;
+  s.roster = { people: { [V]: { pc: {}, v: { Selection: 'Volunteer' } }, '70001_Kid': { pc: {}, v: {} } } };
+  [n1, n2, n3, n4, n5, n6].forEach(x => { s.attendance[x] = { '70001_Kid': { a: 1 } }; }); [n1, n2, n4, n6].forEach(x => { s.attendance[x][V] = { a: 1 }; }); s.attendance[n7] = { [V]: { a: 1 } };      /* n7: only the volunteer (not held) */
+  Season.addAbsence(s, V, [n3, n4, n5], 'Trip', d, new Date(2026, 8, 1));
+  const rows = Season.volunteerNights(s, V, d, n7, cal), e = Season.volunteerExpected(s, V, cal);
+  assert.strictEqual(rows.find(r => r.date === n7).held, false, 'a night only the volunteer was marked on is not held'); assert.strictEqual(rows.find(r => r.date === n1).held, true);
+  assert.strictEqual(rows.filter(r => r.held).length, e.held, 'held rows = held nights');
+  assert.strictEqual(rows.filter(r => r.held && r.status !== 'planned').length, e.expected, 'held rows that are not planned-out-and-absent = expected');
+  assert.strictEqual(Season.volunteerNights(s, V, d, n7)[0].held, undefined, 'without the calendar no held flag is added');
 });
 
 console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

@@ -91,14 +91,14 @@ const server = http.createServer((req, res) => {
   await test('on a phone the chips are a Recent places menu: it opens, lists the places, and a tap goes there', async () => {
     const { page } = await open(); await page.setViewportSize({ width: 390, height: 844 });
     await tab(page, 'attend'); await page.waitForTimeout(200); const room = await sparks(page); await tab(page, 'games'); await page.waitForTimeout(200);
-    assert(await page.isVisible('#trailBtn')); assert(!(await page.isVisible('#trailChips')), 'chips are hidden on a phone');
-    assert(!(await page.isVisible('#trailTop')), 'the desktop Recent button is hidden on a phone');
-    await page.click('#trailBtn'); await page.waitForTimeout(100); assert(await page.isVisible('#trailMenu'));
-    assert.strictEqual(await page.$$eval('#trailMenu .chip', e => e.length), 3);
+    /* UX-07: on a phone the Recent places are the last group of the tab menu; the bar is gone */
+    assert(!(await page.isVisible('#trailBar')), 'no Recent bar on a phone'); assert(!(await page.isVisible('#trailTop')), 'the desktop Recent button is hidden on a phone');
+    await page.click('#tabMenu'); await page.waitForTimeout(100); assert(await page.isVisible('#recentGrp'), 'a Recent group in the menu'); await page.click('#recentGrp .grphead'); await page.waitForTimeout(100);
+    assert.strictEqual(await page.$$eval('#recentGrp .chip', e => e.length), 3);
     assert.strictEqual(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scroll');
-    await page.click('#trailMenu .chip:has-text("Attendance")'); await page.waitForTimeout(300);
-    assert(await page.isVisible('#tab-attend')); assert.strictEqual(await page.$eval('#attRoom', e => e.value), room); assert(!(await page.isVisible('#trailMenu')), 'the menu closes');
-    await page.click('#trailBtn'); await page.keyboard.press('Escape'); assert(!(await page.isVisible('#trailMenu')), 'Esc closes it');
+    await page.click('#recentGrp .chip:has-text("Attendance")'); await page.waitForTimeout(300);
+    assert(await page.isVisible('#tab-attend')); assert.strictEqual(await page.$eval('#attRoom', e => e.value), room); assert(!(await page.isVisible('#tabsNav')), 'the menu closes');
+    await page.click('#tabMenu'); await page.keyboard.press('Escape'); assert(!(await page.isVisible('#tabsNav')), 'Esc closes it');
     await page.close();
   });
   await browser.close(); server.close();

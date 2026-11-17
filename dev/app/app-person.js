@@ -1,10 +1,10 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-person.js'] = '1.23.2';
+(this.AwanaVersions = this.AwanaVersions || {})['app-person.js'] = '1.25.0';
 // Person tab: pick one person and see or edit everything held about them (Planning Center fields, club record, uniform,
 // attendance, awards, progress summary, change history). Reuses the edits the other tabs make; nothing here has its own storage.
 (function () {
   const { C, X } = Model;
   const App = window.App, esc = App.esc, $ = id => document.getElementById(id);
-  const ui = { role: 'all', group: 'All', cls: 'All', id: '', q: '', inactive: false, attn: '', sub: 'progress', sort: 'first' };      // sub = progress | attendance | registration; sort = first | last name      // attn = the person we arrived at from the To do tab, whose open items are highlighted
+  const ui = { role: 'all', group: 'All', cls: 'All', id: '', q: '', inactive: 'active', attn: '', sub: 'progress', sort: 'first' };      // sub = progress | attendance | registration; sort = first | last name      // attn = the person we arrived at from the To do tab, whose open items are highlighted
   const idOf = p => p[X.ID];
   const MD = Model.md;      // shared with the reports (model.js)
   const UNI_FIELDS = [['SIZE_VERIFIED', 'Size'], ['ORDERED', 'Ordered'], ['SIZE_ORDERED', 'Size ordered', 1], ['RECEIVED', 'Received'], ['GIVEN', 'Given out'], ['SIZE_GIVEN', 'Size given', 1], ['NOTES', 'Uniform notes']];      // the older size boxes (flag 1) show only where this child has one
@@ -15,7 +15,7 @@
   // ---------- pickers ----------
   const inGroup = p => ui.group === 'All' || Model.groupOf(Model.room(p)) === ui.group;
   const inRole = p => ui.role === 'all' || (ui.role === 'adult') === Model.isVolunteer(p);
-  const visible = p => (ui.inactive || Model.isActive(p)) && inRole(p) && inGroup(p);
+  const visible = p => (ui.inactive === 'all' || (ui.inactive === 'inactive' ? !Model.isActive(p) : Model.isActive(p))) && inRole(p) && inGroup(p);      /* Status: Active / Inactive / Everyone, the same words as on Roster (UX-14) */
   const byFirst = (a, b) => (a[C.FIRST] || '').localeCompare(b[C.FIRST] || '') || (a[C.LAST] || '').localeCompare(b[C.LAST] || '');
   const byLast = (a, b) => (a[C.LAST] || '').localeCompare(b[C.LAST] || '') || (a[C.FIRST] || '').localeCompare(b[C.FIRST] || '');
   const pool = () => App.master.people.filter(p => visible(p) && (!ui.q || Model.fullName(p).toLowerCase().includes(ui.q.toLowerCase()))).sort(ui.sort === 'last' ? byLast : byFirst);
@@ -43,12 +43,12 @@
   // Volunteer absences (S11): this person's absences, one line per club night, with clear options and an add form. Entering an absence is the acknowledgement. Stored with the person (season.absences[personId]).
   // Volunteer: one row per night with the combined status (display only; a blank is never "Absent").
   function secVolunteerNights(p) {
-    const pid = idOf(p), rows = Season.volunteerNights(App.season, pid, App.absenceClubDates(), App.today());
+    const pid = idOf(p), rows = Season.volunteerNights(App.season, pid, App.absenceClubDates(), App.today(), App.calendar);
     const label = { present: 'Present', planned: 'Planned out', came: 'Present (was planned out)', none: 'Not marked' };
     if (!rows.length) return '<p class="status">No club nights or planned nights for this volunteer yet.</p>';
     const ex = Season.volunteerExpected(App.season, pid, App.calendar);
-    return '<h4>Club nights</h4><p class="status">Present ' + ex.present + ' of ' + ex.expected + ' expected club nights (' + ex.plannedOut + ' planned out).</p><div class="pscroll"><table class="roster att"><thead><tr><th>Night</th><th>Qtr</th><th>Status</th><th>Reason</th></tr></thead><tbody>' +
-      rows.map(r => '<tr class="' + r.status + '"><td>' + esc(Model.md(r.date)) + (r.clubNight ? '' : ' <small>(no longer a club night)</small>') + '</td><td>' + esc(App.quarterOf(r.date) || '') + '</td><td>' + label[r.status] + '</td><td>' + esc(r.reason || '') + '</td></tr>').join('') +
+    return '<h4>Club nights</h4><p class="status">Present ' + ex.present + ' of ' + ex.expected + ' expected held club nights (' + ex.plannedOut + ' planned out). Nights not held (no child marked) are listed in grey and not counted.</p><div class="pscroll"><table class="roster att"><thead><tr><th>Night</th><th>Qtr</th><th>Status</th><th>Reason</th></tr></thead><tbody>' +
+      rows.map(r => '<tr class="' + r.status + (r.held === false ? ' notheld' : '') + '"><td>' + esc(Model.md(r.date)) + (r.clubNight ? '' : ' <small>(no longer a club night)</small>') + (r.held === false && r.clubNight ? ' <small>(not held)</small>' : '') + '</td><td>' + esc(App.quarterOf(r.date) || '') + '</td><td>' + label[r.status] + '</td><td>' + esc(r.reason || '') + '</td></tr>').join('') +
       '</tbody></table></div>';
   }
   function secAbsences(p) {
@@ -160,7 +160,7 @@
     const shown = list();
     if (!person()) ui.id = shown[0] ? idOf(shown[0]) : '';
     const p = person(), opts = p && !shown.includes(p) ? [p].concat(shown) : shown;      // the person being edited stays in the list even after a change moves them out of the filter
-    $('peRole').value = ui.role; $('peGroup').value = ui.group; $('peInactive').checked = ui.inactive; $('peSort').value = ui.sort;
+    $('peRole').value = ui.role; $('peGroup').value = ui.group; $('peInactive').value = ui.inactive; $('peSort').value = ui.sort;
     $('peClass').innerHTML = '<option value="All">All</option>' + rooms.map(r => '<option' + (r === ui.cls ? ' selected' : '') + '>' + esc(r) + '</option>').join('');
     const seen = {}; opts.forEach(x => { const k = Model.fullName(x); seen[k] = (seen[k] || 0) + 1; });
     $('pePerson').innerHTML = opts.map(x => '<option value="' + esc(idOf(x)) + '"' + (idOf(x) === ui.id ? ' selected' : '') + '>' + esc(label(x, seen[Model.fullName(x)] > 1)) + '</option>').join('');
@@ -246,7 +246,7 @@
     if (t.id === 'peGroup') { ui.group = t.value; ui.cls = 'All'; ui.id = ''; }
     if (t.id === 'peClass') { ui.cls = t.value; ui.id = ''; }
     if (t.id === 'pePerson') ui.id = t.value;
-    if (t.id === 'peInactive') ui.inactive = t.checked;
+    if (t.id === 'peInactive') ui.inactive = t.value;
     if (t.id === 'peSort') ui.sort = t.value;
     render();
   });
@@ -281,7 +281,7 @@
     } else if (t.dataset.mark) {
       Season.setMark(season, t.dataset.date, idOf(p), t.dataset.mark, t.checked ? 1 : 0, Model.isClubber(p) ? Model.groupOf(Model.room(p)) : ''); changed(true);
     } else if (t.dataset.nightteam) {
-      try { Season.setNightTeam(season, t.dataset.date, idOf(p), t.value); } catch (err) { alert(err.message); }
+      try { Season.setNightTeam(season, t.dataset.date, idOf(p), t.value); } catch (err) { App.ask.alert(err.message); }
       changed(true);
     }
   });

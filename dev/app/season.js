@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.66.0';
+(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.67.1';
 // Season store: everything recorded during one club year, kept in one JSON file keyed by person ID
 // (attendance, games, awards, handbooks, section-by-section progress, the roster) plus the lists and templates they use.
 //
@@ -11,6 +11,8 @@
 // The file contains Unique IDs (RegID_First_Last), so it holds children's names; treat it like the roster.
 (function (root) {
   const Catalog = root.Catalog || (typeof require !== 'undefined' ? require('./catalog.js') : null);
+  const Model = root.Model || (typeof require !== 'undefined' ? require('./model.js') : null);      /* model.js loads before season.js and does not use it: no cycle */
+  const Calendar = root.Calendar || (typeof require !== 'undefined' ? require('./calendar.js') : null);      // the one "club night" rule (Calendar.isNight)
   const FORMAT = 'awana-season', VERSION = 6;      // 6 (R17): roster.pcExport and kept unknown keys; a version 5 reader would drop them without a trace, so it must refuse the file
   const MARKS = ['a', 'h', 'p', 'x'];
   const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
@@ -474,8 +476,8 @@
   // A child's turnout is the share of club nights they came to, counted from their first attended night (a late start is not held against them).
   // turnoutCounts gives { id: { nights, came } } for every child who came at least once, over the held nights up to `today` (all of them when today is empty).
   // The color-team planner uses it for this season; a new season (and "Add an earlier year") keeps the closed year's counts in s.pastTurnout so the next year can start from them.
-  function turnoutCounts(s, calRows, today) {
-    const held = heldNights(s, calRows).filter(d => !today || d <= today), out = {};
+  function turnoutCounts(s, calRows, today, isChild) {
+    const held = heldNights(s, calRows, isChild).filter(d => !today || d <= today), out = {};
     const ids = new Set(); held.forEach(d => Object.keys(s.attendance[d]).forEach(id => { if (s.attendance[d][id].a) ids.add(id); }));
     ids.forEach(id => {
       const at = d => !!(s.attendance[d] && s.attendance[d][id] && s.attendance[d][id].a), i = held.findIndex(at);
@@ -539,7 +541,7 @@
   const YEAR_BOUND = ['x_Uni_OrderedDate', 'x_Uni_SizeOrdered', 'x_Uni_ReceivedDate', 'x_Uni_GivenDate', 'x_Uni_GivenFlag', 'x_Uni_SizeGiven'];   // sizes verified and uniform notes carry over
 
   // ---------- calendar helpers ----------
-  const counted = rows => { const m = {}; rows.forEach(r => { if (r.Type !== 'Event' && r['No Club'] !== '1') m[r.Date] = r.Quarter; }); return m; };
+  const counted = rows => { const m = {}; rows.filter(r => r && Calendar.isNight(r)).forEach(r => { m[r.Date] = r.Quarter; }); return m; };
   const GROUPS = ['Puggles', 'Cubbies', 'Sparks', 'T&T'];
   const zero = () => ({ a: 0, h: 0, p: 0, x: 0 });
 
@@ -558,11 +560,10 @@
   const hasNight = (s, date) => !!s.attendance[date];
   // The one rule for "which nights count": a club night on the calendar (not an Event, not No Club) with at least one person marked present.
   // Saved files may still hold empty nights or nights with only handbook marks; they do not count.
-  // A club night is held when a CHILD is marked present on it (volunteers' marks do not count). The app sets the test from the roster (setChildTest); with none set, any mark counts.
-  let childTest = () => true;
-  function setChildTest(fn) { childTest = typeof fn === 'function' ? fn : () => true; }
-  function heldNights(s, calRows) {
-    const q = counted(calRows);
+  // A club night is held when a CHILD is marked present on it (volunteers' marks do not count). Who is a child comes from THIS file's own roster (Model.childTestOf(s.roster)), so every caller, in the app and in a node test or tool alike,
+  // gets the same answer, and an older year's file is judged by its own roster. isChild (optional) replaces that test, for tests only.
+  function heldNights(s, calRows, isChild) {
+    const q = counted(calRows), childTest = isChild || (Model ? Model.childTestOf(s.roster) : () => true);
     return Object.keys(s.attendance).filter(d => q[d] && Object.keys(s.attendance[d]).some(id => s.attendance[d][id].a && childTest(id))).sort();
   }
   function totals(s, id, calRows) {
@@ -958,17 +959,17 @@
     return { status, absId: cover || null, reason: cover ? (s.absences[personId][cover].reason || '') : '' };
   }
   // One row per night for a volunteer, newest first: club nights up to today, every night with a mark, and every planned night (future or no longer on the calendar).
-  function volunteerNights(s, personId, clubDates, today) {
-    const dates = new Set();
+  function volunteerNights(s, personId, clubDates, today, calRows) {
+    const dates = new Set(), held = calRows ? new Set(heldNights(s, calRows)) : null;      /* with the calendar, each row says whether the night was HELD (a child was present): the expected-nights figure counts held nights only (CR-12) */
     (clubDates || []).forEach(d => { if (!today || d <= today) dates.add(d); });
     Object.keys(s.attendance || {}).forEach(d => { if (s.attendance[d] && s.attendance[d][personId]) dates.add(d); });
     Object.keys((s.absences && s.absences[personId]) || {}).forEach(aid => Object.keys(s.absences[personId][aid].nights || {}).forEach(d => dates.add(d)));
     const clubs = new Set(clubDates || []);
-    return [...dates].sort().reverse().map(date => Object.assign({ date, clubNight: clubs.has(date) }, nightStatus(s, personId, date)));
+    return [...dates].sort().reverse().map(date => Object.assign({ date, clubNight: clubs.has(date) }, held ? { held: held.has(date) } : {}, nightStatus(s, personId, date)));
   }
   // Expected club nights for a volunteer (S11, decided 2026-11-16): held nights, less the planned-out nights where the volunteer was not present. A planned night with a Present mark stays expected.
-  function volunteerExpected(s, personId, calRows) {
-    const held = heldNights(s, calRows);
+  function volunteerExpected(s, personId, calRows, isChild) {
+    const held = heldNights(s, calRows, isChild);
     const st = held.map(d => nightStatus(s, personId, d).status);
     const present = st.filter(x => x === 'present' || x === 'came').length, plannedOut = st.filter(x => x === 'planned').length;
     return { held: held.length, present, plannedOut, expected: held.length - plannedOut };
@@ -1312,7 +1313,7 @@
     return { from, to, changes: diff(snapshot(at(s, from)), snapshot(at(s, to))) };
   }
   const kindOf = c => c.o === undefined ? 'add' : c.n === undefined ? 'del' : 'chg';
-  const MARK_NAMES = { a: 'Present', h: 'Handbook', p: 'Participation', x: 'Extra', t: 'Team' };
+  const MARK_NAMES = { a: 'Present', h: 'Handbook', p: 'Participation', x: 'Extra', t: 'Team', g: 'Group' };      // g is the group stamp setMark writes beside a mark (UX-27: History used to print the raw key "g")
   function describe(c, nameOf) {
     const p = c.p, nm = id => (nameOf ? nameOf(id) : id), has = v => v !== undefined, val = has(c.n) ? c.n : c.o;
     const kids = n => n + ' ' + (n === 1 ? 'child' : 'children');
@@ -1321,7 +1322,7 @@
       case 'attendance':
         if (p.length === 4 && p[3] === 't') return nm(p[2]) + ' · played with ' + (has(c.n) ? c.n : 'the usual team') + ' on ' + MDATE(p[1]);
         if (p.length === 4) return nm(p[2]) + ' · ' + MARK_NAMES[p[3]] + ': ' + (has(c.n) ? 'marked' : 'cleared');
-        if (p.length === 3) return nm(p[2]) + ' · ' + Object.keys(val).map(k => MARK_NAMES[k] || k).join(', ') + ': ' + (has(c.n) ? 'marked' : 'cleared');
+        if (p.length === 3) return nm(p[2]) + ' · ' + Object.keys(val).filter((k, i, all) => k !== 'g' || all.length === 1).map(k => MARK_NAMES[k] || k).join(', ') + ': ' + (has(c.n) ? 'marked' : 'cleared');
         return has(c.n) ? 'Night entered, ' + kids(Object.keys(c.n).length) + ' marked' : 'Night cleared, ' + kids(Object.keys(c.o).length);
       case 'awards':
         if (p.length === 3) {
@@ -1438,7 +1439,7 @@
     const keep = items.reduce((best, it) => (!best || cmp(keys.get(it), keys.get(best)) > 0 ? it : best), null);
     return { keep, skipped: items.filter(it => it !== keep) };
   }
-  const api = { SECTIONS, KNOWN_TOP, setChildTest, nightStatus, volunteerNights, volunteerExpected, addAbsence, clearAbsenceNights, clearAbsence, absenceList, FLAG_LEVELS, FLAG_NO_KID, shiftDates, freshenFake, FORMAT, VERSION, fileName, MARKS, QUARTERS, TEAMS, blank, toJson, fromJson, isRealDate, badDates, guessDate, dateClashes, fixDates, newSeason, turnoutCounts, addPastYear, addEarlierYear, seasonStart, sectionsThisSeason, defaultYear, setMark, hasNight, heldNights, newest, totals, blueJewels,
+  const api = { SECTIONS, KNOWN_TOP, nightStatus, volunteerNights, volunteerExpected, addAbsence, clearAbsenceNights, clearAbsence, absenceList, FLAG_LEVELS, FLAG_NO_KID, shiftDates, freshenFake, FORMAT, VERSION, fileName, MARKS, QUARTERS, TEAMS, blank, toJson, fromJson, isRealDate, badDates, guessDate, dateClashes, fixDates, newSeason, turnoutCounts, addPastYear, addEarlierYear, seasonStart, sectionsThisSeason, defaultYear, setMark, hasNight, heldNights, newest, totals, blueJewels,
     teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
     setProgress, addExtraSheet, blueWingPlan, sparkJewels, heldGems, grantBlue, dropBlue, isAnnNoDate, setAnnNoDate, noDateSigns, isSignNoDate, signShown, signsShown, unsignedIn, markSignsNoDate, baseAward, jewelName, awardLabel, childBook, sparksCurrent, receivedOf, receivedShown, isReceivedNoDate, setReceived, completedBlocks, finishedBooks, bookStatus, completionAwards, setBookDone, suggestedAwards, firstNight, pastYearAwards, markPastYearsGiven, counted,
     normDriveDirs, isGivenNoDate, givenShown, isHeld, setHold, addFlag, setFlagNote, clearFlag, setBugReply, BUG_STATUS, noteList, bugList, flagList, flagsOf, flagsAt, flagsAtPlace, renameAward, snapshot, diff, merge3, applyChanges, record, labelOf, at, replayDiff, reconcile, tag, restoreTo, compare, kindOf, describe, MERGE_MINUTES };

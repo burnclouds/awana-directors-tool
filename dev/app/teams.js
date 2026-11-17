@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['teams.js'] = '1.5.2';
+(this.AwanaVersions = this.AwanaVersions || {})['teams.js'] = '1.5.3';
 // Color teams for Sparks and T&T (the two groups play separately).
 //
 // Rules
@@ -264,6 +264,14 @@
     return { archived, clearedNoTeam: cleared };
   }
 
-  const api = { COLORS, QUARTERS, GROUPS, mulberry32, colorOf, playedIn, endIn, effective, forbiddenFor, attempt, forbidFinal, assign, audit, importList, exportList, startNewYear };
+  /* Re-draw for the preview (UX-20, D6). A dry run of a redo clears each child's color as it works, so the colors are put back afterwards: Cancel leaves the roster exactly as it was. The result also lists the children whose color a Confirm would clear (r.cleared). */
+  function previewRedo(master, quarter, opts) {
+    const c = col(quarter), kids = GROUPS.reduce((a, g) => a.concat(members(master, g).filter(p => !M.noTeam(p, quarter))), []), had = kids.map(p => Object.prototype.hasOwnProperty.call(p, c)), saved = kids.map(p => p[c]);
+    let r; try { r = assign(master, quarter, Object.assign({}, opts, { dry: true, redo: true })); } finally { kids.forEach((p, i) => { if (had[i]) p[c] = saved[i]; else delete p[c]; }); }
+    r.cleared = kids; return r;
+  }
+  /* Confirm: clear the colors the preview said it would, then write the colors it showed (no second draw). */
+  function applyRedo(master, quarter, r) { const c = col(quarter); M.addUserCol(master, c); r.cleared.forEach(p => { p[c] = ''; }); r.assigned.forEach(x => { x.person[c] = x.color; }); }
+  const api = { COLORS, QUARTERS, GROUPS, mulberry32, colorOf, playedIn, endIn, effective, forbiddenFor, attempt, forbidFinal, assign, previewRedo, applyRedo, audit, importList, exportList, startNewYear };
   if (typeof module !== 'undefined') module.exports = api; else root.Teams = api;
 })(this);

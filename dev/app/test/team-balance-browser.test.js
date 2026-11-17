@@ -21,7 +21,7 @@ const TODAY = '2026-12-20';      // Q1 and Q2 are locked (started), Q3 ready, Q4
     const { page, errs } = await open(); await page.waitForSelector('.tgbaltbl');
     assert.strictEqual(await page.$$eval('.tgbaltbl tbody tr', r => r.length) % 4, 0, 'four colors per group');
     const head = await page.$$eval('.tgbaltbl thead th', e => e.map(x => x.textContent)); assert(head.includes('Expected a night') && head.includes('Against the average') && head.includes('Children'), head.join('|'));
-    assert.strictEqual(await page.getAttribute('[data-tgbq="Q3"]', 'aria-pressed'), 'true', 'starts on the first open quarter');
+    const gridQ = await page.inputValue('#tQuarter'); assert.strictEqual(await page.getAttribute('[data-tgbq="' + gridQ + '"]', 'aria-pressed'), 'true', 'starts on the quarter the grid shows (UX-15), ' + gridQ);
     await page.click('[data-tgbq="Q1"]'); await page.waitForTimeout(150); assert.strictEqual(await page.getAttribute('[data-tgbq="Q1"]', 'aria-pressed'), 'true'); assert(/Sparks|T&T/.test(await page.textContent('.tgbaltbl caption')));
     assert.deepStrictEqual(errs, []); await page.close();
   });

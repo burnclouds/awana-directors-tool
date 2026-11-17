@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.62.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.65.0';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -68,7 +68,7 @@
       // opts.local: a copy to this computer, even while Drive is on.
       if (App.driveSave && /json|image\/png|zip|csv/.test(type || '') && App.driveSave.active() && !(opts && opts.local)) {
         // Resolves 'drive' when Drive has it, 'copy' when a save you pressed failed and a copy was downloaded instead. An automatic save that fails is quiet: no alert, no download (it rejects, and tries again next time). (R11)
-        return App.driveSave.go(final, text, type, opts).then(() => 'drive', err => { if (opts && opts.auto) throw err; alert('Could not save to Google Drive (' + err.message + '). The file is being downloaded to this computer instead.'); local(); return 'copy'; });
+        return App.driveSave.go(final, text, type, opts).then(() => 'drive', err => { if (opts && opts.auto) throw err; App.ask.alert('Could not save to Google Drive (' + err.message + '). The file is being downloaded to this computer instead.'); local(); return 'copy'; });
       }
       // Test data (TEST files) always downloads: automated browsers cannot answer the Save as box, and no leader opens test files.
       if (opts && opts.single && window.showSaveFilePicker && !testFiles.size) return saveOver(final, text, type, local);
@@ -196,7 +196,10 @@
       if (o.older) {
         const why = 'is older than this file’s Planning Center data (as of ' + o.fileDate + ')';
         if (opts && opts.quiet) { if (lastPc && lastPc.name === name) lastPc.declined = true; App.flash('The export opened earlier (' + name + ', as of ' + o.exportDate + ') ' + why + ', so it was not applied. Import it again if you want it anyway.', 'warn'); return; }
-        if (!confirm('This export is as of ' + o.exportDate + ', which is older than the Planning Center data already in this file (as of ' + o.fileDate + ').\n\nOK imports it anyway. Cancel leaves the file as it is.')) return;
+        if (!(opts && opts.olderOk)) {      /* ask in the app's dialog; on "Import it anyway" run the same import again with the answer (importPc itself stays synchronous) */
+          App.ask.confirm('This export is as of ' + o.exportDate + ', which is older than the Planning Center data already in this file (as of ' + o.fileDate + ').\n\nImport it anyway? Cancel leaves the file as it is.', { title: 'Older export', ok: 'Import it anyway' }).then(yes => { if (yes) importPc(text, name, Object.assign({}, opts, { olderOk: true })); });
+          return;
+        }
       }
     }
     lastPc = { pc, name, text, rx };
@@ -249,9 +252,9 @@
     if (plan.renames.length) h += '<h3>Possible renames (same person?)</h3><table><tr><th>Same person</th><th>In master</th><th>In new export</th><th>Why</th></tr>' +
       plan.renames.map((r, i) => '<tr><td><input type="checkbox" data-rn="' + i + '"' + (r.accept ? ' checked' : '') + '></td><td>' + who(r.person, Model.room(r.person)) + '</td><td>' + who(r.rec, r.rec[C.ROOM]) + '</td><td>' + esc(r.reason) + (r.accept ? '' : ' (birthdates differ or the names are not close: not ticked)') + '</td></tr>').join('') + '</table>' +
       '<p class="status">Unchecked: the new row is added as a new person and the old one is marked inactive (an old inactive record is left alone).</p>';
-    if (plan.added.length) h += '<h3>New people</h3><table><tr><th>Add</th><th>Name</th><th>Room</th><th>Role</th></tr>' +
+    if (plan.added.length) h += '<h3>New people</h3><table><tr><th>Add</th><th>Name</th><th>Class</th><th>Role</th></tr>' +
       plan.added.map((r, i) => '<tr><td><input type="checkbox" data-ad="' + i + '" checked></td><td>' + esc(pname(r)) + '</td><td>' + esc(r[C.ROOM]) + '</td><td>' + esc(r[C.SELECTION]) + '</td></tr>').join('') + '</table>';
-    if (plan.missing.length) h += '<h3>In master but not in the new export</h3><table><tr><th>Mark inactive</th><th>Name</th><th>Room</th></tr>' +
+    if (plan.missing.length) h += '<h3>In master but not in the new export</h3><table><tr><th>Mark inactive</th><th>Name</th><th>Class</th></tr>' +
       plan.missing.map((p, i) => '<tr><td><input type="checkbox" data-ms="' + i + '" checked></td><td>' + esc(pname(p)) + '</td><td>' + esc(Model.room(p)) + '</td></tr>').join('') + '</table>';
     const resolved = plan.matched.reduce((n, m) => n + m.resolved.length, 0);
     const dropped = plan.matched.reduce((n, m) => n + m.superseded.length, 0);
@@ -259,7 +262,7 @@
     if (resolved) h += '<p>' + resolved + ' pending Planning Center change(s) are now reflected in the export and will clear.</p>';
     const reactive = plan.matched.filter(m => m.reactivateAuto), kept = plan.matched.filter(m => m.reactivate && !m.reactivateAuto);
     if (reactive.length) h += '<h3>Reappearing (will be set active)</h3><p>' + reactive.map(m => esc(pname(m.person))).join(', ') + '</p>';
-    if (kept.length) h += '<h3>Marked inactive by you, still in Planning Center</h3><table><tr><th>Make active again</th><th>Name</th><th>Room</th></tr>' +
+    if (kept.length) h += '<h3>Marked inactive by you, still in Planning Center</h3><table><tr><th>Make active again</th><th>Name</th><th>Class</th></tr>' +
       kept.map((m, i) => '<tr><td><input type="checkbox" data-re="' + i + '"></td><td>' + esc(pname(m.person)) + '</td><td>' + esc(Model.room(m.person)) + '</td></tr>').join('') + '</table>' +
       '<p class="status">Left unticked they stay inactive. Planning Center still lists them (a cancelled or duplicate registration stays in the export).</p>';
     if (withChanges.length) {
@@ -290,7 +293,7 @@
     stampExport(name, rx, res, text);
     $('review').hidden = true; $('conflicts').hidden = true; pending = null; logImport(name); updateStatus(); refresh();
     recordImport(name, lastPc && lastPc.name === name ? lastPc.text : '', res, new Set(master.people.map(p => p[X.ID]).filter(id => !had.has(id))));
-    alert('Import applied: ' + res.updated + ' refreshed, ' + res.added + ' added, ' + res.renamed + ' renamed, ' + res.deactivated + ' marked inactive, ' + res.resolved + ' pending PC changes cleared' +
+    App.ask.alert('Import applied: ' + res.updated + ' refreshed, ' + res.added + ' added, ' + res.renamed + ' renamed, ' + res.deactivated + ' marked inactive, ' + res.resolved + ' pending PC changes cleared' +
       (res.superseded ? ', ' + res.superseded + ' replaced by the Planning Center value' : '') + (res.kept ? ', ' + res.kept + ' kept as your pending change (Planning Center still says otherwise)' : '') + '. Remember to download the data file.');
   }
 
@@ -329,7 +332,7 @@
   const MODALS = { conflicts: ['Needs your decision', 'cfCancel'], review: ['Review import', 'rvCancel'],warn: ['Warning', 'warnCancel'], splash: ['Open your files', 'splashSkip'], lockAsk: ['Lock this quarter?', 'lockAskCancel'] }, modalOpener = {};
   function syncModal(el) {
     const info = MODALS[el.id]; if (!info) return;
-    const open = !el.hidden, others = [...document.body.children].filter(c => c !== el && c.tagName !== 'SCRIPT' && !c.classList.contains('modal-wrap') && c.id !== 'splash' && c.id !== 'dlg');
+    const open = !el.hidden, others = [...document.body.children].filter(c => c !== el && c.tagName !== 'SCRIPT' && !c.classList.contains('modal-wrap') && c.id !== 'splash' && c.id !== 'dlg' && c.id !== 'ask' && c.id !== 'doneFlash');
     if (open) {
       modalOpener[el.id] = document.activeElement; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', info[0]);
       others.forEach(c => { c.inert = true; });
@@ -375,9 +378,9 @@
   // The Progress, Attendance and Awards sub-tabs of the Person tab save at once (with Undo), like the tabs they mirror; only Registration (Planning Center and roster fields) is held until Apply.
   const viewOf = (tab, sub) => tab === 'games' && sub === 'teams' ? 'teams' : tab === 'person' && App.personSub && App.personSub() !== 'registration' ? 'personlive' : tab;
   function showTab(name, wantSub) {
-    let sub = App.sub;
+    const asked = [name, wantSub]; let sub = App.sub;
     if (name === 'teams') { name = 'games'; sub = 'teams'; } else if (name === 'games' && wantSub) sub = wantSub;
-    if (viewOf(name, sub) !== viewOf(App.tab, App.sub) && App.resolveDraft && !App.resolveDraft()) return;       // changes held on this tab are applied (or you stay) before you leave it
+    if (viewOf(name, sub) !== viewOf(App.tab, App.sub) && App.resolveDraft && !App.resolveDraft(() => showTab(asked[0], asked[1]))) return;       // changes held on this tab are applied or discarded (or you stay) before you leave it; the answer opens the tab you asked for
     App.tab = name; App.sub = sub;
     const teamsView = name === 'games' && sub === 'teams';
     $('subGames').hidden = teamsView; $('subTeams').hidden = !teamsView;
@@ -414,7 +417,7 @@
   document.addEventListener('click', e => { if (!e.target.closest('#tabsNav')) setTabMenu(false); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('tabsNav').classList.contains('open')) { setTabMenu(false); $('tabMenu').focus(); } });
   { const st = $('stickyTop'); let last = -1; const sync = () => { const h = st.offsetHeight; if (h !== last) { last = h; document.documentElement.style.setProperty('--stickyh', h + 'px'); } }; sync(); window.addEventListener('resize', sync); window.addEventListener('scroll', sync, { passive: true }); if (window.ResizeObserver) new ResizeObserver(sync).observe(st); }      // the sticky title bar and tabs (desktop): the height other sticky things sit under; checked on resize, on scroll (the headings only matter once the page is scrolled) and when the bar changes size
-  { const o = { childList: true, characterData: true, subtree: true }, mo = new MutationObserver(() => { $('tabMenuBadge').textContent = $('tonightBadge').textContent = (+$('todoBadge').textContent || 0) + (+$('awardsBadge').textContent || 0) || ''; }); mo.observe($('todoBadge'), o); mo.observe($('awardsBadge'), o); }
+  { const o = { childList: true, characterData: true, subtree: true }, mo = new MutationObserver(() => { const t = +$('todoBadge').textContent || 0, a = +$('awardsBadge').textContent || 0, sum = t + a, words = sum ? t + ' to do, ' + a + ' award' + (a === 1 ? '' : 's') + ' to announce' : ''; ['tabMenuBadge', 'tonightBadge'].forEach(id => { const b = $(id); b.textContent = sum || ''; if (words) { b.title = words; b.setAttribute('aria-label', words); } else { b.removeAttribute('title'); b.removeAttribute('aria-label'); } }); });      /* the menu badge adds To do and Awards, so it says so (UX-27) */ mo.observe($('todoBadge'), o); mo.observe($('awardsBadge'), o); }
   document.querySelectorAll('.subtabs button').forEach(b => b.addEventListener('click', () => showTab('games', b.dataset.sub)));
   document.querySelectorAll('.tabs button[data-tab]').forEach(b => { b.setAttribute('role', 'tab'); b.setAttribute('aria-controls', 'tab-' + b.dataset.tab); b.addEventListener('click', () => { showTab(b.dataset.tab); if (App.tab === b.dataset.tab) scrollToTop(); }); });
   document.querySelectorAll('main > section[id^="tab-"]').forEach(s => s.setAttribute('role', 'tabpanel'));
@@ -473,7 +476,7 @@
   const knownRooms = () => [...new Set(Model.ROOM_ORDER.concat((master ? master.people : []).map(Model.room)))].filter(r => r !== 'Unassigned');
   function fillRoomFilter() {
     const sel = $('fRoom'), cur = sel.value;
-    sel.innerHTML = '<option value="">All rooms</option>' + knownRooms().filter(r => !master || master.people.some(p => Model.room(p) === r)).map(r => '<option>' + esc(r) + '</option>').join('');
+    sel.innerHTML = '<option value="">All classes</option>' + knownRooms().filter(r => !master || master.people.some(p => Model.room(p) === r)).map(r => '<option>' + esc(r) + '</option>').join('');
     sel.value = cur;
   }
   // ---- Roster: sort and filter by column ----
@@ -490,7 +493,7 @@
   };
   const rosterCols = () => [
     { k: 'first', label: 'First', val: p => Model.eff(p, C.FIRST) }, { k: 'last', label: 'Last', val: p => Model.eff(p, C.LAST) },
-    { k: 'role', label: 'Role', val: p => Model.isVolunteer(p) ? 'Volunteer' : 'Clubber' }, { k: 'room', label: 'Room', val: p => Model.room(p) },
+    { k: 'role', label: 'Role', val: p => Model.isVolunteer(p) ? 'Volunteer' : 'Clubber' }, { k: 'room', label: 'Class', val: p => Model.room(p) },
     { k: 'grade', label: 'Grade', val: p => Model.eff(p, C.GRADE) },
     { k: 'team', label: settings.quarter + ' team', val: p => Model.hasColorTeams(Model.groupOf(Model.room(p))) ? teamEff(p, settings.quarter).color : '' },      // the effective color (a move replaces the roster color), so sort and filter agree with the grid
     { k: 'nophotos', label: 'No photos', val: p => Model.noPhotos(p) ? 'Yes' : 'No' }, { k: 'active', label: 'Active', val: p => Model.isActive(p) ? 'Yes' : 'No' },
@@ -564,10 +567,10 @@
     const sortBtn = c => '<button type="button" class="sortbtn" data-sort="' + c.k + '" title="Sort by ' + esc(c.label) + '">' + esc(c.label) + '<span class="arrow">' + (rs.sort === c.k ? (rs.dir > 0 ? ' \u25B2' : ' \u25BC') : '') + '</span></button>';
     const filt = c => {
       const k = c.k, v = rs.f[k] || '';
-      if (k === 'room') return '<select data-cf="room" aria-label="Filter Room"><option value="">All</option>' + rooms.map(r => opt(r, r === $('fRoom').value)).join('') + '</select>';
+      if (k === 'room') return '<select data-cf="room" aria-label="Filter Class"><option value="">All</option>' + rooms.map(r => opt(r, r === $('fRoom').value)).join('') + '</select>';
       if (k === 'role') return '<select data-cf="role" aria-label="Filter Role">' + opt('', $('fRole').value === '', 'All') + opt('kid', $('fRole').value === 'kid', 'Clubber') + opt('vol', $('fRole').value === 'vol', 'Volunteer') + '</select>';
       if (k === 'team') return '<select data-cf="team" aria-label="Filter team"><option value="">All</option>' + App.teamColors().map(t => opt(t, v === t)).join('') + opt('none', v === 'none', 'No team') + '</select>';
-      if (k === 'active') return '<select data-cf="active" aria-label="Filter Active">' + opt('active', $('fInactive').value === 'active', 'Active') + opt('inactive', $('fInactive').value === 'inactive', 'Inactive') + opt('all', $('fInactive').value === 'all', 'All') + '</select>';
+      if (k === 'active') return '<select data-cf="active" aria-label="Filter Active">' + opt('active', $('fInactive').value === 'active', 'Active') + opt('inactive', $('fInactive').value === 'inactive', 'Inactive') + opt('all', $('fInactive').value === 'all', 'Everyone') + '</select>';
       if (k === 'nophotos') return '<select data-cf="' + k + '" aria-label="Filter ' + esc(c.label) + '">' + opt('', !v, 'All') + opt('Yes', v === 'Yes') + opt('No', v === 'No') + '</select>';
       return '<input type="search" data-cf="' + k + '" value="' + esc(v) + '" placeholder="contains" aria-label="Filter ' + esc(c.label) + '" size="8">';
     };
@@ -582,7 +585,7 @@
         return '<tr data-id="' + id + '" class="' + (Model.isActive(p) ? '' : 'off ') + (Model.isVolunteer(p) ? 'vol' : '') + '">' +
           '<td>' + esc(Model.eff(p, C.FIRST)) + ov(C.FIRST) + (Model.isGuest(p) ? ' <span class="guesttag" title="Added by hand, not in Planning Center. Link them to their entry from the Person page.">guest</span>' : '') + '</td><td>' + esc(Model.eff(p, C.LAST)) + ov(C.LAST) + '</td>' +
           '<td>' + (Model.isVolunteer(p) ? 'Volunteer' : 'Clubber') + '</td>' +
-          '<td><select data-f="' + esc(C.ROOM) + '">' + (rooms.includes(room) ? '' : '<option>' + esc(room) + '</option>') + rooms.map(r => '<option' + (r === room ? ' selected' : '') + '>' + esc(r) + '</option>').join('') + '</select>' + ov(C.ROOM) + '</td>' +
+          '<td class="classcell">' + esc(room) + ov(C.ROOM) + '</td>' +      /* UX-17: read-only; Move... is the one place a class changes on Roster */
           '<td>' + esc(Model.eff(p, C.GRADE)) + '</td>' +
           '<td>' + (hasTeams ? '<select data-f="' + esc(teamCol) + '" class="teamsel' + (p[teamCol] ? ' team team-' + esc(p[teamCol]) : '') + '" aria-label="' + esc(settings.quarter) + ' team"><option value=""></option><option value="' + Model.NO_TEAM + '"' + (Model.noTeam(p, settings.quarter) ? ' selected' : '') + '>No team</option>' + App.teamColors().map(t => '<option' + (p[teamCol] === t ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>' + teamNowHtml(p, settings.quarter) : '') + '</td>' +
           '<td><input type="checkbox" data-f="' + X.NOPHOTOS + '"' + (Model.noPhotos(p) ? ' checked' : '') + '></td>' +
@@ -636,7 +639,7 @@
   });
   $('rosterWrap').addEventListener('click', e => {
     const mv = e.target.closest('[data-move]'); if (mv) { moveKid(mv.closest('tr').dataset.id); return; }
-    const b = e.target.closest('[data-edit]'); if (b) openEdit(byId.get(b.closest('tr').dataset.id));
+    const b = e.target.closest('[data-edit]'); if (b) { const id = b.closest('tr').dataset.id; App.showPerson(id, { sub: 'registration' }); setTimeout(() => { const f = document.querySelector('#personWrap .pgrid input, #personWrap .pgrid textarea, #personWrap .pgrid select'); if (f && App.tab === 'person') f.focus({ preventScroll: true }); }, 60); return; }      /* UX-24: Edit opens the Person page (Registration) with its first field focused; the raw all-columns dialog is the All fields button there */
   });
   ['fSearch', 'fRoom', 'fRole', 'fInactive'].forEach(id => $(id).addEventListener('input', renderRoster));
 
@@ -670,7 +673,8 @@
     const dlg = $('dlg'), cols = master.pcCols.concat(master.userCols).filter(c => !(isNew && c === X.ID) && !Model.HIDDEN_COLS.includes(c) && !c.startsWith('x_noteam:'));      // the "No team" flags are set from the team drop-downs, not typed here
     dlg.innerHTML = '<h3 style="margin-top:0">' + (isNew ? 'Add a guest or a person not in Planning Center' : esc(Model.fullName(p))) + '</h3>' + (isNew ? '<p class="status"><b>A guest is added here only.</b> Fill in what you know. When they are registered in Planning Center, tie them to that entry later so their attendance and awards carry over: the next import offers it automatically, or use <i>Link to Planning Center</i> on their Person page.</p>' : '') +
       '<p class="status">Planning Center is the source of truth and is never edited here. A change to one of its fields becomes a pending PC change: it shows in reports now, appears on the &ldquo;Changes needed in Planning Center&rdquo; report, and clears itself once an import matches.</p><form method="dialog"><div class="fields">' +
-      cols.map(c => fieldRow(c, c === X.ID ? p[c] : (Model.isUserCol(c) ? (p[c] || '') : Model.eff(p, c)), !Model.isUserCol(c) && !!p['ov:' + c])).join('') +
+      (isNew ? ((cols, grp) => ['Name', 'Class and grade', 'Contact', 'Medical', 'Club fields', 'Other'].map(g => { const m = cols.filter(c => grp(c) === g); return m.length ? '<fieldset class="addgrp"><legend>' + g + '</legend>' + m.map(c => fieldRow(c, c === X.ID ? p[c] : (Model.isUserCol(c) ? (p[c] || '') : Model.eff(p, c)), false)).join('') + '</fieldset>' : ''; }).join(''))(cols, c => Model.isUserCol(c) ? 'Club fields' : /^(First|Last)|nick|prefer|gender|birth/i.test(c) ? 'Name' : c === C.ROOM || c === C.GRADE || /^selection$|registration|school|class/i.test(c) ? 'Class and grade' : /phone|email|address|parent|guardian|contact|city|state|zip|emergency/i.test(c) ? 'Contact' : /med|allerg|photo|dietary/i.test(c) ? 'Medical' : 'Other')
+        : cols.map(c => fieldRow(c, c === X.ID ? p[c] : (Model.isUserCol(c) ? (p[c] || '') : Model.eff(p, c)), !Model.isUserCol(c) && !!p['ov:' + c])).join('')) +
       '</div><div class="dlgbtns"><button type="button" id="dlgCancel">Cancel</button><button type="submit" class="primary" id="dlgSave">Save</button></div></form>';
     dlg.querySelectorAll('[data-reset]').forEach(b => b.onclick = () => { delete p['ov:' + b.dataset.reset]; touch(); dlg.close(); refresh(); openEdit(p); });
     dlg.onchange = e => { const s = e.target; if (s.tagName === 'SELECT' && s.value === '__other__') { const i = document.createElement('input'); i.setAttribute('data-col', s.dataset.col); s.replaceWith(i); i.focus(); } };      // "Other": a typed value
@@ -697,7 +701,7 @@
     dlg.showModal();
   }
   $('btnAddPerson').addEventListener('click', () => {
-    if (!master) return alert('Load a roster first.');
+    if (!master) return App.ask.alert('Load a roster first.');
     const seed = {}; master.pcCols.concat(master.userCols).forEach(c => { seed[c] = ''; });
     seed[C.SELECTION] = 'Clubber (Cubbies, Sparks & T&T only)'; seed[C.REG] = 'manual'; seed[X.ACTIVE] = '1';
     openEdit(seed, true);
@@ -723,7 +727,7 @@
   // ---- tie a guest to their Planning Center entry ----
   function linkGuest(id) {
     const p = byId.get(id); if (!p || !Model.isGuest(p)) return;
-    if (!lastPc) return alert('Import a Planning Center export first (Import\u2026 in the top bar), then pick their entry here.');
+    if (!lastPc) return App.ask.alert('Import a Planning Center export first (Import\u2026 in the top bar), then pick their entry here.');
     const recs = Model.unlinkedRecords(master, lastPc.pc), dlg = $('dlg'), nm = r => ((r[C.FIRST] || '') + ' ' + (r[C.LAST] || '')).trim();
     recs.sort((x, y) => Model.similarity(Model.fullName(p), nm(y)) - Model.similarity(Model.fullName(p), nm(x)));
     dlg.onchange = null;
@@ -735,18 +739,31 @@
     $('lgFind').oninput = e => { const q = e.target.value.trim().toLowerCase(); dlg.querySelectorAll('#lgRows tr').forEach(tr => { tr.hidden = !!q && !tr.children[0].textContent.toLowerCase().includes(q); }); };
     dlg.querySelectorAll('[data-link]').forEach(b => b.onclick = () => {
       const r = recs[+b.dataset.link];
-      if (!confirm('Link ' + Model.fullName(p) + ' to ' + nm(r) + ' (' + (r[C.REG] || 'no registration') + ')?')) return;
-      Model.linkToPc(master, p, lastPc.pc, r, today()); dlg.close(); touch(); refresh();
+      Model.linkToPc(master, p, lastPc.pc, r, today()); dlg.close(); touch(); refresh();      /* one Undo step: done at once, with Undo offered (UX-20) */
+      App.done('Linked ' + Model.fullName(p) + ' to ' + nm(r) + ' (' + (r[C.REG] || 'no registration') + ').');
     });
     dlg.showModal();
   }
   App.linkGuest = linkGuest;
   $('btnAddCol').addEventListener('click', () => {
-    if (!master) return alert('Load a roster first.');
-    const c = (prompt('New column name. It must start with x_, team:, att:, prog: or award: so imports never touch it.\nExample: award:2026-11-04') || '').trim();
-    if (!c) return;
-    if (!Model.isUserCol(c) || master.pcCols.concat(master.userCols).includes(c)) return alert('Invalid or duplicate column name.');
-    Model.addUserCol(master, c); touch(); alert('Column added. It appears in each person’s Edit dialog and is saved in the data file.');
+    if (!master) return App.ask.alert('Load a roster first.');
+    /* A form, not a typed prefix: pick the kind, then give a name, a date or a quarter; the column name is built for you and shown before you add it (UX-20, D5) */
+    const KINDS = [['x_', 'Club field (a note or date the club keeps)'], ['award:', 'Award date'], ['att:', 'Attendance date'], ['prog:', 'Progress'], ['team:', 'Color team quarter']];
+    const colOf = v => v.kind === 'x_' || v.kind === 'prog:' ? v.kind + String(v.name || '').trim() : v.kind === 'team:' ? 'team:' + (v.quarter || '') : v.kind + (v.date || '');
+    App.ask.form({ title: 'Add a column', message: 'A club column is kept in the data file and in each person’s Edit dialog. Imports never touch it.', ok: 'Add column', fields: [
+      { name: 'kind', label: 'Kind', type: 'select', options: KINDS, value: 'x_' },
+      { name: 'name', label: 'Name', type: 'text', maxlength: 60, showIf: { name: 'kind', values: ['x_', 'prog:'] }, hint: 'For example: Allergy note' },
+      { name: 'date', label: 'Date', type: 'date', showIf: { name: 'kind', values: ['award:', 'att:'] } },
+      { name: 'quarter', label: 'Quarter', type: 'select', options: [['Q1', 'Q1'], ['Q2', 'Q2'], ['Q3', 'Q3'], ['Q4', 'Q4']], value: 'Q1', showIf: { name: 'kind', values: ['team:'] } }],
+      preview: v => 'Column: ' + colOf(v),
+      validate: v => {
+        if ((v.kind === 'x_' || v.kind === 'prog:') && !String(v.name || '').trim()) return { name: 'name', message: 'Give the column a name.' };
+        if ((v.kind === 'award:' || v.kind === 'att:') && !v.date) return { name: 'date', message: 'Choose a date.' };
+        const c = colOf(v); return !Model.isUserCol(c) || master.pcCols.concat(master.userCols).includes(c) ? { name: 'kind', message: 'There is already a column ' + c + '.' } : '';
+      } }).then(v => {
+      if (!v) return; const c = colOf(v); Model.addUserCol(master, c); touch();
+      App.done('Column ' + c + ' added. It appears in each person’s Edit dialog and is saved in the data file.');
+    });
   });
 
   // ---------- reports ----------
@@ -828,7 +845,7 @@
     rs.innerHTML = '<option value="">All ' + (o.includes('group') ? 'classes' : 'rooms') + '</option>' + rl.map(r => '<option>' + esc(r) + '</option>').join(''); rs.value = rl.includes(cur) ? cur : '';
     const ds = $('oDateSel'), dcur = ds.value, nl = new Set(calendar.filter(Calendar.isNight).map(r => r.Date));
     if (App.season) [App.season.attendance, App.season.awards, App.season.games].forEach(m => Object.keys(m).forEach(d => nl.add(d)));
-    ds.innerHTML = [...nl].sort().map(d => '<option>' + esc(d) + '</option>').join(''); ds.value = dcur || [...nl].sort().filter(d => d <= today()).pop() || '';
+    ds.innerHTML = [...nl].sort().map(d => '<option value="' + esc(d) + '">' + esc(App.nightLabel ? App.nightLabel(d) : d) + '</option>').join('');      /* the same text as Attendance and Awards (UX-16); the value stays the ISO date */ ds.value = dcur || [...nl].sort().filter(d => d <= today()).pop() || '';
     const ks = $('oKidSel'), kcur = ks.value;
     ks.innerHTML = '<option value="">Everyone in the ' + (rs.value && o.includes('room') ? 'class' : 'group') + '</option>' + master.people.filter(p => Model.isActive(p) && Model.isClubber(p) && Model.groupOf(Model.room(p)) === $('oGroupSel').value && (!rs.value || !o.includes('room') || Model.room(p) === rs.value))
       .sort(Model.byRoomThenName).map(p => '<option value="' + esc(p[X.ID]) + '">' + esc(Model.room(p) + ' \u2014 ' + Model.fullName(p)) + '</option>').join(''); ks.value = kcur;
@@ -1000,33 +1017,44 @@
   });
   App.goTeams = (q, g) => { if (Teams.QUARTERS.includes(q)) tsUi.sort = q; tsUi.group = g === 'All' || Teams.GROUPS.includes(g) ? g : 'All'; App.showTab('teams'); };      // Go on a color teams note: the quarter and group it is about
   $('tQuarter').addEventListener('change', e => { setQuarter(e.target.value); $('sQuarter').value = settings.quarter; renderTeams(); renderRoster(); });
-  function runAssign(redo) {
-    if (!master) return alert('Load a roster first.');
+  function runAssign(redo, scopeId) {
+    if (!master) return App.ask.alert('Load a roster first.');
     const q = $('tQuarter').value, locked = !!App.season && TeamPlan.stateOf(App.season, calendar, q, App.today()) === 'locked';
     // A re-draw clears the whole quarter, so a quarter that has started or is locked is never re-drawn (Assign blanks only fills empty cells, which is how a new child gets a color mid-quarter).
-    if (redo && locked) return alert(q + ' has started or is locked, so it cannot be re-drawn. Change a color in the year grid (a dated move), or unlock the quarter first if you locked it yourself.');
+    if (redo && locked) return App.ask.alert(q + ' has started or is locked, so it cannot be re-drawn. Change a color in the year grid (a dated move), or unlock the quarter first if you locked it yourself.');
     const finish = r => {
       // What the draw wrote is a projection, not a hand-set color: mark it, so the quarter is not half pins and half projection (a mark that happens to match would read as projected).
       if (App.season && !locked) r.assigned.forEach(x => TeamPlan.setProjected(App.season, x.person[X.ID], q, x.color));
       touch(); refresh(); renderTeams(r.assigned.length ? 'Assigned ' + r.assigned.length + ' kids for ' + q + (redo ? ' (re-drawn)' : '') + ': ' + nameList(r.assigned) + '.' : 'Nothing to assign: everyone already has a ' + q + ' color.');
+      if (redo) App.done('Every ' + q + ' color for Sparks and T&T was cleared and drawn again.');
     };
-    if (redo) return finish(Teams.assign(master, q, { redo, history: App.teamHistory() }));
-    // Assign blanks: draw a proposal without writing (dry), show it, and write only the colors shown when Confirm is pressed (no second draw).
+    if (redo) {      /* the same preview as Assign blanks: the proposed colors, the warnings, Draw again, and nothing changes until Confirm (D6) */
+      const drawRedo = rng => { const r = Teams.previewRedo(master, q, { rng, history: App.teamHistory() }); return { r, rows: r.assigned.map(x => ({ p: x.person, q, color: x.color })) }; };
+      if (!drawRedo(Math.random).rows.length) return finish({ assigned: [], kept: 0 });
+      TeamGrid.preview({
+        title: 'Re-draw ' + q + ' colors', intro: 'Every ' + q + ' color for Sparks and T&T is cleared and drawn again (a color that came from a move is kept, and No team children are left alone).', draw: drawRedo,
+        apply: res => { Teams.applyRedo(master, q, res.r); finish(res.r); },
+        cancel: () => { const b = $('btnTeamRedo'); if (b) b.focus(); },
+      });
+      return;
+    }
+    // Fill blanks (UX-18, one button): draw a proposal without writing (dry), show it with the choice of what it covers (this quarter, or every open quarter), and write only the colors shown when Confirm is pressed (no second draw).
     const draw = rng => { const r = Teams.assign(master, q, { dry: true, rng, history: App.teamHistory() }); return { r, rows: r.assigned.map(x => ({ p: x.person, q, color: x.color })) }; };
-    if (!draw(Math.random).rows.length) return finish({ assigned: [], kept: 0 });
-    TeamGrid.preview({
-      title: 'Assign blank ' + q + ' colors', intro: 'These children have no ' + q + ' color. Colors already set, pins and No team children are kept.', draw,
-      apply: res => { Model.addUserCol(master, 'team:' + q); res.r.assigned.forEach(x => { x.person['team:' + q] = x.color; }); finish(res.r); },
-      cancel: () => { const b = $('btnTeamFill'); if (b) b.focus(); },
-    });
+    const qScope = { id: 'q', label: 'This quarter (' + q + ')', intro: 'These children have no ' + q + ' color. Colors already set, pins and No team children are kept.', draw,
+      apply: res => { Model.addUserCol(master, 'team:' + q); res.r.assigned.forEach(x => { x.person['team:' + q] = x.color; }); finish(res.r); } };
+    const allScope = App.season ? TeamGrid.allScope() : null, scopes = allScope ? [qScope, allScope] : [qScope];
+    const hasRows = sc => !!sc.draw(Math.random).rows.length, want = scopes.find(s => s.id === (scopeId === 'all' ? 'all' : 'q')) || qScope, pick = hasRows(want) ? want : scopes.find(hasRows);
+    if (!pick) return finish({ assigned: [], kept: 0 });
+    TeamGrid.preview({ title: 'Fill blank colors', intro: '', scopes, scope: pick.id, cancel: () => { const b = $('btnTeamFill'); if (b) b.focus(); } });
   }
   // The CSV buttons save a template for each file the app can read back in (colors, calendar, rotation); an empty calendar or rotation gives the header row to start from.
   const saveCsv = (btn, name, text) => App.testGate(btn, () => App.download(name, text, 'text/csv;charset=utf-8'));
   const yearTag = () => (App.season && App.season.year) || String(new Date().getFullYear());
-  $('btnTeamCsv').addEventListener('click', e => { if (!master) return alert('Load a roster first.'); saveCsv(e.target, 'Color teams ' + yearTag() + '.csv', Teams.exportList(master)); });
+  $('btnTeamCsv').addEventListener('click', e => { if (!master) return App.ask.alert('Load a roster first.'); saveCsv(e.target, 'Color teams ' + yearTag() + '.csv', Teams.exportList(master)); });
   $('btnCalCsv').addEventListener('click', e => saveCsv(e.target, 'Calendar ' + yearTag() + '.csv', Calendar.toCsv(calendar)));
-  $('btnTeamFill').addEventListener('click', () => runAssign(false));
-  $('btnTeamRedo').addEventListener('click', () => { if (confirm('Clear every ' + $('tQuarter').value + ' color for Sparks and T&T and draw them again?')) runAssign(true); });
+  $('btnTeamFill').addEventListener('click', () => runAssign(false, 'q'));
+  App.fillBlanks = scope => runAssign(false, scope);
+  $('btnTeamRedo').addEventListener('click', () => { runAssign(true); });      /* a preview first, then Confirm (D6) */
   $('fileTeams').addEventListener('change', async e => {
     const f = await readFile(e.target); if (!f || !master) return;
     markTest(f.name);
@@ -1036,16 +1064,18 @@
       const bits = [r.set + ' colors set'];
       ['unmatched', 'invalid', 'ambiguous', 'skipped'].forEach(k => { if (r[k].length) bits.push(k + ': ' + r[k].map(esc).join(', ')); });
       renderTeams(bits.join(' · '));
-    } catch (err) { alert(err.message); }
+    } catch (err) { App.ask.alert(err.message); }
   });
   $('btnTeamYear').addEventListener('click', () => {
-    if (!master) return alert('Load a roster first.');
-    const label = prompt('Archive this year\'s colors under what label? (example: 2026-27)', '');
-    if (!label) return;
+    if (!master) return App.ask.alert('Load a roster first.');
+    App.ask.form({ title: 'Start a new color year', message: 'This year’s colors are archived under a label, and the quarters start blank.', ok: 'Archive and start', fields: [
+      { name: 'label', label: 'Label for this year’s colors', type: 'text', required: true, value: App.season && App.season.year ? App.season.year : '', pattern: '\\d{4}-(\\d{2}|\\d{4})', hint: 'Like 2026-27.' }] }).then(v => {
+    if (!v) return;
     try {
-      const r = App.archiveColors(label.trim());
+      const r = App.archiveColors(v.label.trim());
       touch(); refresh(); renderTeams(r.archived.length ? 'Archived ' + r.archived.join(', ') + '. Q1 is blank; press Assign blanks for a fresh random, even split.' + (r.clearedNoTeam ? ' ' + r.clearedNoTeam + ' "No team" mark' + (r.clearedNoTeam === 1 ? ' was' : 's were') + ' cleared.' : '') : 'No colors to archive.');
-    } catch (err) { alert(err.message); }
+    } catch (err) { App.ask.alert(err.message); }
+    });
   });
   // Start a new color year: the four quarters' colors are archived under `label`, and everything that belonged to last year's quarters is cleared with them: the plan's locks, dated moves, accepted repeats and "No team" marks (Fable review A6).
   // Used by the Start new year button and by New season, so a new season does not show last year's colors as this year's (A7).
@@ -1095,6 +1125,8 @@
             (x[0] === 'GIVEN' ? '<label class="uov" title="Handed over, but I do not have the date. Counts as given out, like a date."><input type="checkbox" data-uflag="' + U.GIVEN_FLAG + '"' + (p[U.GIVEN_FLAG] ? ' checked' : '') + '> no date</label>' : '') + '</td>').join('') + '</tr>';
       }).join('') + '</tbody></table>';
     $('uCount').textContent = list.length + ' shown';
+    /* UX-25: bulk buttons act only on the rows shown that have no date in that column */
+    [['uBulkOrdered', 'ORDERED', 'ordered'], ['uBulkReceived', 'RECEIVED', 'received']].forEach(([id, k, w]) => { const n = list.filter(p => !p[U[k]]).length, b = $(id); b.textContent = 'Mark the ' + n + ' shown as ' + w + ' today'; b.disabled = !n; b.dataset.n = n; });
   }
   $('uniWrap').addEventListener('change', e => {
     const flag = e.target.dataset.uflag, col = e.target.dataset.u, tr = e.target.closest('tr');
@@ -1107,6 +1139,11 @@
   $('uniWrap').addEventListener('focusout', e => { const t = e.target, tr = t.closest && t.closest('tr'); if (tr && t.dataset && t.dataset.udate && !App.uniDateOk(t)) t.value = byId.get(tr.dataset.id)[t.dataset.u] || ''; });
   $('uniWrap').addEventListener('click', e => { const b = e.target.closest('button[data-utoday]'), tr = b && b.closest('tr'); if (!b || !tr) return; byId.get(tr.dataset.id)[b.dataset.utoday] = App.today(); touch(); renderUniforms(); });
   $('uFilter').addEventListener('change', renderUniforms);
+  [['uBulkOrdered', 'ORDERED', 'ordered'], ['uBulkReceived', 'RECEIVED', 'received']].forEach(([id, k, w]) => $(id).addEventListener('click', () => {
+    const U = Model.UNI, f = $('uFilter').value, rows = [...$('uniWrap').querySelectorAll('tbody tr')].map(tr => byId.get(tr.dataset.id)).filter(p => p && !p[U[k]]); if (!rows.length) return;
+    const today = App.today(); rows.forEach(p => { p[U[k]] = today; }); touch(); renderUniforms();
+    App.done(rows.length + ' ' + (rows.length === 1 ? 'child' : 'children') + ' marked ' + w + ' today. Rows that already had a date were left alone.');
+  }));
 
   // ---------- calendar tab ----------
   const calTouch = () => { App.changed(); renderCalStatus(); };
@@ -1156,7 +1193,8 @@
   $('calWrap').addEventListener('click', e => {
     const b = e.target.closest('[data-del]'); if (!b) return;
     const r = calendar[+b.dataset.del];
-    if (confirm('Delete ' + r.Date + ' ' + (r.Theme || '') + '?')) { calendar.splice(+b.dataset.del, 1); calTouch(); renderCalendar(); renderReport(); }
+    /* done at once, with an Undo message (UX-20) */
+    calendar.splice(+b.dataset.del, 1); calTouch(); renderCalendar(); renderReport(); App.done('Deleted ' + r.Date + (r.Theme ? ' ' + r.Theme : '') + ' from the calendar.');
   });
   $('btnCalAdd').addEventListener('click', () => {
     const r = Calendar.blank(), last = calendar[calendar.length - 1];
@@ -1164,10 +1202,12 @@
     calendar.push(r); calTouch(); renderCalendar();
   });
   $('btnCalShift').addEventListener('click', () => {
-    if (!calendar.length) return alert('Load a calendar first.');
-    const w = parseInt(prompt('Move every date forward by how many weeks? (52 keeps the same weekdays for next year; check Easter, Thanksgiving and holiday weeks afterward)', '52'), 10);
-    if (!w) return;
-    Calendar.shiftWeeks(calendar, w); calTouch(); renderCalendar(); renderReport();
+    if (!calendar.length) return App.ask.alert('Load a calendar first.');
+    App.ask.form({ title: 'Move every date forward', ok: 'Move dates', fields: [
+      { name: 'weeks', label: 'Weeks', type: 'number', min: 1, max: 104, step: 1, value: 52, required: true, hint: '52 keeps the same weekdays for next year. Check Easter, Thanksgiving and holiday weeks afterward.' }] }).then(v => {
+      if (!v) return; const w = Math.round(v.weeks); Calendar.shiftWeeks(calendar, w); calTouch(); renderCalendar(); renderReport();
+      App.done('Every date moved forward ' + w + ' week' + (w === 1 ? '' : 's') + '. Check Easter, Thanksgiving and holiday weeks.');
+    });
   });
   // The data JSON holds the roster (with the Planning Center data as of its last import), calendar and rotation. Opening one
   // replaces them; noImport (restore, new season) does not re-apply an export opened earlier in the session.
@@ -1210,7 +1250,7 @@
     }
     for (const it of items) {
       try {
-        if (it.kind === 'master') { if (master && App.dirty() && !confirm('Discard unsaved changes and import the old master ' + it.name + '?')) continue; setMaster(Model.loadMaster(it.text, today())); App.changed(); updateStatus(); }
+        if (it.kind === 'master') { if (master && App.dirty() && !(await App.ask.confirm('Discard unsaved changes and import the old master ' + it.name + '?', { title: 'Discard unsaved changes?', ok: 'Discard and import', danger: true }))) continue; setMaster(Model.loadMaster(it.text, today())); App.changed(); updateStatus(); }
         else if (it.kind === 'pc') importPc(it.text, it.name);
         else if (it.kind === 'colors') {
           if (!master) throw new Error('open the roster first, then this colors file.');
@@ -1219,12 +1259,12 @@
         }
         else if (it.kind === 'calendar') { calendar = Calendar.load(it.text); App.changed(); renderCalendar(); renderReport(); App.onRefresh.forEach(f => f()); }
         else if (it.kind === 'rotation') problems.push(it.name + ': the nightly rotation is not tracked here any more, so this file was left out.');
-        else if (it.kind === 'season') { App.openedName = it.name; App.localHandle = null; App.openSeason(it.text); }      // a new file: the next save asks where it goes
+        else if (it.kind === 'season') { App.openedName = it.name; App.localHandle = null; await App.openSeason(it.text); }      // a new file: the next save asks where it goes
         else if (it.kind === 'progresspatch') problems.push(it.name + ': importing a progress patch (from the photo-to-progress agent) was removed, so this file was left out.');
         else problems.push(it.name + ': not a file this app knows how to open.');
       } catch (err) { problems.push(it.name + ': ' + err.message); }
     }
-    if (problems.length) alert(problems.join('\n'));
+    if (problems.length) App.ask.alert(problems.join('\n'), { title: 'About the files you opened' });
     // After a merge, say if any handbook record uses a book that is not on the Options tab (the To do tab lists them for you to correct by hand).
     if (App.season && master) { const n = Check.scan({ master, season: App.season, calendar }).filter(f => f.area === 'Books' && f.id).length; if (n) App.flash(n + ' handbook or progress record' + (n === 1 ? '' : 's') + ' use a book that is not on the Options tab. See To do: Unrecognized book.', 'warn'); }
   }
@@ -1247,11 +1287,11 @@
       tryManifest = await r.json();
       await openFiles([await tryFile('try/', tryManifest.data), await tryFile('try/', tryManifest.export)]);
       $('tryImport').hidden = !tryManifest.import;
-    } catch (err) { alert('Try it out needs the app to be opened from the web server (not from a file on disk): ' + err.message); }
+    } catch (err) { App.ask.alert('Try it out needs the app to be opened from the web server (not from a file on disk): ' + err.message); }
   }
   async function tryImport() {
     try { $('tryImport').hidden = true; await openFiles([await tryFile('try/', tryManifest.import)]); }
-    catch (err) { $('tryImport').hidden = false; alert(err.message); }
+    catch (err) { $('tryImport').hidden = false; App.ask.alert(err.message); }
   }
   $('splashTry').addEventListener('click', tryItOut);
   $('tryImport').addEventListener('click', tryImport);
@@ -1285,7 +1325,7 @@
   const COACHES = [{ report: 'binderClass' }, { report: 'binderAll' }, { report: 'volunteers' }, { report: 'binderTeams' }];
   $('btnBinders').addEventListener('click', () => {
     const dl = $('dlg');
-    dl.innerHTML = '<h3 style="margin-top:0">Binders</h3><p class="status">Tick the class binders to print and the coaches binder if wanted. Each class binder has its attendance, roster with medical and contact, the volunteer list, and a progress sheet for each child.</p>' +
+    dl.innerHTML = '<h3 style="margin-top:0">Class binders</h3><p class="status">Tick the class binders to print and the coaches binder if wanted. Each class binder has its attendance, roster with medical and contact, the volunteer list, and a progress sheet for each child.</p>' +
       BINDER_CLASSES.map((c, i) => '<label class="pf chk"><input type="checkbox" data-bind="' + i + '"> ' + esc(c) + ' binder</label>').join('') +
       '<label class="pf chk"><input type="checkbox" data-bind="coaches"> Coaches binder</label>' +
       '<div class="dlgbtns"><button id="bindCancel">Cancel</button><button id="bindGo" class="primary">Show binders</button></div>';
@@ -1293,7 +1333,7 @@
     $('bindCancel').onclick = () => dl.close();
     $('bindGo').onclick = () => {
       const picked = [...dl.querySelectorAll('input[data-bind]:checked')].map(i => i.dataset.bind);
-      if (!picked.length) return alert('Tick at least one binder.');
+      if (!picked.length) return App.ask.alert('Tick at least one binder.');
       const items = picked.flatMap(k => k === 'coaches' ? COACHES : classBinder(BINDER_CLASSES[+k]));
       const quarter = App.quarterNow();
       dl.close(); App.showTab('reports');

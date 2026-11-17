@@ -1,9 +1,9 @@
-(this.AwanaVersions = this.AwanaVersions || {})['todo.js'] = '1.11.5';
+(this.AwanaVersions = this.AwanaVersions || {})['todo.js'] = '1.11.6';
 // What still needs a person's attention after an import (or any time): classes to assign, colors, handbooks, uniforms, missing
 // details. Pure: roster and season in, a list of groups out; the To do tab draws it and nothing here is stored.
 //   compute({ master, season, quarter, today, newIds }) -> { groups: [{ id, title, level, hint, items: [{ id, name, text, fields, suggest? }] }], people: [{ id, name, room, items: [{ group, title, level, text, fields }] }], total }
 // fields = the Person-tab fields an item is about (a Planning Center column name, 'team:Q2', 'handbook', or a club-record key), so that page can highlight them. 'people' is the same items regrouped per person.
-// level 'action' = something to do, 'check' = something to look at, 'note' = worth knowing, not counted in total (a child with no emergency contact name but a parent's primary phone, which the binders print). newIds (a Set of people just added by an import) adds a medical review for them.
+// level 'action' = something to do, 'check' = something to look at, 'note' = worth knowing, not counted in total (compute makes none today: a missing emergency phone is an 'action'; the screen still draws a 'note' level). newIds (a Set of people just added by an import) adds a medical review for them.
 (function (root) {
   const M = root.Model || require('./model.js'), Intake = root.Intake || require('./intake.js'), Season = root.Season || require('./season.js'), Check = root.Check || require('./check.js'), Teams = root.Teams || require('./teams.js');
   const { C, X, UNI } = M;
@@ -60,23 +60,21 @@
       kids.filter(p => M.uniformItems(p).length && M.uniToOrder(p)).map(p => row(p, M.uniformItems(p).join(', ') + (p[UNI.SIZE_VERIFIED] ? ', size ' + p[UNI.SIZE_VERIFIED] : M.eff(p, C.SHIRT) && !/^\s*(n\/?a|none|no|na|nka|-+)\s*$/i.test(M.eff(p, C.SHIRT)) ? ', parent says ' + M.eff(p, C.SHIRT) : ', no size recorded yet') + '.', { fields: [UNI.SIZE_VERIFIED, UNI.ORDERED] })));
 
     // 5. details missing
-    const parentPhone = p => M.parentPhone(p), noName = [];      // the registration's "primary phone number for a parent" when it holds a real number (7 digits or more)
+    const parentPhone = p => M.parentPhone(p);      // the registration's "primary phone number for a parent" when it holds a real number (7 digits or more)
     add('details', 'Details missing', 'check', 'Ask the family, or fill it in on the Person tab (it becomes a pending Planning Center change).',
       kids.map(p => {
         const need = [], fields = [], g = groupOf(p), b = Intake.parseBirthdate(M.eff(p, C.BDAY));
         if (!M.eff(p, C.BDAY)) { need.push('birthdate'); fields.push(C.BDAY); } else if (!b) { need.push('a valid birthdate'); fields.push(C.BDAY); }
         if (!gradeOf(p) && g !== 'Puggles') { need.push('grade'); fields.push(C.GRADE); }
-        // The emergency contact is given by a phone number: the parent's primary phone, the Emergency Contact box's own number, or a number the club chose. A name alone is not enough.
-        if (!parentPhone(p) && !M.emergencyPhone(p) && !M.clubPhone(p)) { need.push('emergency phone'); fields.push(C.EMERG); }
+        // (A missing emergency phone is not listed here: it has its own item below, so the child is counted once, CR-08.)
         const contact = ['Mobile Phone Number', 'Home Phone Number', 'Other Phone Number', 'Registration Contact Phone Number', 'Home Email Address', 'Work Email Address', 'Other Email Address', 'Registration Contact Home Email Address']
           .some(c => M.eff(p, c));
         if (!contact) { need.push('any phone number or email'); fields.push('contact'); }
         return need.length ? row(p, 'Missing ' + need.join(', ') + '.', { fields }) : null;
       }).filter(Boolean));
     // 5a. no emergency phone: neither the attendee answer for a parent's phone nor the emergency contact's own number is on file. The binders then print the registration contact's number (marked †) or a bold warning.
-    const emergPhone = p => { const raw = String(M.eff(p, C.EMERG) || ''), i = raw.lastIndexOf(' - '); const v = i < 0 ? '' : raw.slice(i + 3).trim(); return (v.match(/\d/g) || []).length >= 7 ? v : ''; };
-    add('nophone', 'No emergency phone on file', 'action', 'Neither the parent’s primary phone nor the emergency contact’s number is on file. The binders print the registration contact’s number (marked †), or NO PHONE ON FILE when there is none. Ask the family for a parent’s phone and fill it in on the Person tab.',
-      kids.filter(p => !parentPhone(p) && !emergPhone(p) && !M.clubPhone(p)).map(p => row(p, 'No parent phone and no emergency phone.', { fields: M.eff(p, C.EMERG) ? [C.EMERG] : ['club:emerg'] })));      // the Emergency phone card is highlighted (its own key); when the Emergency Contact box has a name, the box is the one to fix
+    add('nophone', 'No emergency phone on file', 'action', 'Neither the parent’s primary phone nor the emergency contact’s number is on file. The binders print the registration contact’s number (marked †), or NO PHONE ON FILE when there is none. It stays on this list until Planning Center has a parent’s phone or an emergency number (next import), or until you choose a number on the Person tab (Emergency phone card). Ask the family for a parent’s phone.',
+      kids.filter(p => !parentPhone(p) && !M.emergencyPhone(p) && !M.clubPhone(p)).map(p => row(p, 'No parent phone and no emergency phone.', { fields: M.eff(p, C.EMERG) ? [C.EMERG] : ['club:emerg'] })));      // the Emergency phone card is highlighted (its own key); when the Emergency Contact box has a name, the box is the one to fix
     // 5b. what the data checks (check.js) found: a handbook code that is not one of your books, and values that are there but not valid
     if (season) {
       const found = Check.scan({ master, season, calendar: ctx.calendar || [] }), byId = new Map(people.map(p => [p[X.ID], p]));

@@ -14,19 +14,29 @@ const phoneItem = (res, id) => (res.groups.find(g => g.id === 'nophone') || { it
 const noteFor = (res, id) => (res.groups.find(g => g.id === 'emergnote') || { items: [] }).items.find(i => i.id === id);
 const clean = p => { p[C.EMERG] = ''; p[C.PARENT_PHONE] = ''; p[C.BDAY] = p[C.BDAY] || '2019-01-01'; };
 
-test('no emergency phone of any kind: the Details missing check says emergency phone, and there is no note', () => {
-  const d = load(), p = pick(d.master); clean(p); const r = run(d), x = detail(r, p[M.X.ID]);
-  assert(x && /emergency phone/.test(x.text), x && x.text); assert(!noteFor(r, p[M.X.ID]), 'no note');
+const noEmergency = x => !x || !/emergency/.test(x.text);
+test('no emergency phone of any kind: ONE item, in its own group (an action), not in Details missing, and there is no note (CR-08)', () => {
+  const d = load(), p = pick(d.master); clean(p); const r = run(d), id = p[M.X.ID], g = r.groups.find(x => x.id === 'nophone');
+  assert(phoneItem(r, id), 'in the No emergency phone group'); assert.strictEqual(g.level, 'action', 'an action: it counts'); assert(noEmergency(detail(r, id)), 'not repeated under Details missing: ' + (detail(r, id) || {}).text); assert(!noteFor(r, id), 'no note');
+  assert(/stays on this list until/.test(g.hint), 'the hint says how it clears');
+});
+test('the child is counted once: the total moves by one when the phone goes missing', () => {
+  const d = load(), p = pick(d.master); p[C.PARENT_PHONE] = '(937) 555-0142'; const before = run(d).total; clean(p); const after = run(d).total;
+  assert.strictEqual(after - before, 1, 'the total went from ' + before + ' to ' + after);
+});
+test('a child missing a birthdate AND a phone has one Details missing item (birthdate only) and one phone item', () => {
+  const d = load(), p = pick(d.master); clean(p); p[C.BDAY] = ''; const r = run(d), id = p[M.X.ID];
+  assert(detail(r, id) && /birthdate/.test(detail(r, id).text) && noEmergency(detail(r, id)), (detail(r, id) || {}).text); assert(phoneItem(r, id));
 });
 test('a parent primary phone of 7 or more digits satisfies it: no check, no note', () => {
   const d = load(), p = pick(d.master); clean(p); p[C.PARENT_PHONE] = '(937) 555-0142'; const r = run(d);
   assert(!detail(r, p[M.X.ID]) || !/emergency/.test(detail(r, p[M.X.ID]).text), 'no emergency check'); assert(!noteFor(r, p[M.X.ID]), 'no note');
 });
 test('a parent phone that is not a number (N/A, a few digits) does not count', () => {
-  for (const v of ['N/A', 'none', '555', '']) { const d = load(), p = pick(d.master); clean(p); p[C.PARENT_PHONE] = v; const x = detail(run(d), p[M.X.ID]); assert(x && /emergency phone/.test(x.text), 'check for ' + JSON.stringify(v)); }
+  for (const v of ['N/A', 'none', '555', '']) { const d = load(), p = pick(d.master); clean(p); p[C.PARENT_PHONE] = v; assert(phoneItem(run(d), p[M.X.ID]), 'still listed for ' + JSON.stringify(v)); }
 });
 test('a name alone in the Emergency Contact box does not satisfy it', () => {
-  const d = load(), p = pick(d.master); clean(p); p[C.EMERG] = 'Pat Example'; const x = detail(run(d), p[M.X.ID]); assert(x && /emergency phone/.test(x.text), x && x.text);
+  const d = load(), p = pick(d.master); clean(p); p[C.EMERG] = 'Pat Example'; assert(phoneItem(run(d), p[M.X.ID]), 'still listed: a name is not a number');
 });
 test('a name with a phone in the Emergency Contact box satisfies it', () => {
   const d = load(), p = pick(d.master); clean(p); p[C.EMERG] = 'Pat Example - (513) 555-0100'; const r = run(d); assert(!detail(r, p[M.X.ID]) || !/emergency/.test(detail(r, p[M.X.ID]).text), 'no emergency check');

@@ -291,6 +291,7 @@ Section 10.
 |---|---|---|---|
 | `clubDay` | integer 0 to 6 | `3` | Day of week of club nights (0 Sunday); other days are flagged. |
 | `bugButton` | boolean | absent (off) | Shows the Bug button beside Flag (Options). `true` shows it; the key is removed when it is turned off. Hiding the button never deletes bug reports. Shared by everyone who opens the file. |
+| `startTab` | `'roster'` \| `'tonight'` \| `'todo'` | absent (Roster) | Which tab opens after a data file is opened (Options, Start on). `tonight` opens Attendance on the club night, or the day after it, and To do on any other day. Applied once when a file opens, never after Update now. The key is removed when set back to Roster. Older copies keep it (unknown config keys are kept). |
 | `carriedThrough` | date `YYYY-MM-DD` | absent | Written once by `newSeason`: the closed year's last night. Anything dated on or before it that was carried forward (11.3) is an earlier year's, whatever the calendar says; `Season.seasonStart` uses it until the calendar is replaced. |
 | `blueJewelWeeks` | list of 1 to 4 rising whole numbers below 1000 | `[6, 12, 19, 27]` | Nights of attendance that earn Blue Jewels 1 to 4. A bad list falls back to the default on load. |
 | `placePoints` | object `{ "1": 3, "2": 2, "3": 1, "4": 0 }` | as shown | Game points by place; whole numbers 0 or more. |

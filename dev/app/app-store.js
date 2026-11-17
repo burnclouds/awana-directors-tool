@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-store.js'] = '1.5.3';
+(this.AwanaVersions = this.AwanaVersions || {})['app-store.js'] = '1.5.4';
 // Awana store points tab: weights, minimum and maximum are kept in the data file (season.config.store); everything else is worked out by store.js.
 (function () {
   const App = window.App, esc = App.esc, $ = id => document.getElementById(id);
@@ -93,7 +93,7 @@
     if (e.target.id === 'stReset') { const c = cfgOf(); Object.keys(c.weights).forEach(k => { c.weights[k] = k === 'sections' ? 0 : 1; }); save(c); render(); }
     if (e.target.id === 'stFit') {
       const r = compute(), f = r.fitFactor[view()], c = cfgOf();
-      if (!f) return alert('Nothing has been earned yet, so there is nothing to scale.');
+      if (!f) return App.ask.alert('Nothing has been earned yet, so there is nothing to scale.');
       Object.keys(c.weights).forEach(k => { c.weights[k] = Math.round(c.weights[k] * f * 100) / 100; }); save(c); render();
     }
     if (e.target.id === 'stCsv') { const r = compute(); App.testGate(e.target, () => App.download('Awana store points ' + App.today() + '.csv', csv(r), 'text/csv;charset=utf-8')); }

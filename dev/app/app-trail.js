@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-trail.js'] = '1.6.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-trail.js'] = '1.7.0';
 // Recent places: the last 10 places you were at, one tap to go back to any of them. A place is a tab plus what matters on it (the night and class on Attendance,
 // the child on Person and Progress, the night and group on Games and Awards), as reported by the provider each tab registers in App.places[view] = { get(), set(state) }.
 // Kept in memory only: it holds children's names, so it is never saved to the data file or the browser, and it starts over when another file is opened.
@@ -14,7 +14,8 @@
   function here() {
     const view = App.view(), pr = App.places[tabOf(view)]; let got = null;
     try { got = App.master && pr ? pr.get() : null; } catch (e) { got = null; }
-    return { view, key: view + (got ? '|' + got.key : ''), label: got ? got.label : tabLabel(view), state: got ? got.state : null };
+    /* the key uses the TAB, not the view: the same child on a sub-tab that saves at once (personlive) is one place, not two (UX-27) */
+    return { view, key: tabOf(view) + (got ? '|' + got.key : ''), label: got ? got.label : tabLabel(view), state: got ? got.state : null };
   }
   function note() {
     if (App.season !== season) { season = App.season; list = []; cur = null; }       // another file: the old places point at other people
@@ -36,10 +37,12 @@
     const html = list.map((e, i) => '<button type="button" class="chip" data-trail="' + i + '"' + (e === cur ? ' aria-current="true"' : '') + ' title="' + esc(e.label) + '">' + esc(e.label) + '</button>').join('');
     if (chips.innerHTML !== html) { chips.innerHTML = html; $('trailMenu').innerHTML = html; if ($('trailTopMenu')) $('trailTopMenu').innerHTML = html; }
     $('trailBtn').textContent = 'Recent places ▾';
+    /* UX-07: on a phone the same places are the last group of the tab menu (the Recent places bar is hidden there) */
+    const rg = $('recentGrp'); if (rg) { rg.hidden = list.length < 2; rg.querySelectorAll('[data-trail]').forEach(x => x.remove()); rg.insertAdjacentHTML('beforeend', html); }
   }
   // Go to a place from the list. Held changes are applied (or you stay) first; a place that no longer exists (a child removed) opens as far as it can.
   function jump(e) {
-    if (App.resolveDraft && !App.resolveDraft()) return;
+    if (App.resolveDraft && !App.resolveDraft(() => jump(e))) return;
     const back = cur; jumping = e; cur = null;
     const pr = App.places[e.view]; try { if (pr && e.state) pr.set(e.state); } catch (err) { /* the tab opens on whatever it had */ }
     App.showTab(e.view);
@@ -54,6 +57,7 @@
     if (ev.target.closest('#trailBtn')) { openMenu($('trailMenu').hidden); return; }
     const b = ev.target.closest('[data-trail]'); if (b && list[+b.dataset.trail]) { openMenu(false); jump(list[+b.dataset.trail]); }
   });
+  if ($('recentGrp')) $('recentGrp').addEventListener('click', ev => { const b = ev.target.closest('[data-trail]'); if (b && list[+b.dataset.trail]) jump(list[+b.dataset.trail]); });
   // On a wide screen the same places open from a Recent button after More (the chip row is hidden there).
   const openTop = open => {
     const m = $('trailTopMenu'), b = $('trailTop'); if (!m || !b) return;

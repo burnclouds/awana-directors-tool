@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-drive.js'] = '1.19.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-drive.js'] = '1.19.1';
 // Google Drive buttons (optional). Stays completely inactive unless drive-config.js has a client ID and API key: then there is no button,
 // no Google script is loaded and every file is opened and saved locally exactly as before.
 (function () {
@@ -80,7 +80,7 @@
       await App.openFiles(files);
       if (folder) st.opened = folder;
       st.save = true; label();
-    } catch (err) { alert('Google Drive: ' + err.message); }
+    } catch (err) { App.ask.alert('Google Drive: ' + err.message, { title: 'Google Drive' }); }
   }
   // Pick a folder for one kind. The picker opens beside the current one with it ticked. confirm = the saved folder was refused, so ask this person to confirm it.
   async function chooseDir(kind, confirm) {
@@ -166,7 +166,7 @@
       c.base = Season.snapshot(Season.fromJson(text)); c.remerge = true;
       said += '\n\nYou changed something while it was saving, so this screen was not refreshed. Your changes are safe; the next save brings in the others\' changes first.';
     }
-    if (merged.conflicts.length) alert(said); else App.flash(said, 'info');      // an automatic save never blocks a phone with an alert unless something of yours was dropped
+    if (merged.conflicts.length) App.ask.alert(said, { title: 'Google Drive' }); else App.flash(said, 'info');      // an automatic save never blocks a phone with an alert unless something of yours was dropped
     return up;
   }
   const queue = fn => { const p = st.q.then(fn, fn); st.q = p.catch(() => {}); return p; };       // saves run one at a time
@@ -214,7 +214,7 @@
   // ---------- the settings (on the Options tab: no pop-up) ----------
   // The Options tab shows and changes everything: the folders (Choose / Clear), whether saving goes to Drive, signing out. These are what it calls.
   App.driveDo = {
-    async choose(kind) { try { await chooseDir(kind); } catch (err) { alert('Google Drive: ' + err.message); } label(); },
+    async choose(kind) { try { await chooseDir(kind); } catch (err) { App.ask.alert('Google Drive: ' + err.message, { title: 'Google Drive' }); } label(); },
     clear(kind) { const k = kind === 'slides' ? 'slides' : 'club'; setShared(k, null); },
     setSave(on) { st.save = !!on; label(); },
     signOut() { D.disconnect(); st.save = false; label(); },
@@ -272,5 +272,5 @@
     },
   };
   App.importDefault = () => st.save ? 'drive' : 'local'; App.importFromDrive = () => { preload(); openFromDrive(); };
-  $('splashDrive').addEventListener('click', () => { D.preload().then(openFromDrive, err => alert('Google Drive: ' + err.message)); });
+  $('splashDrive').addEventListener('click', () => { D.preload().then(openFromDrive, err => App.ask.alert('Google Drive: ' + err.message, { title: 'Google Drive' })); });
 })();

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-search.js'] = '1.0.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-search.js'] = '1.1.0';
 // Search for a person, as Planning Center does: press "/" anywhere except while typing in a box (the Help tab keeps its own "/" search).
 // Three tabs: People (opens the Person page on Progress), To do (only people with a To do item; opens the Person page with its To do notes),
 // Awards (opens the Awards part of the Person page). Up and Down choose, Enter opens, Esc closes; clicking a tab or a name works too.
@@ -41,7 +41,9 @@
   const people = () => (App.master && App.master.people) || [];
   function refresh() {
     const q = $('gSearchQ').value.trim(), nq = Model.norm(q);
-    let list = nq ? people().filter(p => Model.norm(Model.fullName(p)).includes(nq)) : [];
+    /* UX-09 ranking: 0 first name starts with the text, 1 last name starts with it, 2 any word starts with it, 3 it is only contained; ties keep the roster order (the sort is stable) */
+    const rank = p => { const w = Model.norm(Model.fullName(p)).split(/\s+/).filter(Boolean); if (w[0] && w[0].startsWith(nq)) return 0; if (w.length > 1 && w[w.length - 1].startsWith(nq)) return 1; return w.some(x => x.startsWith(nq)) ? 2 : 3; };
+    let list = nq ? people().filter(p => Model.norm(Model.fullName(p)).includes(nq)).map((p, i) => ({ p, i, r: rank(p) })).sort((a, b) => a.r - b.r || a.i - b.i).map(x => x.p) : [];
     if (tab === 'todo') list = list.filter(p => App.todoFor && App.todoFor(p[Model.X.ID]).length);
     results = list.slice(0, LIMIT).map(p => ({ id: p[Model.X.ID], name: Model.fullName(p), room: Model.room(p), active: Model.isActive(p) }));
     sel = 0; draw(q);
@@ -69,6 +71,7 @@
     wrap.hidden = false; $('gSearchQ').value = ''; results = []; sel = 0; draw('');
     $('gSearchQ').focus();
   }
+  App.openSearch = () => { if (people().length) openSearch(); else App.flash('Open a data file first.', 'warn'); };      /* the top-bar search button and the phone menu call this (UX-09) */
   function close() { if (wrap) wrap.hidden = true; }
   const isOpen = () => !!wrap && !wrap.hidden;
 

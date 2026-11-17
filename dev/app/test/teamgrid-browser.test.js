@@ -186,10 +186,11 @@ const TODAY = '2026-12-20';
     assert(/Q3 .*locked/.test(await page.textContent('thead th[data-q="Q3"]')), 'the header reads locked'); assert(await page.$('[data-tgunlock="Q3"]'), 'a hand lock can be undone');
     await page.click('[data-tgunlock="Q3"]'); await page.waitForSelector(cell(k.id, 'Q3') + 'select'); assert.strictEqual(await lockedAt(page, 'Q3'), '', 'unlocked'); await page.close();
   });
-  await test('locking while some children have no color asks first; Cancel keeps the quarter open', async () => {
+  await test('locking while some children have no color says so in the message; on the staged draft there is no Undo, and Discard keeps the quarter open', async () => {
     const { page } = await open(); await projectAll(page); await page.evaluate(() => { const p = App.master.people.find(x => Model.isActive(x) && Model.isClubber(x) && ['Sparks', 'T&T'].includes(Model.groupOf(Model.room(x)))); p['team:Q3'] = ''; App.refresh(); });
-    await page.evaluate(() => App.showTab('teams')); await page.waitForSelector('[data-tglock="Q3"]'); const msgs = []; page.removeAllListeners('dialog'); page.on('dialog', d => { msgs.push(d.message()); d.dismiss(); });
-    await page.click('[data-tglock="Q3"]'); await page.waitForTimeout(200); assert(/no color/i.test(msgs.join()), 'it warns: ' + msgs.join()); assert.strictEqual(await lockedAt(page, 'Q3'), '', 'still open'); await page.close();
+    await page.evaluate(() => App.showTab('teams')); await page.waitForSelector('[data-tglock="Q3"]'); page.removeAllListeners('dialog'); page.on('dialog', d => d.accept());      /* the Discard question is still a browser one until step 3 */
+    await page.click('[data-tglock="Q3"]'); await page.waitForTimeout(250); const said = await page.textContent('#doneFlash'); assert(/no color/i.test(said), 'it says who has no color: ' + said); assert(!(await page.isVisible('#doneUndo')), 'a staged draft: Apply or Discard, not Undo');
+    await page.click('#btnDraftDiscard'); await page.waitForTimeout(300); assert.strictEqual(await lockedAt(page, 'Q3'), '', 'still open after Discard'); await page.close();
   });
   await test('Undo (after Apply) takes a lock back', async () => {
     const { page } = await open(); await projectAll(page); await page.evaluate(() => App.showTab('teams')); await page.waitForSelector('[data-tglock="Q3"]');
@@ -209,16 +210,28 @@ const TODAY = '2026-12-20';
   });
   // ---------- fixes from the final review ----------
   await test('Re-draw refuses a quarter that has started or is locked, and changes nothing', async () => {
-    const { page } = await open(), msgs = []; page.removeAllListeners('dialog'); page.on('dialog', d => { msgs.push(d.message()); d.accept(); });
+    const { page } = await open();
     await page.evaluate(() => App.showTab('teams')); await page.waitForSelector('#teamsWrap .tg'); const before = await cellsOf(page);
-    await page.selectOption('#tQuarter', 'Q1'); await page.click('#btnTeamRedo'); await page.waitForTimeout(300);
+    const msgs = []; page.removeAllListeners('dialog'); page.on('dialog', d => { msgs.push(d.message()); d.accept(); });      /* answered through the same handler (pw-dialog-compat.js) */
+    await page.selectOption('#tQuarter', 'Q1'); await page.click('#btnTeamMore'); await page.click('#btnTeamRedo'); await page.waitForTimeout(500);
     assert.strictEqual(await cellsOf(page), before, 'Q1 colors untouched'); assert(msgs.some(m => /started|locked/i.test(m)), 'told why: ' + msgs.join(' | ')); await page.close();
   });
   await test('Re-draw of an open quarter marks every new color as projected, so the quarter is never half pins and half projection', async () => {
     const { page } = await open(); await page.evaluate(() => App.showTab('teams')); await page.waitForSelector('#teamsWrap .tg');
-    await page.click('[data-tgscope="club"]'); await page.waitForTimeout(150); await page.selectOption('#tQuarter', 'Q4'); await page.click('#btnTeamRedo'); await page.waitForTimeout(500);
+    await page.click('[data-tgscope="club"]'); await page.waitForTimeout(150); await page.selectOption('#tQuarter', 'Q4'); await page.click('#btnTeamMore'); await page.click('#btnTeamRedo'); await page.waitForSelector('#dlg[open] #tgPrevOk'); await page.click('#tgPrevOk'); await page.waitForTimeout(500);
     const pins = await page.$$eval('#teamsWrap .tg td[data-q="Q4"] .tgpin', e => e.length), proj = await page.$$eval('#teamsWrap .tg td[data-q="Q4"] select.tgproj', e => e.length);
     assert.strictEqual(pins, 0, 'no pin after a re-draw'); assert(proj > 20, proj + ' projected cells'); await page.close();
+  });
+  await test('Re-draw shows a preview first (the proposed colors, warnings, Draw again); Cancel changes NOTHING; Confirm writes exactly the colors shown and the message says Apply or Discard', async () => {
+    const { page } = await open(); await page.evaluate(() => App.showTab('teams')); await page.waitForSelector('#teamsWrap .tg'); await page.selectOption('#tQuarter', 'Q4'); const before = await cellsOf(page);
+    await page.click('#btnTeamMore'); await page.click('#btnTeamRedo'); await page.waitForSelector('#dlg[open] #tgPrevOk'); assert(/Re-draw Q4 colors/.test(await page.textContent('#dlg h3')), 'a preview titled Re-draw'); assert(/\d+ colors? would be set/.test(await page.textContent('#tgPrevCount')));
+    assert.strictEqual(await cellsOf(page), before, 'opening the preview changed nothing (the dry run puts every color back)');
+    await page.click('#tgPrevAgain'); await page.waitForTimeout(150); assert.strictEqual(await cellsOf(page), before, 'Draw again changed nothing either');
+    await page.click('#tgPrevCancel'); await page.waitForTimeout(200); assert.strictEqual(await cellsOf(page), before, 'Cancel left every color as it was');
+    await page.click('#btnTeamMore'); await page.click('#btnTeamRedo'); await page.waitForSelector('#dlg[open] #tgPrevOk'); const shown = await page.$$eval('#dlg table.tgprev tbody tr', rs => rs.map(r => r.dataset.kid + '|' + r.querySelector('.team').textContent));
+    await page.click('#tgPrevOk'); await page.waitForTimeout(400);
+    const now = await page.evaluate(() => Object.fromEntries(App.master.people.map(p => [p[Model.X.ID], p['team:Q4']]))); assert(shown.length > 20, shown.length + ' rows shown'); assert(shown.every(s => now[s.split('|')[0]] === s.split('|')[1]), 'Confirm wrote exactly the colors the preview showed');
+    assert(/Q4 color for Sparks and T&T was cleared and drawn again/.test(await page.textContent('#doneFlash')), 'the message'); await page.close();
   });
   await test('when the last quarter cannot be evened the grid says so, instead of only "Nothing to recalculate"', async () => {
     // With this club and seed the projection leaves T&T Q4 at 11 / 13 / 12 / 11: the last quarter is the most constrained (each child has three colors used up).
@@ -235,7 +248,8 @@ const TODAY = '2026-12-20';
   });
   await test('Start new year clears the locks and the projection along with the archived colors', async () => {
     const { page } = await open(); await projectAll(page); await page.evaluate(() => App.showTab('teams')); await page.waitForSelector('[data-tglock="Q3"]'); await page.click('[data-tglock="Q3"]'); await page.waitForTimeout(200);
-    page.removeAllListeners('dialog'); page.on('dialog', d => d.accept(d.type() === 'prompt' ? '2027-28' : undefined)); await page.click('#btnTeamYear'); await page.waitForTimeout(400);
+    page.removeAllListeners('dialog'); page.on('dialog', d => d.accept(d.type() === 'prompt' ? '2027-28' : undefined));      /* the label form is a one-field prompt; a staged lock may ask about the draft first */
+    await page.click('#btnTeamMore'); await page.click('#btnTeamYear'); await page.waitForTimeout(800);
     assert.strictEqual(await page.evaluate(() => !!(App.season.config.teamPlan && (App.season.config.teamPlan.locked || App.season.config.teamPlan.proj))), false, 'no stale lock or marks'); await page.close();
   });
   await test('every control on the grid and in the Why panel is at least 44px tall on a phone and on a touch tablet', async () => {

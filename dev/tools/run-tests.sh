@@ -23,7 +23,7 @@ run_one() {  # $1 = test file name; writes $out/<name>.res with "status|detail"
       echo "SKIP|no playwright (or --node-only)" > "$out/$f.res"; return
     fi
   fi
-  (cd "$app" && timeout 600 node "test/$f" > "$out/$f.log" 2>&1)
+  (cd "$app" && NODE_OPTIONS="--require $app/test/lib/pw-dialog-compat.js" timeout 600 node "test/$f" > "$out/$f.log" 2>&1)      # older tests answer the app's own dialogs through their page.on('dialog') handlers (test/lib/pw-dialog-compat.js)
   code=$?
   last=$(grep -E '[0-9]+ passed, [0-9]+ failed' "$out/$f.log" | tail -1)
   if grep -q 'SKIP: needs real files' "$out/$f.log"; then

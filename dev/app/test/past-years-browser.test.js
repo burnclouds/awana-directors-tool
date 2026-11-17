@@ -22,9 +22,9 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   await test('a child with earlier-year awards sees them listed and a button', async () => {
     assert(await page.isVisible('#btnPastGiven'), 'button shown'); assert(/Flight 3:16/.test(await page.textContent('.pastyears')) || /earlier years/.test(await page.textContent('.pastyears')));
   });
-  await test('the button asks first, marks them given with no date, and goes away', async () => {
+  await test('the button marks them given with no date at once and offers Undo (no pop-up question), and goes away', async () => {
     dialogs.length = 0; await page.click('#btnPastGiven'); await page.waitForTimeout(300);
-    assert.strictEqual(dialogs.length, 1, 'one confirmation'); assert(/given, with no date/.test(dialogs[0]));
+    assert.strictEqual(dialogs.length, 0, 'no pop-up question: it is done, and Undo is offered'); assert(/given, with no date/.test(await page.textContent('#doneFlash')), 'the message says what was done');
     assert.strictEqual(await page.locator('#btnPastGiven').count(), 0, 'button gone');
     const r = await page.evaluate(id => ({ nd: window.Season.isGivenNoDate(window.App.season, id, 'Flight 3:16'), shown: window.Season.givenShown(window.App.season, id, 'Flight 3:16') }), kid);
     assert.deepStrictEqual(r, { nd: true, shown: '' });
@@ -33,13 +33,13 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     await page.click('#btnUndo'); await page.waitForTimeout(300);
     assert.strictEqual(await page.evaluate(id => window.Season.isGivenNoDate(window.App.season, id, 'Flight 3:16'), kid), false);
   });
-  await test('Options: count first, then a second confirmation, then done; counting again finds none', async () => {
+  await test('Options: count first, then one click marks them (no question; message and Apply/Discard note); counting again finds none', async () => {
     await tab('options'); await page.waitForTimeout(300);
     assert.strictEqual(await page.locator('#optPastGo').count(), 0, 'nothing to confirm before counting');
     await page.click('#optPastCount'); await page.waitForTimeout(200);
     assert(/\d+ awards? for \d+ child/.test(await page.textContent('#optPastYears')), 'count shown');
     dialogs.length = 0; await page.click('#optPastGo'); await page.waitForTimeout(300);
-    assert.strictEqual(dialogs.length, 1); assert(/including children who have left/.test(dialogs[0]));
+    assert.strictEqual(dialogs.length, 0, 'no question: the count was the confirmation, and it is done at once (UX-20)'); assert(/including children who have left/.test(await page.textContent('#doneFlash')), 'the message says who it covered');
     await page.click('#optPastCount'); await page.waitForTimeout(200);
     assert(/Nothing to mark/.test(await page.textContent('#optPastYears')));
   });

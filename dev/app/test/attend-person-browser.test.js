@@ -39,7 +39,7 @@ const server = http.createServer((req, res) => {
     await page.close();
   });
   const goSparks = async page => { await tab(page, 'attend'); await page.waitForTimeout(250); const sparks = (await page.$$eval('#attRoom option', o => o.map(x => x.value))).find(v => /Spark/i.test(v)); await page.selectOption('#attRoom', sparks); await page.waitForTimeout(150); return sparks; };
-  const back = async page => { await page.click('#btnPeBack'); await page.waitForTimeout(300); if (!(await page.isVisible('#tab-attend')) && await page.isVisible('#btnDraftApply')) { await page.click('#btnDraftApply'); await page.waitForTimeout(200); await page.click('#btnPeBack'); await page.waitForTimeout(300); } };
+  const back = async page => { await page.click('#btnPeBack'); await page.waitForTimeout(900);      /* the "Unapplied changes" choice is answered by this page's dialog handler (accept = Apply and continue) */ if (!(await page.isVisible('#tab-attend')) && await page.isVisible('#btnDraftApply')) { await page.click('#btnDraftApply'); await page.waitForTimeout(200); await page.click('#btnPeBack'); await page.waitForTimeout(300); } };
   await test('a change of team made on the Person tab shows on the sheet when you go back', async () => {
     const { page } = await open(); await goSparks(page);
     const q = (await page.textContent('#attendWrap thead')).match(/Q\d/)[0], link = page.locator('#attendWrap a[data-person]').first(), id = await link.getAttribute('data-person');

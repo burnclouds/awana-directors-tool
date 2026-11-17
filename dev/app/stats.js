@@ -1,11 +1,11 @@
-(this.AwanaVersions = this.AwanaVersions || {})['stats.js'] = '1.4.0';
+(this.AwanaVersions = this.AwanaVersions || {})['stats.js'] = '1.4.1';
 // Season statistics: attendance by class and for the whole club, who attended most, who earned most, how fast Sparks are moving through their books.
 // Pure: roster, season and calendar in, plain numbers out; the Statistics tab draws it. Nothing here is stored.
 //   compute({ master, season, calendar }) -> { nights, club, classes, kids, adults, adultsTracked, achievers, points, pace, teams }
-// Rules: a night counts when it is a club night (not an event, not "no club") and at least one child is marked present (volunteers do not count; Season.heldNights, the same rule the store and the
-// Attendance Summary use). A class is the person's class today (a child who moved rooms is counted in the new room for every night). "Present" is the attendance mark only; the handbook,
+// Rules: a night counts when it is a club night (not an event, not "no club") and at least one child is marked present (volunteers do not count; Season.heldNights, the same rule the store, Pace,
+// the printed dates attended and the color-team turnout use; who is a child comes from the data file's own roster, CR-09). A class is the person's class today (a child who moved rooms is counted in the new room for every night). "Present" is the attendance mark only; the handbook,
 // participation and extra marks are not attendance. Children marked inactive stay in the night headcounts (those nights happened) but are not ranked, and the awards listed in
-// config.exclude (the ones everyone gets) are not counted, so the rankings agree with the store and the Attendance Summary.
+// config.exclude (the ones everyone gets) are not counted, so the rankings agree with the store.
 (function (root) {
   const M = root.Model || require('./model.js'), Season = root.Season || require('./season.js');
   const { X } = M;
@@ -75,7 +75,7 @@
     const kids = Object.assign(top(kidsRows), { perfect: nights.length ? kidsRows.filter(r => r.count === nights.length).length : 0 });
     const adults = Object.assign(top(adultRows), { perfect: nights.length ? adultRows.filter(r => r.count === nights.length).length : 0 });
 
-    // ----- achievement: awards earned, and points as the Attendance Summary report adds them up -----
+    // ----- achievement: awards earned, and points as the store adds them up -----
     // Awards earned this season (from Progress and attendance, plus any recorded by hand), not counting the ones everybody gets (config.exclude).
     const earnedBy = p => { const g = M.groupOf(M.room(p)), skip = new Set(((season.config || {}).exclude || {})[g] || []); return Season.earnedAwards(season, p[X.ID], g, calendar || []).filter(r => !skip.has(r.award)).length; };
     const achievers = people.filter(p => isKid(p) && M.isActive(p)).map(p => ({ id: p[X.ID], name: name(p), room: M.room(p), group: M.groupOf(M.room(p)), count: earnedBy(p) })).filter(r => r.count > 0).sort(byCount);

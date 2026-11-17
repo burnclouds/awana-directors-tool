@@ -1,5 +1,5 @@
 :root { color-scheme:light; --ink:#1b1f24; --mute:#667; --line:#d5d9de; --bg:#f6f7f9; --accent:#1f5fbf; --onaccent:#fff; --warn:#b45309;
-  --panel:#fff; --head:#eef1f5; --soft:#f5f6f8; --rowline:#cfd5dc; --off:#fafafa; --offtxt:#999; --link:#1f5fbf; --bad:#a00; --okfg:#176b2c; --okbg:#eef8ee; --okline:#b6d7a8;
+  --panel:#fff; --head:#eef1f5; --soft:#f5f6f8; --rowline:#cfd5dc; --off:#fafafa; --offtxt:#6b6b6b; --link:#1f5fbf; --bad:#a00; --okfg:#176b2c; --okbg:#eef8ee; --okline:#b6d7a8;
   --warnbg:#fff3cd; --warntxt:#7a5a00; --chipbg:#e8f0fe; --addbg:#e3f4e7; --addline:#2f9e4f; --delbg:#fde8e8; --delline:#c0392b; --chgbg:#fff3cd; --chgline:#d49b00; --dangerline:#d9a0a0; --shadow:rgba(0,0,0,.08); --grid:#333; }
 /* Dark mode follows the device setting. Reports stay on white "paper" (see #report .sheet) and printing is always light. */
 @media (prefers-color-scheme: dark) {
@@ -22,7 +22,12 @@ button.primary { background:var(--accent); color:var(--onaccent); border-color:v
 .tabs { display:flex; gap:4px; padding:8px 16px 0; background:var(--panel); border-bottom:1px solid var(--line); }
 .tabs button { border-bottom:none; border-radius:6px 6px 0 0; }
 .tabs button.on { background:var(--bg); font-weight:600; }
-main { padding:12px 16px; }
+main { padding:12px 16px; } main:focus { outline:none; }
+.skiplink { position:absolute; left:8px; top:-60px; z-index:1000; padding:10px 14px; background:var(--card, #fff); color:var(--link, #0b57d0); border:2px solid currentColor; border-radius:6px; font-weight:600; }
+.skiplink:focus { top:8px; }      /* UX-21: visible only while it has the keyboard; Enter moves focus to the page content, past the top bar and tabs */
+@media print { .skiplink { display:none; } }
+table.roster tr.notheld td { color:var(--offtxt); }      /* CR-12: a night no child was marked on is listed but not counted */
+a[data-person] { color:var(--link); }      /* UX-30: a child's name link is the theme link colour everywhere (it was the browser's default blue on Attendance and To do); .chip and a.ver are not links in the reading sense and keep their own colours */
 .bar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; }
 .bar .grow { flex:1; }
 /* The Reports bar (report choice and the Print button) stays at the top while the report scrolls beneath it. */
@@ -62,6 +67,13 @@ dialog::backdrop { background:rgba(0,0,0,.4); }
 .fields.lists { grid-template-columns:1fr; gap:12px; align-items:start; } .fields.lists label { display:flex; flex-direction:column; gap:3px; } .awgroup { display:grid; grid-template-columns:2fr 1fr; gap:8px; align-items:start; }
 .fields .ov input, .fields .ov textarea { border-color:var(--warn); background:var(--warnbg); }
 .dlgbtns { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+/* The app's own pop-up (app-ask.js, UX-20): same look as #dlg; messages keep their line breaks; fields stack with their error under them; a danger button is red; the Undo message sits at the bottom. */
+#ask.askdlg { width:min(480px,94vw); } .askmsg { white-space:pre-line; margin:8px 0; } .asklist { max-height:40vh; overflow:auto; margin:6px 0 6px 18px; padding:0; }
+.askfield { display:flex; flex-direction:column; gap:4px; margin:10px 0 0; } .askfield input, .askfield select, .askfield textarea { width:100%; box-sizing:border-box; } .askerr { color:var(--bad); font-size:13px; min-height:0; }
+.askdlg button.danger { background:var(--bad); border-color:var(--bad); color:#fff; }
+.doneflash { position:fixed; left:50%; transform:translateX(-50%); bottom:16px; z-index:900; display:flex; align-items:center; gap:10px; max-width:calc(100vw - 16px); } .doneflash button { min-height:36px; } .doneflash[hidden] { display:none; }
+@media (max-width: 760px) { #ask.askdlg { width:calc(100vw - 16px); max-width:none; margin:auto 8px 8px; max-height:90vh; } #ask .dlgbtns { flex-direction:column-reverse; position:sticky; bottom:0; background:var(--panel); padding-top:8px; } #ask .dlgbtns button { min-height:44px; width:100%; } .askfield input, .askfield select, .askfield textarea { font-size:16px; min-height:44px; } .doneflash button { min-height:44px; } }
+@media print { #ask, .doneflash { display:none; } }
 
 /* ---------- report sheets (screen) ---------- */
 #report .sheet { color-scheme:light; --grid:#333; --ink:#1b1f24; --mute:#667; --line:#d5d9de; --panel:#fff; --head:#eef1f5; --soft:#f5f6f8; --rowline:#cfd5dc; --bad:#a00; --okfg:#176b2c; --link:#1f5fbf; --warn:#b45309;
@@ -73,7 +85,7 @@ table.grid { border-collapse:collapse; width:100%; }
 table.grid th, table.grid td { border:1px solid #888; padding:2px 6px; text-align:left; vertical-align:top; }
 table.grid th { background:#f0f0f0; }
 table.grid.wrap td { white-space:normal; }
-.none { color:#999; font-style:italic; }
+.none { color:var(--offtxt); font-style:italic; }      /* UX-30: #999 on white was 2.85:1; --offtxt is now 5.3:1 light and about 4.6:1 dark */
 .empty { color:var(--mute); }
 .team { display:inline-block; padding:0 8px; border-radius:3px; color:#1b1f24; }
 select.teamsel { border-radius:12px; padding:1px 8px; font-weight:600; }
@@ -410,7 +422,7 @@ button.attn { padding:6px 12px; }
 .teamorder { list-style:none; margin:6px 0; padding:0; } .teamorder li { display:flex; align-items:center; gap:8px; margin:4px 0; } .teamorder .team { min-width:72px; text-align:center; }
 .trailbar { display:flex; align-items:center; gap:8px; padding:4px 16px; background:var(--soft); border-bottom:1px solid var(--line); font-size:13px; position:relative; }
 /* (i) notes: desktop only (info.js, app-info.js). A phone keeps its screen clear; How it works has all of it. */
-i.info { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; margin:0 3px; border:1px solid var(--mute); border-radius:50%; color:var(--mute); font:italic 700 10px/1 Georgia,serif; cursor:pointer; vertical-align:middle; user-select:none; flex:none; }
+i.info { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; margin:0 3px; border:1px solid var(--mute); border-radius:50%; color:var(--mute); font:italic 700 13px/1 Georgia,serif; cursor:pointer; vertical-align:middle; user-select:none; flex:none; }
 i.info:hover, i.info:focus-visible, i.info[aria-expanded="true"] { background:var(--accent); border-color:var(--accent); color:var(--onaccent); outline:none; }
 i.info:focus-visible { box-shadow:0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
 /* The full note of an (i): a popup over the page (app-info.js sets left, top and max-height), so opening one never moves the page's content. */
@@ -458,11 +470,11 @@ table.roster tr.filterrow th { top:30px; padding:2px 6px; font-weight:400; } .fi
 
 .guesttag { font-size:11px; padding:0 6px; border:1px solid var(--chgline); border-radius:9px; background:var(--chgbg); color:var(--warntxt); }
 
-button.movebtn { padding:0 5px; font-size:12px; line-height:1.4; margin-left:4px; opacity:.7; } button.movebtn:hover { opacity:1; }
+button.movebtn { padding:0 5px; font-size:16px; line-height:1.4; margin-left:4px; opacity:1; }
 
 /* Attendance: the Move button sits in the first column (the row number on a wide screen, the button alone on a phone), so names wrap as before and every box stays tappable */
 table.att td.mvcell { white-space:nowrap; } table.att td.mvcell .movebtn { margin-left:2px; }
-@media (max-width: 760px) { table.att td.mvcell .rn { display:none; } table.att td.mvcell .movebtn { margin:0 -6px; min-width:44px; min-height:44px; padding:0 6px; font-size:14px; opacity:.8; } }
+@media (max-width: 760px) { table.att td.mvcell .rn { display:none; } table.att td.mvcell .movebtn { margin:0 -6px; min-width:44px; min-height:44px; padding:0 6px; font-size:16px; opacity:1; } }
 /* R12: on a phone, unsaved work that has waited 20 edits or 15 minutes gets a Save bar at the bottom (app-season.js status()). A computer keeps the bold chip; print never shows it. z-index 35: above the pinned child bar (30), below the menus (40+) and the splash. */
 .savenudge { display:none; }
 @media (max-width: 760px), (pointer: coarse) and (max-height: 600px) {
@@ -474,6 +486,8 @@ table.att td.mvcell { white-space:nowrap; } table.att td.mvcell .movebtn { margi
 /* R12: the other phone targets are 44px too (test/touch-targets-browser.test.js): To do's boxes, pickers, buttons and ticks, name links in tables and on To do cards, and Uniforms' date and text boxes. 16px text keeps iOS from zooming on focus. A computer is unchanged. */
 @media (max-width: 760px) {
   #tab-todo input[type=text], #tab-todo input[type=date], #tab-todo select, #tab-todo button, #uniWrap input[type=text], #uniWrap input[type=date], #uniWrap select, #uniWrap .todaybtn { min-height:44px; font-size:16px; }
+  /* UX-30: a bare checkbox in a Roster or Calendar cell was 22px with no room around it: a 32px box with 6px around it makes a 44px footprint (the Attendance sheet's pattern); a labelled checkbox elsewhere (Awards Hold) gets the 44px label */
+  table.roster td > input[type=checkbox] { width:32px; height:32px; margin:6px; } #awardsWrap label:has(> input[type=checkbox]) { display:inline-flex; align-items:center; gap:6px; min-height:44px; min-width:44px; }
   #tab-todo label:has(> input[type=checkbox]), #uniWrap label.uov, #uniWrap label:has(> input[type=checkbox]) { display:inline-flex; align-items:center; gap:6px; min-height:44px; }
   td a[data-person], .todocard h3 a[data-person] { display:inline-flex; align-items:center; min-height:44px; }
   #tdNoteText { width:100%; }
@@ -648,3 +662,65 @@ dialog.mergedlg { width:min(980px,96vw); } .mgcounts { margin:6px 0; font-size:1
 @media (max-width: 760px) { #teamsWrap { padding-left:4px !important; padding-right:4px !important; } table.tg td > a[data-person] { flex-direction:column; align-items:flex-start; justify-content:center; } table.tg .tgln { display:block; padding-left:14px; } table.tg tbody td:nth-child(1) { line-height:1.25; } }      /* phone: the grid gets the page width, and a name takes two lines (first, then last indented) so it no longer runs under the next column */
 table.tg select.tgsel.tgproj { background-color:var(--panel); color:var(--ink); -webkit-text-fill-color:var(--ink); opacity:1; }      /* an unlocked quarter's color (projected or set by hand, the pin marks that) is a dashed outline in the team color with plain readable text; the touch-screen rule that boxes every roster select (table.roster select) had turned it dark on dark */
 @media (max-width: 760px), (pointer: coarse) { label.tdview { display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 10px; } label.tdview input { width:22px; height:22px; } }      /* S5: the To do Group by person / task choice is a 44px tap area */
+
+/* ---------- UX-10, UX-09, UX-19: the top bar ---------- */
+.overflowbtn { display:none; } .topsearch .srsp { display:none; } .filetxt { font-weight:600; }
+.overflowbtn.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+#overflowMenu .tick { display:inline-block; width:1.2em; }
+@media (max-width: 760px) {
+  /* Undo and Download stay in the bar; Redo, Flag, Bug and Search live behind the "..." button, so nothing is clipped at the right edge and the bar never scrolls sideways */
+  #btnRedo, #btnFlagMode, #btnBugMode, #btnSearch { display:none !important; }
+  .overflowbtn { display:inline-block; min-width:44px; min-height:44px; font-size:20px; line-height:1; order:4; }
+  .actions { overflow:visible; -webkit-mask-image:none; mask-image:none; padding-right:0; }
+  .filetxt { display:none; } .top { padding-top:7px; padding-bottom:7px; }      /* keeps the bar at one slim row (60px) with the 44px "..." button */
+  /* the unsaved count rides on the Download button (a dot and the number), so the separate words are not needed; the button's accessible name says "N unsaved edits" */
+  #seasonStatus, #seasonStatus.dirty { display:none; }
+  #btnSeasonSave.unsaved::after { content:" \25CF " attr(data-n); font-weight:700; }
+}
+/* UX-06: the Tonight group is always open in the phone menu (any Tonight tab is two taps from anywhere); UX-07: Recent places are the last group of that menu, not a bar */
+.recentgrp { display:none; }
+@media (max-width: 760px) {
+  .tabgrp:first-child > button { display:block; width:100%; padding-left:24px; } .tabgrp:first-child > .grphead .tmcaret { display:none; }
+  .recentgrp:not([hidden]) { display:block; } .recentgrp .chip { display:none; } .recentgrp.open > .chip { display:block; width:100%; padding-left:24px; min-height:44px; text-align:left; border:0; border-bottom:1px solid var(--rowline); border-radius:0; background:transparent; font-size:16px; }
+  #trailBar { display:none !important; }
+}
+/* UX-07: Person filters (Show, Group, Class, Sort by, show inactive): in the bar on a computer; behind one Filter line on a phone */
+@media (min-width: 761px) { .pefilter, .pefilterbody { display:contents; } .pefilter > summary { display:none; } }
+@media (max-width: 760px) {
+  .pefilter { flex:1 1 100%; } .pefilter > summary { min-height:44px; display:flex; align-items:center; padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:var(--panel); font-size:15px; cursor:pointer; }
+  .pefilterbody { display:flex; flex-wrap:wrap; gap:8px; padding:8px 0; } .pefilterbody label { flex:1 1 140px; }
+}
+/* UX-12: the Tonight strip at the top of To do */
+.tonightstrip { border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:6px; background:var(--panel); padding:8px 12px; margin:0 0 10px; display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
+.tonightstrip button { min-height:32px; }
+@media (max-width: 760px) { .tonightstrip button { min-height:44px; min-width:44px; } }
+/* UX-11: Place and Spirit are tap buttons (a tap sets it, a second tap clears it) */
+.tapgrp { display:inline-flex; gap:4px; } .tapgrp button { min-width:36px; min-height:36px; padding:2px 8px; font-weight:600; } .tapgrp button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+@media (max-width: 760px) { .tapgrp button { min-width:44px; min-height:44px; } #gamesWrap td button[data-clearrow] { min-height:44px; } .tapgrp { gap:2px; } .tapgrp button { padding:2px 4px; min-width:44px; font-size:16px; } }
+@media (max-width: 760px) {
+  /* UX-11: on a phone each team is a card: the team and Clear on the first line, Place and Spirit buttons on their own lines under a small caption */
+  #gamesWrap table.entry thead { display:none; } #gamesWrap table.entry, #gamesWrap table.entry tbody { display:block; }
+  #gamesWrap table.entry tr { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; padding:8px 0; border-bottom:1px solid var(--rowline); }
+  #gamesWrap table.entry td { display:block; padding:0; border:0; } #gamesWrap table.entry td:nth-child(2), #gamesWrap table.entry td:nth-child(3) { flex:1 1 100%; }
+  #gamesWrap table.entry td:nth-child(2)::before, #gamesWrap table.entry td:nth-child(3)::before { display:block; font-size:12px; color:var(--mute); } #gamesWrap table.entry td:nth-child(2)::before { content:"Place"; } #gamesWrap table.entry td:nth-child(3)::before { content:"Spirit"; }
+  #gamesWrap table.entry td:nth-child(4) { margin-left:auto; } #gamesWrap table.entry td:nth-child(4):not(:empty)::before { content:"Points "; font-size:12px; color:var(--mute); }
+}
+/* UX-23: To do groups its rows under one collapsible line per class */
+details.tdclass { margin:0 0 8px; } details.tdclass > summary { cursor:pointer; min-height:36px; display:flex; align-items:center; padding:4px 10px; font-weight:700; background:var(--soft); border:1px solid var(--line); border-radius:6px; }
+details.tdclass[open] > summary { border-bottom-left-radius:0; border-bottom-right-radius:0; } @media (max-width: 760px) { details.tdclass > summary { min-height:44px; } }
+/* UX-22: a caption (the column heading) over a box in a phone card; one line, 12px */
+@media (max-width: 760px) { .pcard table.roster td[data-label]::before { content:attr(data-label); display:block; font-size:12px; color:var(--mute); line-height:1.2; } }
+/* UX-29: Options sections are separate cards with a heading bar and 24px between them, under a sticky index */
+.optsec { margin-bottom:24px; scroll-margin-top:64px; } .optsec > h3 { background:var(--soft); margin:-8px -14px 12px; padding:9px 14px; font-size:16px; font-weight:700; border-bottom:1px solid var(--line); border-radius:8px 8px 0 0; }
+.optindex { position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin:0 0 16px; }
+.optindex a { font-size:14px; white-space:nowrap; } .optlinks { display:flex; flex-wrap:wrap; gap:4px 14px; } .optgosel { display:none; } .optindex .optsubs { margin:0 0 0 auto; }
+@media (max-width: 760px) { .optsec { scroll-margin-top:110px; } .optindex { top:var(--stickyh, 0px); } }
+@media (max-width: 600px) { .optlinks { display:none; } .optgosel { display:flex; flex:1 1 200px; gap:8px; align-items:center; } .optgosel select { flex:1; min-height:44px; font-size:16px; } .optindex .optsubs { margin:0; } .optindex button { min-height:44px; } }
+/* UX-24: the Add a person dialog groups its fields */
+fieldset.addgrp { border:1px solid var(--line); border-radius:6px; margin:0 0 10px; padding:6px 10px 8px; } fieldset.addgrp > legend { font-weight:700; padding:0 6px; }
+/* UX-13: the new club year checklist (Options, New season) */
+.nychecklist { border-top:1px solid var(--line); margin-top:10px; padding-top:6px; } .nylist { list-style:none; margin:4px 0 0; padding:0; } .nylist li { display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; padding:6px 0; border-bottom:1px solid var(--rowline); } .nymark { width:1.4em; text-align:center; } .nydone .nymark { color:var(--ok, #1a7f37); } .nytodo b { color:var(--ink); }
+@media (max-width: 760px) { .nylist button { min-height:44px; } }
+/* UX-08 (trial): the Help sheet reached from the "..." menu on a phone */
+dialog.helpsheet { max-width:min(92vw,640px); max-height:86vh; overflow:auto; border:1px solid var(--line); border-radius:10px; background:var(--panel); color:var(--ink); padding:14px 16px; } dialog.helpsheet::backdrop { background:rgba(0,0,0,.4); } .helpnote { border-top:1px solid var(--rowline); padding:8px 0; }
+@media (max-width: 760px) { dialog.helpsheet { width:calc(100vw - 16px); margin:auto 8px 8px; } dialog.helpsheet .dlgbtns button { min-height:44px; width:100%; } }

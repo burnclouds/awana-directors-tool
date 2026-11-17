@@ -69,6 +69,17 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
     });
     assert.deepStrictEqual(stray, [], 'stray text next to a table: ' + JSON.stringify(stray));
   });
+  for (const [w, h] of [[1280, 900], [390, 844]]) {
+    await test('a volunteer-only club night does not change "Nights counted" on Statistics (CR-09), at ' + w + ' wide', async () => {
+      await page.setViewportSize({ width: w, height: h });
+      await page.evaluate(() => { const b = document.querySelector('#report-close, .report-close, #btnReportClose'); if (b) b.click(); document.querySelector('.tabs button[data-tab="stats"]').click(); }); await page.waitForTimeout(350);
+      const nights = () => page.evaluate(() => { const hs = [...document.querySelectorAll('#statsWrap h3')].find(x => /Night by night/.test(x.textContent)), t = hs && (hs.parentElement.querySelector('table')); const row = t && [...t.querySelectorAll('tr')].find(r => /Nights counted/.test(r.textContent)); return row ? row.children[1].textContent.trim() : null; });
+      const before = await nights(); assert(before, 'the figure is there');
+      const night = await page.evaluate(() => { const free = Object.keys(Season.counted(App.calendar)).sort().find(d => !App.season.attendance[d]); const v = App.master.people.find(p => Model.isVolunteer(p) && Model.isActive(p))[Model.X.ID]; App.season.attendance[free] = { [v]: { a: 1 } }; App.refresh(); return free; });
+      await page.waitForTimeout(350); const after = await nights(); assert.strictEqual(after, before, 'Nights counted moved from ' + before + ' to ' + after);
+      await page.evaluate(d => { delete App.season.attendance[d]; App.refresh(); }, night);
+    });
+  }
   await test('no page errors', async () => { assert.deepStrictEqual(errs, []); });
 
   await browser.close(); console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

@@ -3,17 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="1.51.13">
-<meta name="app-build" content="2026-11-16">
+<meta name="app-version" content="1.51.14">
+<meta name="app-build" content="2026-11-17">
 <title>AWANA Roster &amp; Reports</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1f4e79">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="style.css?v=1.51.13">
-<link rel="stylesheet" href="fonts.css?v=1.51.13">
+<link rel="stylesheet" href="style.css?v=1.51.14">
+<link rel="stylesheet" href="fonts.css?v=1.51.14">
 </head>
 <body>
+<a href="#main" class="skiplink" id="skipLink">Skip to content</a>
 <div id="testBanner" class="testbanner" hidden><span id="testBannerText"></span> <button id="tryImport" hidden title="Opens a Planning Center export that adds 15 invented registrations, to try an import">Try an import: add 15 new registrations</button></div>
 <div id="updateBar" class="colsbar updatebar" hidden role="status"><span id="updateText"></span><i class="info" data-info="options.updates"></i> <button type="button" id="updateNow" class="primary">Update now</button> <button type="button" id="updateLater">Later</button></div>
 <div id="pcColsBar" class="colsbar" hidden role="status"><span id="pcColsText"></span><i class="info" data-info="files.columns"></i> <button type="button" id="pcColsMore">Details</button> <button type="button" id="pcColsHide" title="Hide until the next import">Hide</button></div>
@@ -21,8 +22,8 @@
 <header class="top">
   <h1>AWANA Roster &amp; Reports <a id="verLink" href="#" class="ver" title="Click to check for a new version now. Shift-click: every file's version (Debug tab)"></a></h1>
   <div class="actions">
-    <span class="splitbtn" id="saveSplit"><button id="btnSeasonSave" class="primary">Download data file</button><button type="button" id="btnFile" class="primary splitcaret" aria-haspopup="menu" aria-expanded="false" aria-controls="fileMenu" aria-label="File menu: import, and where to save" title="File menu: import, and where to save">&#9662;</button></span><input type="file" id="fileMerge" accept=".json,.txt,application/json,text/plain" class="vh" aria-label="Merge a data file"><input type="file" id="fileAny"accept=".csv,.json,.txt,text/csv,application/json,text/plain" multiple class="vh" aria-label="Import files">
-<button id="btnUndo" disabled title="Nothing to undo">&#8630; Undo</button><button id="btnRedo" disabled title="Nothing to redo">Redo &#8631;</button><button type="button" id="btnFlagMode" aria-pressed="false" title="Flag anything: turn this on, then click any part of any tab to leave a note about it. Esc turns it off.">&#9873; Flag</button><button type="button" id="btnBugMode" aria-pressed="false" hidden title="Report a bug or ask for a feature: turn this on, then click the part of the app it is about. It goes on the Debug tab, not To do. Esc turns it off.">Bug</button>
+    <span class="splitbtn" id="saveSplit"><button id="btnSeasonSave" class="primary">Download data file</button><button type="button" id="btnFile" class="primary splitcaret" aria-haspopup="menu" aria-expanded="false" aria-controls="fileMenu" aria-label="File menu: import, merge, and where to save" title="File menu: import, merge, and where to save"><span class="filetxt">File </span>&#9662;</button></span><input type="file" id="fileMerge" accept=".json,.txt,application/json,text/plain" class="vh" tabindex="-1" aria-label="Merge a data file"><input type="file" id="fileAny" accept=".csv,.json,.txt,text/csv,application/json,text/plain" multiple class="vh" tabindex="-1" aria-label="Import files">
+<button id="btnUndo" disabled title="Nothing to undo">&#8630; Undo</button><button id="btnRedo" disabled title="Nothing to redo">Redo &#8631;</button><button type="button" id="btnFlagMode" aria-pressed="false" title="Flag anything: turn this on, then click any part of any tab to leave a note about it. Esc turns it off.">&#9873; Flag</button><button type="button" id="btnBugMode" aria-pressed="false" hidden title="Report a bug or ask for a feature: turn this on, then click the part of the app it is about. It goes on the Debug tab, not To do. Esc turns it off.">Bug</button><button type="button" id="btnSearch" class="topsearch" aria-label="Search people" title="Search people (or press /)">&#128269;<span class="srsp"> Search</span></button><button type="button" id="btnOverflow" class="overflowbtn" aria-haspopup="menu" aria-expanded="false" aria-controls="overflowMenu" aria-label="More: redo, flag, bug report, search" title="More: Redo, Flag, Bug report, Search people">&#8943;</button>
     <span id="fileInfoSrc" hidden><span id="driveStatus" class="status" hidden></span><span id="autoStatus" class="status" hidden></span><span id="status" class="status">No data loaded</span></span>
     <span id="seasonStatus" class="status"></span><i class="info" data-info="files.bar" data-live="fileInfo"></i>
   </div>
@@ -54,6 +55,7 @@
   <button data-tab="validate" hidden>Validate</button>
   <button data-tab="debug" hidden>Debug</button>
 </div>
+<div class="tabgrp recentgrp" id="recentGrp" role="presentation" hidden><div class="grphead" role="button" tabindex="0" aria-expanded="false">Recent <span class="tmcaret" aria-hidden="true">&#9662;</span></div></div>
 <button type="button" id="tabMore" class="tabmore" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu">More <span aria-hidden="true">&#9662;</span></button>
 <button type="button" id="trailTop" class="tabmore trailtop" aria-haspopup="true" aria-expanded="false" aria-controls="trailTopMenu" hidden>Recent <span aria-hidden="true">&#9662;</span></button>
 </nav>
@@ -63,6 +65,8 @@
 
 </div>
 <div id="fileMenu" class="savemenu" role="menu" aria-label="File" hidden></div>
+<div id="overflowMenu" class="savemenu" role="menu" aria-label="More actions" hidden></div>
+<div id="teamMore" class="savemenu" role="menu" aria-label="More color team actions" hidden><button type="button" role="menuitem" id="btnTeamRedo">Re-draw whole quarter&hellip;</button><button type="button" role="menuitem" id="btnTeamImport">Import current colors&hellip;</button><button type="button" role="menuitem" id="btnTeamCsv" title="Save every Sparks and T&amp;T child with their Q1 to Q4 colors as a CSV: fill it in, then use Import current colors">Save colors CSV</button><button type="button" role="menuitem" id="btnTeamYear">Start new year&hellip;</button></div>
 <div id="fileLegacy" hidden><span class="splitbtn"><button type="button" id="btnImport" class="primary" title="Import a data file, a Planning Center export, or a calendar or colors CSV from this computer. Planning Center changes are shown for review first.">Import&hellip;</button><button type="button" id="importMenuBtn" class="primary splitcaret" hidden aria-haspopup="menu" aria-expanded="false" aria-controls="importMenu" title="Import from this computer or from Google Drive" aria-label="Where to import from">&#9662;</button></span><button id="saveMenuBtn" class="primary splitcaret" hidden aria-haspopup="menu" aria-expanded="false" aria-controls="saveMenu" title="Where to save: this computer or Google Drive" aria-label="Where to save the data file">&#9662;</button></div>
 <div id="importMenu" class="savemenu" role="menu" aria-label="Where to import from" hidden></div>
 <div id="saveMenu" class="savemenu" role="menu" aria-label="Where to save" hidden></div>
@@ -75,13 +79,13 @@
 <div id="draftBar" class="draftbar" hidden></div>
 <div id="saveNudge" class="savenudge" role="status" hidden><span id="saveNudgeText"></span><button type="button" id="saveNudgeLater">Later</button><button type="button" id="saveNudgeBtn" class="primary">Save now</button></div>
 
-<main>
+<main id="main" tabindex="-1">
   <section id="tab-roster">
     <div class="bar">
       <input id="fSearch" aria-label="Search the roster by name" type="search" placeholder="Search name…">
-      <select id="fRoom" aria-label="Filter by room"><option value="">All rooms</option></select>
-      <select id="fRole" aria-label="Filter by kids or volunteers"><option value="">Kids + volunteers</option><option value="kid">Kids only</option><option value="vol">Volunteers only</option></select>
-      <select id="fInactive" aria-label="Active or inactive people"><option value="active">Active only</option><option value="inactive">Inactive only</option><option value="all">Active and inactive</option></select>
+      <select id="fRoom" aria-label="Filter by class"><option value="">All classes</option></select>
+      <select id="fRole" aria-label="Filter by clubbers or volunteers"><option value="">Clubbers and volunteers</option><option value="kid">Clubbers only</option><option value="vol">Volunteers only</option></select>
+      <select id="fInactive" aria-label="Active or inactive people"><option value="active">Active</option><option value="inactive">Inactive</option><option value="all">Everyone</option></select>
       <select id="fQuarter" aria-label="Quarter shown in the team column" title="The quarter of the team column. It is the same quarter as on Reports and Color teams."><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select>
       <span class="grow"></span>
       <button id="btnAddPerson" title="Add a guest or anyone not in Planning Center. Link them to a Planning Center entry later.">Add guest / person</button>
@@ -108,14 +112,17 @@
   <section id="tab-person" hidden>
     <div class="bar" id="personBar" hidden>
       <button id="btnPeBack" class="primary" hidden></button>
-      <label>Show <select id="peRole"><option value="all">Clubbers and adults</option><option value="kid">Clubbers only</option><option value="adult">Adults only</option></select></label>
-      <input id="peSearch" aria-label="Find a person by name" type="search" placeholder="Search name…"><span id="peStatus" class="status" role="status" aria-live="polite"></span>
-      <label>Group <select id="peGroup"><option>All</option><option>Puggles</option><option>Cubbies</option><option>Sparks</option><option>T&amp;T</option></select></label>
+<input id="peSearch" aria-label="Find a person by name" type="search" placeholder="Search name…"><span id="peStatus" class="status" role="status" aria-live="polite"></span>
+      <details id="peFilter" class="pefilter"><summary id="peFilterSum">Filter</summary><div class="pefilterbody">
+      <label>Show <select id="peRole"><option value="all">Clubbers and volunteers</option><option value="kid">Clubbers only</option><option value="adult">Volunteers only</option></select></label>
+            <label>Group <select id="peGroup"><option>All</option><option>Puggles</option><option>Cubbies</option><option>Sparks</option><option>T&amp;T</option></select></label>
       <label>Class <select id="peClass"><option>All</option></select></label>
       <label>Sort by <select id="peSort"><option value="first">First name</option><option value="last">Last name</option></select></label>
+      <label title="People no longer in the Planning Center export, or unchecked as Active, are kept but hidden">Status <select id="peInactive"><option value="active">Active</option><option value="inactive">Inactive</option><option value="all">Everyone</option></select></label>
+      </div></details>
       <label>Person <select id="pePerson"></select></label>
       <button id="btnPePrev">&larr; Previous</button><button id="btnPeNext">Next &rarr;</button>
-      <label title="People no longer in the Planning Center export, or unchecked as Active, are kept but hidden"><input type="checkbox" id="peInactive"> show inactive</label><i class="info" data-info="person.apply"></i>
+<i class="info" data-info="person.apply"></i>
     </div>
     <div id="prPin" class="prpin" hidden><button type="button" data-prstep="-1" aria-label="Previous child">&lsaquo;</button><span id="prPinName" class="prpinname"></span><button type="button" data-prstep="1" aria-label="Next child">&rsaquo;</button></div>
     <nav id="peSub" class="awsubs" role="tablist" aria-label="Part of this person's record" hidden></nav>
@@ -126,7 +133,7 @@
   <section id="tab-attend" hidden>
     <div class="bar" id="attendBar" hidden>
       <span id="attDateWrap" class="stepsel"></span>
-      <span class="stepsel"><button type="button" id="attRoomPrev" title="Previous room" aria-label="Previous room">&#8249;</button><label>Room <select id="attRoom"></select></label><button type="button" id="attRoomNext" title="Next room" aria-label="Next room">&#8250;</button></span><i class="info" data-info="attend.room"></i>
+      <span class="stepsel"><button type="button" id="attRoomPrev" title="Previous room" aria-label="Previous room">&#8249;</button><label>Class <select id="attRoom"></select></label><button type="button" id="attRoomNext" title="Next room" aria-label="Next room">&#8250;</button></span><i class="info" data-info="attend.room"></i>
       <button id="btnAllPresent">Mark everyone present</button>
       <button id="btnClearRoom">Clear this room</button>
       <span id="attFlagWrap"></span>
@@ -149,13 +156,11 @@
   </div>
     <div id="subTeams" hidden>
     <div class="bar">
-      <label>Quarter <select id="tQuarter"><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></label>
-      <button id="btnTeamFill" class="primary">Assign blanks</button><i class="info" data-info="games.teams"></i>
-      <button id="btnTeamRedo">Re-draw whole quarter…</button>
-      <label class="btn">Import current colors<input type="file" id="fileTeams" accept=".csv,.txt,text/csv,text/plain" class="vh"></label>
-      <button id="btnTeamCsv" title="Save every Sparks and T&amp;T child with their Q1 to Q4 colors as a CSV: fill it in, then use Import current colors">Save colors CSV</button>
+      <label>Grid quarter <select id="tQuarter"><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></label>
+      <button id="btnTeamFill" class="primary" title="Give a color to every child who has none: this quarter, or every open quarter. You see the proposal first.">Fill blanks&hellip;</button><i class="info" data-info="games.teams"></i>
       <span class="grow"></span>
-      <button id="btnTeamYear">Start new year…</button>
+      <button type="button" id="btnTeamMore" aria-haspopup="menu" aria-expanded="false" aria-controls="teamMore">More <span aria-hidden="true">&#9662;</span></button>
+      <input type="file" id="fileTeams" accept=".csv,.txt,text/csv,text/plain" class="vh" tabindex="-1" aria-label="Import current colors from a CSV">
     </div>
     <div id="teamsWrap" class="scroll" style="padding:12px 16px"></div>
   </div>
@@ -197,6 +202,7 @@
     <div class="bar">
       <select id="uFilter" aria-label="Filter uniform orders"><option value="">All uniform orders</option><option value="order">Not yet ordered</option><option value="receive">Ordered, not received</option><option value="give">Received, not given out</option></select>
       <span class="status">Item and size come from Planning Center. The right-hand columns are yours. What a family owes or has paid is Planning Center&rsquo;s business and is not shown here.</span>
+      <button type="button" id="uBulkOrdered">Mark shown as ordered today</button><button type="button" id="uBulkReceived">Mark shown as received today</button>
       <span class="grow"></span><span id="uCount" class="status"></span><i class="info" data-info="uniforms.flow"></i>
     </div>
     <div id="uniWrap" class="scroll"></div>
@@ -219,12 +225,12 @@
     <nav class="rsubs" id="rSubs" role="tablist" aria-label="Report groups"><button data-rsub="attend" role="tab">Attendance</button><button data-rsub="binders" role="tab">Binders</button><button data-rsub="progress" role="tab">Progress Sheets</button><button data-rsub="other" role="tab">Other</button></nav>
     <div class="bar noprint">
       <select id="rSel" aria-label="Report"></select>
-      <label id="oRoom">Room <select id="oRoomSel"></select></label>
+      <label id="oRoom">Class <select id="oRoomSel"></select></label>
       <label id="oGroup">Group <select id="oGroupSel"><option>Sparks</option><option>T&amp;T</option><option>Cubbies</option><option>Puggles</option></select></label>
       <label id="oDate">Night <select id="oDateSel"></select></label>
       <label id="oKid">Child <select id="oKidSel"></select></label>
       <label id="bWrap" hidden>Quarter to print <select id="bQuarter"><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></label> <span id="bNote" class="status"></span>
-      <button id="btnPrint" class="primary">Print / Save as PDF</button> <button id="btnBinders">Binders&hellip;</button> <label id="bSheetsWrap"><input type="checkbox" id="bSheets" checked> Include progress sheets in class binders</label> <i class="info" data-info="reports.emergency"></i><i class="info" data-info="reports.print"></i>
+      <button id="btnPrint" class="primary">Print / Save as PDF</button> <button id="btnBinders">Print class binders&hellip;</button> <label id="bSheetsWrap"><input type="checkbox" id="bSheets" checked> Include progress sheets in class binders</label> <i class="info" data-info="reports.emergency"></i><i class="info" data-info="reports.print"></i>
     </div>
     </div>
     <div class="bar noprint" id="dateBar">
@@ -239,7 +245,6 @@
   </section>
 
   <section id="tab-options" hidden>
-    <nav class="awsubs optsubs" aria-label="Options pages"><button type="button" data-optsub="options" class="on">Options</button><button type="button" data-optsub="validate">Validate</button><button type="button" data-optsub="debug">Debug</button></nav>
     <div id="optionsWrap" class="scroll" style="padding:12px 16px"></div>
   </section>
 
@@ -313,6 +318,8 @@
         <li><b>Import&hellip; the export alone</b> (or drop it on the opening screen). It builds the whole roster: every person with their class, grade, birthdate, emergency contact, allergies and vest or shirt order. If Planning Center has changed its columns since the app was built, a window tells you what, and a bar under the header keeps the reminder (see <a href="#m-pc-columns">When Planning Center changes its form</a>).</li>
         <li><b>Download data file</b> (or <b>Save to Google Drive</b>). With no data file yet it asks for the <b>club year</b> (it suggests the current one, such as 2026-27) and creates your data file. From now on that is the file you import each time; the export is only for merging changes.</li>
         <li><b>Calendar tab:</b> bring in a calendar CSV (an example is below) or <i>Add date</i> for each club night. Attendance, games and the quarter all come from the calendar.</li>
+        <li><b>New club year, Options and Color teams.</b> <i>Options</i> starts with an index (a <i>Go to section</i> list on a phone) that moves you to the section you pick; <i>Validate</i> and <i>Debug</i> are its last entry. Under <i>New season</i> a four-step <b>New club year</b> list says what is still to do (this year&rsquo;s file, the calendar, Q1 colors, this year&rsquo;s books), each with a Go. On <i>Color teams</i>, <b>Fill blanks</b> lets you choose this quarter or every open quarter before anything is written; <b>More</b> holds Re-draw, Import, Save colors CSV and Start new year. <i>Edit</i> on Roster opens the child&rsquo;s Person page (Registration); <i>All fields</i> there is the full list of columns.</li>
+        <li><b>Club-night helpers.</b> On a club night (or the day after) the top of <i>To do</i> has a <b>Tonight</b> strip: classes entered, games entered, awards to announce, each with a Go; it is not part of the To do number. <i>Options, Start on</i> chooses what opens after a file opens (Roster, Tonight&rsquo;s tab, or To do) and is kept in the data file. On <i>Color team games</i>, tap a number to set a team&rsquo;s place or spirit and tap it again to clear it; <b>Clear</b> empties the row; when three different places are set the fourth team gets the one left (one Undo step), and ties are never filled in for you. <i>Uniforms</i> has <b>Mark the N shown as ordered / received today</b>, which touches only the rows shown that have no date yet. On <i>To do</i> the rows sit under one line per class (a class with something to do starts open; a class with only things to check starts closed); the name opens the Person page with what needs attention highlighted.</li>
         <li><b>To do tab:</b> it lists what the export could not tell the app: children with no class or one that is not one of yours, color teams (Color team games, then <i>Assign blanks</i>), handbooks, missing grades and contacts.</li>
         <li><b>Options tab:</b> check the standard settings you start with: the list of books and this year&rsquo;s Cubbies and T&amp;T book, how Sparks use their books, color order, game place points, Blue Jewel weeks and the store settings. The award lists themselves are fixed.</li>
         <li>Download once more, so the calendar and settings are in the file.</li>
@@ -437,10 +444,11 @@
       <h3 id="m-devices">On a phone, a tablet and with a keyboard</h3>
       <p>Club night is usually run from a phone, so the app has a phone layout (a window narrower than 760 pixels) and works without a mouse.</p>
       <ul>
-        <li><b>On a phone</b> the tab strip becomes one menu button showing the tab you are on and the To do count; only that button stays at the top while you scroll. <i>Recent places</i> scrolls away. In the slim top bar <b>Download data file</b> comes first, then Undo, Redo and the rest (the bar scrolls sideways and fades at its edge). A phone always works live: each tick is kept as you tap it, and the <i>Hold changes</i> box is ignored. Attendance repeats the <i>N of M present</i> count under the table, and the Progress record repeats <i>Previous child</i> / <i>Next child</i> at its foot. A wide table scrolls inside its own box, with a shadow at the edge that still has more.</li>
+        <li><b>Words used the same way everywhere.</b> <i>Class</i> is a child&rsquo;s class (never &ldquo;room&rdquo; in a label); <i>Clubbers</i> and <i>Volunteers</i> are the two kinds of people; <i>Active</i>, <i>Inactive</i> and <i>Everyone</i> is the one status choice on Roster and on Person; <i>Binders</i> is the Reports group of printed class binders, and <i>Quarterly Printables</i> is the bundle. <i>Balance for:</i> and <i>Statistics for:</i> mark a quarter that is only for that panel; the Color teams balance follows the grid&rsquo;s quarter until you pick another, and says so when they differ. On Roster a class changes with <i>Move&hellip;</i> (the Class column is read-only); on a child&rsquo;s Person page it is under Registration.</li>
+        <li><b>On a phone</b> the tab strip becomes one menu button showing the tab you are on and the To do count; only that button stays at the top while you scroll. The <b>Tonight</b> group (To do, Attendance, Color team games, Awards) is always open in that menu, so any of them is two taps from anywhere; <i>Recent places</i> is the menu's last group. In the slim top bar <b>Download data file</b> comes first (a dot and the number on it mean unsaved edits), then Undo, <b>File</b> and a <b>&#8943;</b> button holding Redo, Flag, Bug report and Search people, so nothing sits past the edge. On a phone the Person tab keeps Search, Person, Previous and Next in view and the other filters are behind one <i>Filter: ...</i> line that says what is set. The search (the magnifier, or <kbd>/</kbd>) lists names that start with what you typed before names that only contain it. A phone always works live: each tick is kept as you tap it, and the <i>Hold changes</i> box is ignored. Attendance repeats the <i>N of M present</i> count under the table, and the Progress record repeats <i>Previous child</i> / <i>Next child</i> at its foot. A wide table scrolls inside its own box, with a shadow at the edge that still has more.</li>
         <li><b>On a tablet</b> with a touch screen the checkboxes on Attendance and the date boxes, <i>Today</i> buttons and pickers on Progress are as big as on a phone (44 pixels). With a mouse they stay compact.</li>
         <li><b>On a desktop</b> the title bar and the tabs stay on top while the page scrolls, so the tabs and <i>Download data file</i> are always one click away. Dark mode follows the setting of your device; printed reports are always light.</li>
-        <li><b>With a keyboard.</b> Tab moves through every control in reading order and each one shows a focus ring. In a pop-up window (the import review, a warning, a dialog) Tab stays inside it and Esc cancels it. On the tab strip the arrow keys, Home and End move between tabs. On Attendance, <b>P</b> on a checkbox opens that child; in a date box, Enter finishes the date. Ctrl+Z / Ctrl+Y undo and redo when you are not typing in a box, and <b>/</b> jumps to the search box in this manual. Anywhere else (not while typing in a box), <b>/</b> opens a search for a person by name, with tabs: <i>People</i> (opens the person's Progress), <i>To do</i> (only people with a To do item) and <i>Awards</i>. Up and Down choose, Enter opens, Esc closes.</li>
+        <li><b>With a keyboard.</b> The first Tab stop is a <i>Skip to content</i> link (it appears at the top left while it has the keyboard): press Enter to jump past the top bar and tabs to the page. Tab moves through every control in reading order and each one shows a focus ring. In a pop-up window (the import review, a warning, a dialog) Tab stays inside it and Esc cancels it. On the tab strip the arrow keys, Home and End move between tabs. On Attendance, <b>P</b> on a checkbox opens that child; in a date box, Enter finishes the date. Ctrl+Z / Ctrl+Y undo and redo when you are not typing in a box, and <b>/</b> jumps to the search box in this manual. Anywhere else (not while typing in a box), <b>/</b> opens a search for a person by name, with tabs: <i>People</i> (opens the person's Progress), <i>To do</i> (only people with a To do item) and <i>Awards</i>. Up and Down choose, Enter opens, Esc closes.</li>
         <li><b>With a screen reader.</b> Every button, box and pick-list has a name; a box inside a table is named by its column heading and row (for example <i>Size, a child&rsquo;s name</i>); each tab is a labeled region; status messages are announced. This was checked by script, not yet with a real screen reader, so tell the club leader about anything that reads badly.</li>
       </ul>
 
@@ -458,14 +466,15 @@
         <li><b>Ignore</b> on a row (or <i>Ignore all</i> on a heading) accepts that item as it is and hides it, and the tab count drops. It is kept in the data file, so it stays ignored next week (and a new season starts with none ignored). <i>show the N ignored</i> lists them greyed with <i>Bring back</i>, and <i>Bring all back</i> restores everything. If the situation changes (more is missing than when you ignored it) the item comes back by itself.</li>
         <li><b>Set book for all</b> (<i>Group by task</i>, the handbook group): pick a book and press <i>Set</i> to give it to everyone listed who has no book yet, for example every T&amp;T child without a book set to AoG. Their date and note are kept, and anyone who already has a book is skipped.</li>
         <li><b>Awards are not on this page.</b> The <b>Awards</b> tab lists what is still to announce or hand out, and its number counts those awards (not the ones left off the slide, and not the end-of-year awards until the ceremony). Enter <i>Given</i> when you hand one over (on the child’s Person record, Progress sub-tab, under the award’s section).</li>
-        <li>After an import that added people, the list starts on just those people; untick the box to see everyone. Orange items are things to do; the others are to check. A child with no emergency contact name but a parent&rsquo;s primary phone on the registration shows as a <b>note &dagger;</b> instead: the binders print that phone (marked &dagger;), so it is not counted as something to do or to check. Colors are not in a Planning Center export, so every new Sparks or T&amp;T child will be listed under the color team until you run <i>Assign blanks</i>.</li>
+        <li>After an import that added people, the list starts on just those people; untick the box to see everyone. Orange items are things to do; the others are to check. A child with <b>no emergency phone</b> (no parent&rsquo;s primary phone, no number in the Emergency Contact box, and none chosen on the Person tab) is one orange item, <i>No emergency phone on file</i>, counted in the To do number. It is not repeated under Details missing. It stays until Planning Center has a parent&rsquo;s phone or an emergency number (the next import) or you choose a number on the Person tab (Emergency phone card). A name alone is not a number, and &ldquo;N/A&rdquo; is skipped. Colors are not in a Planning Center export, so every new Sparks or T&amp;T child will be listed under the color team until you run <i>Assign blanks</i>.</li>
       </ul>
 
       <h3 id="m-t-attend">Attendance</h3>
       <ul>
         <li>Choose the night and room, or step with the <b>&lsaquo;</b> and <b>&rsaquo;</b> buttons beside each box (previous and next club night, previous and next room; they are greyed out at the ends of the list). Columns depend on the group: <b>Puggles</b> have Present; <b>Cubbies</b> have Present and Extra; <b>Sparks</b> and <b>T&amp;T</b> have Present, Handbook, Participation and Extra. Sparks and T&amp;T also show the child&rsquo;s color team for that quarter. The boxes come right after the name, and the whole cell is the target, so on a phone a tap anywhere in the cell ticks it. Present also remembers the group the child was in that night, so a child who later moves from Sparks to T&amp;T keeps the Sparks game points of the earlier nights (nights ticked before this was added use the group the child is in now). On a phone the top bar shrinks to Undo, Redo and Download, with a dot that is orange while there are unsaved changes; the other buttons scroll sideways in the same row.</li>
         <li><b>Volunteers:</b> adults are marked present too, under the room <i>Volunteers</i> (the Statistics tab totals them). Only <i>Present</i> is kept for adults.</li>
-        <li><b>Volunteer absences:</b> in the room <i>Volunteers</i>, above the presence boxes, is the list of volunteers who will be out. Add one with a volunteer, a From and To date and a reason: only club nights from the Calendar are recorded, one line per night. Each night can be cleared on its own (<i>Clear this night</i>), the whole absence can be cleared (<i>Clear whole absence</i>), or only the nights from today on (<i>Clear remaining nights</i>). Choose <i>Upcoming</i> to see only the nights from today. A <i>Planned out</i> column shows each planned volunteer's reason for that night. The statuses are <i>Present</i>, <i>Planned out</i>, <i>Present (was planned out)</i> and <i>Not marked</i>: a blank is never shown as absent. Ticking Present on a planned night leaves the absence in place as a record, and that night never counts against the volunteer. A volunteer's Person page has the same night-by-night table, with a line for present of expected club nights (planned-out nights are taken away only when the volunteer was not present). Entering an absence is the acknowledgement; nothing is ticked. A volunteer's own Attendance page shows the same absences, and the To do tab shows the next two club nights with their absences.</li>
+        <li><b>Volunteer absences:</b> in the room <i>Volunteers</i>, above the presence boxes, is the list of volunteers who will be out. Add one with a volunteer, a From and To date and a reason: only club nights from the Calendar are recorded, one line per night. Each night can be cleared on its own (<i>Clear this night</i>), the whole absence can be cleared (<i>Clear whole absence</i>), or only the nights from today on (<i>Clear remaining nights</i>). Choose <i>Upcoming</i> to see only the nights from today. A <i>Planned out</i> column shows each planned volunteer's reason for that night. The statuses are <i>Present</i>, <i>Planned out</i>, <i>Present (was planned out)</i> and <i>Not marked</i>: a blank is never shown as absent. Ticking Present on a planned night leaves the absence in place as a record, and that night never counts against the volunteer. A volunteer's Person page has the same night-by-night table, with a line for present of expected <i>held</i> club nights (a held night is one a child was marked on; planned-out nights are taken away only when the volunteer was not present). A night nobody&rsquo;s child was marked on is listed in grey as <i>not held</i> and is not counted. Entering an absence is the acknowledgement; nothing is ticked. A volunteer's own Attendance page shows the same absences, and the To do tab shows the next two club nights with their absences.</li>
+        <li>Nights are named the same way on Attendance, Games, Awards and Reports: <i>Wed 11/11 (Q2)</i>, with <i>&middot; today</i>, <i>&middot; last</i> (the night Attendance and Games open on) or <i>&middot; next</i> (the night Awards opens on) beside the right one, and a tick once the night has been entered.</li>
         <li>The <i>Year</i> column counts nights present so far. The status line shows how many are present and whether the night has been entered yet.</li>
         <li><b>New season&hellip;</b> moved to the <b>Options</b> tab; it starts the next year&rsquo;s data file: people, colors, calendar and award lists carry over, and so does last year&rsquo;s progress and awards (once, as earlier-year work); attendance, games and history start empty. See <a href="#m-routines">section 8</a>.</li>
       </ul>
@@ -547,8 +556,8 @@
         <li><b>The whole club:</b> nights counted, average attendance, the best and the lowest night, and last week against the average. A night counts when it is a club night in the calendar (not an event, not &ldquo;no club&rdquo;) and a child was marked present.</li>
         <li><b>Night by night: children and adults.</b> For children, and for adults on their own: the nights counted, the highest and lowest night (with its date or dates), the average (mean), the median, the mode, and both standard deviations. <i>Standard deviation (population, &sigma;)</i> treats the held nights as the whole set; <i>sample (s)</i> treats them as a sample of a longer run, so it is a little larger. Pick <i>Whole season</i> or a quarter; the figures follow that choice, and this picker does not change the quarter used elsewhere. A night with no adults marked is left out of the adult figures, because adults were not counted that night.</li>
         <li><b>By class:</b> average, highest and lowest night, and the share of the children enrolled now who came (children who have left are not in the share). A child who changed rooms counts in the new room for every night.</li>
-        <li><b>Most nights present</b> for children and for adults, with everyone who was there every night. A night counts when it is a club night on the Calendar (not an Event, not No Club) and a child was marked present (volunteers do not count); the Attendance Summary report and the Awana store use the same rule. Children marked inactive are not ranked, and the awards everyone gets (the slide exclusions) are not counted in <b>Most awards</b>. Adults are marked present on the Attendance tab, under the room <i>Volunteers</i>.</li>
-        <li><b>Most awards</b>, the leader in each program, and the points leaders (attendance, handbook, participation, extra and game points, as in the Attendance Summary report).</li>
+        <li><b>Most nights present</b> for children and for adults, with everyone who was there every night. A night counts when it is a club night on the Calendar (not an Event, not No Club) and a child was marked present (volunteers do not count); the Awana store, Pace, the printed dates attended and the color-team turnout use the same rule, worked out from the data file&rsquo;s own list of people (a volunteer-only night counts nowhere). Children marked inactive are not ranked, and the awards everyone gets (the slide exclusions) are not counted in <b>Most awards</b>. Adults are marked present on the Attendance tab, under the room <i>Volunteers</i>.</li>
+        <li><b>Most awards</b>, the leader in each program, and the points leaders (attendance, handbook, participation, extra and game points, as the Awana store adds them up).</li>
         <li><b>Section pace by class:</b> for each Sparks and T&amp;T class, the middle and the range of its children's pace, how many are under 0.5 a night, and the newest sign-off date entered. Use it to set one class beside another; a class that is much faster or slower is a reason to go and watch, not proof of a different pass standard (the file does not record who signed a section or how the child passed it). Below it, children who already have 3 or more sections dated on or before their first night here (earlier work being entered, or a fast start).</li>
         <li><b>Sparks pace:</b> awards earned per night attended, for Sparks with at least 3 nights. Sections entered on Progress (Person tab) are shown beside it. Color team points for the year are at the bottom.</li>
         <li><b>Participation and Extra by class:</b> for each class, every club night is put in a band by how many of the children present got the mark: every child, most (75% or more), some, or nobody. The bar shows how the nights split, <i>Given to</i> is the share of all children present who got it, and the pattern says whether the class gives it to nearly everyone, is selective, or rarely uses it (or the teacher does not record it). Nights with fewer than 3 children in the class are left out of the bands. A class here is the room the children are in; the file does not record which adult led it. Puggles have neither mark and Cubbies only Extra. The same table is on the Awana store points tab, to help decide whether to count these marks and how much.</li>
@@ -584,7 +593,7 @@
         <li><b>Why these teams.</b> Beside the grid (below it on a phone): first the preview of a recalculation, when one is open; then the goals in force. <b>Never repeating a color</b> and <b>even team sizes</b> always come first; then, in the order you set on the <b>Options</b> tab (<i>Color team balancing</i>, each with an on/off switch and Reset), <b>keeping earlier teammates apart</b>, <b>even expected turnout</b> and <b>spreading each grade across the teams</b>. Expected turnout is each child&rsquo;s share of past club nights attended, counted from their first night here and up to today, added up per team; a child with fewer than three counted nights is counted at the group average, and the panel says how many that is. Open <i>Attendance behind the turnout</i> to see every child&rsquo;s nights and rate.</li>
         <li>Only Sparks and T&amp;T have color teams (Red, Blue, Green, Yellow), drawn separately. Pick the quarter and press <b>Assign blanks</b>: children who already have a color keep it; the rest are filled in. Nothing is saved until you have seen it: a list shows each child and the color proposed, with a note for any repeated color or uneven team. <i>Confirm</i> saves exactly that list, <i>Draw again</i> makes a new proposal, <i>Cancel</i> changes nothing. <i>Fill N blank colors</i> on the grid does the same for every open quarter. If the calendar has no club night from today on (a new season still carries last year&rsquo;s dates), a banner on this tab and on To do says to replace the calendar first.</li>
         <li><b>Quarter 1</b> is a random but even split. <b>Quarter 2 and later:</b> nobody gets a color they have had in an earlier quarter, and former teammates are split up. The page lists any repeats and unassigned children.</li>
-        <li><b>Re-draw whole quarter&hellip;</b> clears that quarter for both groups and draws again (it asks first, and refuses a quarter that has started or is locked). What it draws counts as a projection, not as hand-set colors. <b>Assign blanks</b> fills only the empty cells of the quarter you pick (a new child mid-quarter). <b>Import current colors</b> takes a CSV with a Unique ID or Name column and either one Color column (fills the selected quarter) or Q1 to Q4 columns; imported colors are treated as set by hand. <b>Start new year&hellip;</b> archives this year&rsquo;s colors under a label (for example 2026-27), leaves Q1 blank for a fresh draw, and clears the locks and the projection with them.</li>
+        <li><b>Re-draw whole quarter&hellip;</b> clears that quarter for both groups and draws again. It shows a preview first, like Assign blanks (the proposed colors, any warnings, <i>Draw again</i>); nothing changes until you press <i>Confirm</i>, and <i>Cancel</i> leaves every color as it was. It refuses a quarter that has started or is locked. What it draws counts as a projection, not as hand-set colors. <b>Assign blanks</b> fills only the empty cells of the quarter you pick (a new child mid-quarter). <b>Import current colors</b> takes a CSV with a Unique ID or Name column and either one Color column (fills the selected quarter) or Q1 to Q4 columns; imported colors are treated as set by hand. <b>Start new year&hellip;</b> archives this year&rsquo;s colors under a label (for example 2026-27), leaves Q1 blank for a fresh draw, and clears the locks and the projection with them.</li>
         <li>New children who arrive mid-year just get a color that keeps the teams even when you press Assign blanks.</li>
         <li>These are the quarter colors. A child who changes team mid-quarter is moved on the <b>Person</b> tab, or in the year grid (press the color of a locked quarter), from a chosen night; the page lists this quarter&rsquo;s moves, and printed attendance sheets and color-team lists show each child&rsquo;s team for the night you pick (a <b>*</b> marks a mover).</li>
         <li><b>What a move does.</b> Progress is not touched. Game points are kept by date: a clubber gets, for each night they attended, that night&rsquo;s points for the team they were on that night. Earlier nights never change; the move counts from its own night, and you can date it back (the points from that night on are recalculated; the date must be a night in that quarter). The child&rsquo;s Attendance page says, for example, <i>Q2: Green, then Blue from 11/4</i>, and the Game standings report lists everyone who changed team. A team&rsquo;s own results do not change when someone moves. For the no-repeat rule, a color a child was moved to counts as played; if all four colors are used up (a Quarter 1 move leaves nothing new for Quarter 4), the draw gives the color they spent the fewest nights on.</li>
@@ -743,50 +752,53 @@
 <section id="warn" class="modal-wrap" hidden><div class="modal redwarn" id="warnBody"></div></section>
 <section id="lockAsk" class="modal-wrap" hidden><div class="modal" id="lockAskBody"></div></section>
 <dialog id="dlg"></dialog>
+<dialog id="ask" class="askdlg"></dialog>
 <datalist id="hbCodes"></datalist>
 
-<script src="csv.js?v=1.51.13"></script>
-<script src="info.js?v=1.51.13"></script>
-<script src="model.js?v=1.51.13"></script>
-<script src="calendar.js?v=1.51.13"></script>
-<script src="rotation.js?v=1.51.13"></script>
-<script src="teams.js?v=1.51.13"></script>
-<script src="catalog.js?v=1.51.13"></script>
-<script src="season.js?v=1.51.13"></script>
-<script src="datamerge.js?v=1.51.13"></script>
-<script src="flagtrail.js?v=1.51.13"></script>
-<script src="teamplan.js?v=1.51.13"></script>
-<script src="pace.js?v=1.51.13"></script>
-<script src="intake.js?v=1.51.13"></script>
-<script src="check.js?v=1.51.13"></script>
-<script src="validate.js?v=1.51.13"></script>
-<script src="todo.js?v=1.51.13"></script>
-<script src="reports.js?v=1.51.13"></script>
-<script src="reports-season.js?v=1.51.13"></script>
-<script src="slides.js?v=1.51.13"></script>
-<script src="stats.js?v=1.51.13"></script>
-<script src="store.js?v=1.51.13"></script>
-<script src="app.js?v=1.51.13"></script>
-<script src="app-season.js?v=1.51.13"></script>
-<script src="app-person.js?v=1.51.13"></script>
-<script src="app-todo.js?v=1.51.13"></script>
-<script src="app-teamgrid.js?v=1.51.13"></script>
-<script src="app-stats.js?v=1.51.13"></script>
-<script src="app-store.js?v=1.51.13"></script>
-<script src="app-options.js?v=1.51.13"></script>
-<script src="app-update.js?v=1.51.13"></script>
-<script src="app-sw.js?v=1.51.13"></script>
-<script src="app-info.js?v=1.51.13"></script>
-<script src="app-flagpop.js?v=1.51.13"></script>
-<script src="app-help.js?v=1.51.13"></script>
-<script src="app-trail.js?v=1.51.13"></script>
-<script src="app-merge.js?v=1.51.13"></script>
-<script src="app-flagmode.js?v=1.51.13"></script>
-<script src="app-flagmarks.js?v=1.51.13"></script>
-<script src="app-tools.js?v=1.51.13"></script>
-<script src="app-search.js?v=1.51.13"></script>
-<script src="drive-config.js?v=1.51.13"></script>
-<script src="drive.js?v=1.51.13"></script>
-<script src="app-drive.js?v=1.51.13"></script>
+<script src="csv.js?v=1.51.14"></script>
+<script src="info.js?v=1.51.14"></script>
+<script src="model.js?v=1.51.14"></script>
+<script src="calendar.js?v=1.51.14"></script>
+<script src="rotation.js?v=1.51.14"></script>
+<script src="teams.js?v=1.51.14"></script>
+<script src="catalog.js?v=1.51.14"></script>
+<script src="season.js?v=1.51.14"></script>
+<script src="datamerge.js?v=1.51.14"></script>
+<script src="flagtrail.js?v=1.51.14"></script>
+<script src="teamplan.js?v=1.51.14"></script>
+<script src="pace.js?v=1.51.14"></script>
+<script src="intake.js?v=1.51.14"></script>
+<script src="check.js?v=1.51.14"></script>
+<script src="validate.js?v=1.51.14"></script>
+<script src="todo.js?v=1.51.14"></script>
+<script src="reports.js?v=1.51.14"></script>
+<script src="reports-season.js?v=1.51.14"></script>
+<script src="slides.js?v=1.51.14"></script>
+<script src="stats.js?v=1.51.14"></script>
+<script src="store.js?v=1.51.14"></script>
+<script src="app.js?v=1.51.14"></script>
+<script src="app-ask.js?v=1.51.14"></script>
+<script src="app-season.js?v=1.51.14"></script>
+<script src="app-person.js?v=1.51.14"></script>
+<script src="app-todo.js?v=1.51.14"></script>
+<script src="app-teamgrid.js?v=1.51.14"></script>
+<script src="app-stats.js?v=1.51.14"></script>
+<script src="app-store.js?v=1.51.14"></script>
+<script src="app-options.js?v=1.51.14"></script>
+<script src="app-update.js?v=1.51.14"></script>
+<script src="app-sw.js?v=1.51.14"></script>
+<script src="app-info.js?v=1.51.14"></script>
+<script src="app-flagpop.js?v=1.51.14"></script>
+<script src="app-help.js?v=1.51.14"></script>
+<script src="app-trail.js?v=1.51.14"></script>
+<script src="app-merge.js?v=1.51.14"></script>
+<script src="app-flagmode.js?v=1.51.14"></script>
+<script src="app-flagmarks.js?v=1.51.14"></script>
+<script src="app-tools.js?v=1.51.14"></script>
+<script src="app-search.js?v=1.51.14"></script>
+<script src="app-topbar.js?v=1.51.14"></script>
+<script src="drive-config.js?v=1.51.14"></script>
+<script src="drive.js?v=1.51.14"></script>
+<script src="app-drive.js?v=1.51.14"></script>
 </body>
 </html>

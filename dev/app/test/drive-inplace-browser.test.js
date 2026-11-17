@@ -45,7 +45,7 @@ async function session(browser, base, d, opts) {
   opts = opts || {};
   const ctx = await browser.newContext({ acceptDownloads: true }), p = await ctx.newPage(), seen = { errors: [], dialogs: [], downloads: 0 };
   p.on('pageerror', e => seen.errors.push(e.message)); p.on('download', () => seen.downloads++);
-  p.on('dialog', dlg => { seen.dialogs.push(dlg.message()); if (dlg.type() === 'prompt' && opts.promptAnswer) dlg.accept(opts.promptAnswer); else if (dlg.type() === 'confirm' && opts.acceptConfirm) dlg.accept(); else dlg.dismiss(); });
+  p.on('dialog', dlg => { seen.dialogs.push(dlg.message()); if (dlg.type() === 'prompt' && opts.promptAnswer) dlg.accept(opts.promptAnswer); else if (dlg.type() === 'confirm' && opts.acceptConfirm) { if (/^You have unsaved changes/.test(dlg.message()) && dlg.press) dlg.press('go'); else dlg.accept(); } else dlg.dismiss(); });      /* "You have unsaved changes" is a choice now: "Continue without saving" is what the old OK meant */
   await p.route(/accounts\.google\.com|apis\.google\.com|googleapis\.com/, async r => {
     const u = r.request().url(), method = r.request().method(), json = o => r.fulfill({ contentType: 'application/json', body: JSON.stringify(o) });
     if (/gsi\/client/.test(u)) return r.fulfill({ contentType: 'application/javascript', body: GSI });

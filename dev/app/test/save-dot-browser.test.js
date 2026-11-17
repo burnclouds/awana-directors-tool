@@ -41,12 +41,14 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
   });
   await test('on a phone one edit says "1 unsaved edit" in readable words, inside the screen', async () => {
     const { p, ctx } = await openPhone(); await p.evaluate(() => { const id = Object.keys(App.season.roster.people)[0]; Season.setMark(App.season, '2026-10-28', id, 'h', 1); App.commitScope(() => App.changed()); }); await p.waitForTimeout(150);
-    const c = await chip(p); assert(c.shown, JSON.stringify(c)); assert(/^1 unsaved edit$/.test(c.text.trim()), c.text); assert(c.size >= 12, 'font ' + c.size); assert(c.before === 'none' || c.before === 'normal', 'no dot: ' + c.before); assert(c.left >= 0 && c.right <= 390, JSON.stringify(c)); await ctx.close();
+    /* UX-10: the count rides on the Download button (a dot and the number); its name says it in words; the separate chip is hidden on a phone */
+    const c = await p.evaluate(() => { const b = document.getElementById('btnSeasonSave'), r = b.getBoundingClientRect(); return { after: getComputedStyle(b, '::after').content, label: b.getAttribute('aria-label') || '', left: r.left, right: r.right, chip: getComputedStyle(document.getElementById('seasonStatus')).display }; });
+    assert(/●/.test(c.after) && /1/.test(c.after), 'dot and number on the button: ' + c.after); assert(/1 unsaved edit/.test(c.label), 'the name says it in words: ' + c.label); assert.strictEqual(c.chip, 'none', 'no separate chip'); assert(c.left >= 0 && c.right <= 390, JSON.stringify(c)); await ctx.close();
   });
   await test('Download stays fully on screen with the words showing, and nothing scrolls sideways', async () => {
     const { p, ctx } = await openPhone(); await edit(p, 12); await p.waitForTimeout(150);
-    const r = await p.evaluate(() => { const b = document.getElementById('btnSeasonSave').getBoundingClientRect(); return { l: b.left, r: b.right, sw: document.documentElement.scrollWidth, n: document.getElementById('seasonStatus').innerText }; });
-    assert(r.l >= 0 && r.r <= 390, JSON.stringify(r)); assert(r.sw <= 390, 'the page scrolls sideways: ' + r.sw); assert(/unsaved edits/.test(r.n), r.n); await ctx.close();
+    const r = await p.evaluate(() => { const b = document.getElementById('btnSeasonSave').getBoundingClientRect(); return { l: b.left, r: b.right, sw: document.documentElement.scrollWidth, n: document.getElementById('btnSeasonSave').getAttribute('aria-label') || '' }; });
+    assert(r.l >= 0 && r.r <= 390, JSON.stringify(r)); assert(r.sw <= 390, 'the page scrolls sideways: ' + r.sw); assert(/\d+ unsaved edits/.test(r.n), r.n); await ctx.close();
   });
   await test('saving clears the words', async () => {
     const { p, ctx } = await openPhone(); await edit(p, 1); await p.evaluate(() => document.getElementById('btnSeasonSave').click()); await p.waitForTimeout(100);

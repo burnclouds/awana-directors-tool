@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-stats.js'] = '1.8.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app-stats.js'] = '1.8.2';
 // Statistics tab: draws what stats.js works out. Read-only; changes nothing.
 (function () {
   const App = window.App, esc = App.esc, $ = id => document.getElementById(id);
@@ -17,7 +17,7 @@
     const c = col(f.children), a = f.adults.n ? col(f.adults) : null;
     const body = c.map((row, i) => '<tr><td>' + row[0] + '</td><td class="num">' + row[1] + '</td><td class="num">' + (a ? a[i][1] : (i === 0 ? 'No adults marked on these nights' : '—')) + '</td></tr>');
     return '<h3>Night by night: children and adults' + (span === 'season' ? '' : ', ' + esc(span)) + '</h3>' +
-      '<div class="statspan" role="group" aria-label="Which nights">' + spans.map(x => '<button type="button" data-span="' + x + '" aria-pressed="' + (x === span ? 'true' : 'false') + '"' + (x === span ? ' class="on"' : '') +
+      '<div class="statspan" role="group" aria-label="Which nights"><span class="status">Statistics for:</span> ' + spans.map(x => '<button type="button" data-span="' + x + '" aria-pressed="' + (x === span ? 'true' : 'false') + '"' + (x === span ? ' class="on"' : '') +
         (x !== 'season' && !have.has(x) ? ' disabled title="No club nights held in ' + x + ' yet"' : '') + '>' + (x === 'season' ? 'Whole season' : x) + '</button>').join('') + '</div>' +
       (f.children.n ? table(['Figure', 'Children', 'Adults'], body) : '<p class="status">No club nights held in ' + esc(label) + ' yet.</p>') +
       '<p class="status">Only nights with at least one child present are counted. Adult figures leave out nights where no adult was marked: that means adults were not counted, not that none came. Standard deviation is shown two ways: population (σ) treats these nights as the whole set; sample (s) treats them as a sample of a longer run, so it is a little larger.</p>';

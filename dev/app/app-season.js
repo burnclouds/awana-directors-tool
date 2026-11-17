@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.92.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.94.0';
 // Season tabs: Attendance, Games, Awards, Progress, History. Talks to app.js through window.App.
 // The data JSON is the only file we write: season records, roster extras, calendar and rotation. Every edit goes through touchSeason().
 (function () {
@@ -42,7 +42,7 @@
   const draftChanges = () => { if (!season || !snap) return []; syncData(); return Season.diff(snap, season); };
   // Anything that commits on its own (an import, opening files) first settles the draft, then runs with staging off.
   App.commitScope = fn => {
-    if (!resolveDraft()) return;
+    if (!resolveDraft(() => App.commitScope(fn))) return;
     forced++; let r; try { r = fn(); } catch (e) { forced--; throw e; }
     if (r && typeof r.then === 'function') return r.finally(() => { forced--; }); forced--; return r;
   };
@@ -64,13 +64,17 @@
     rebase(); dirty = draftBaseDirty; if (!dirty) { edits = 0; unsavedSince = null; }
     status(); App.updateStatus(); updateUndo(); App.refresh(); if (App.updateTodoBadge) App.updateTodoBadge();
   }
-  // True when it is fine to carry on (nothing pending, or the person chose to apply it).
-  function resolveDraft() {
+  // True when it is fine to carry on right now (nothing pending). When changes are pending it returns false ("stay here") and asks in the app's dialog; the answer re-runs the action that was asked for (`again`):
+  // Apply and continue, Discard and continue, or Stay here. A caller with no `again` just gets the false and a message (UX-20: the dialog is asynchronous, so the answer cannot be waited for).
+  function resolveDraft(again) {
     if (!draftTab) return true;
     const n = draftChanges().length;
     if (!n) { discardDraft(); return true; }
-    if (!confirm('The ' + DRAFT_TABS[draftTab] + ' tab has ' + n + ' change' + (n === 1 ? '' : 's') + ' that you have not applied yet.\n\nOK applies them now. Cancel stays here so you can apply or discard them yourself.')) return false;
-    applyDraft(); return true;
+    const tab = DRAFT_TABS[draftTab];
+    if (typeof again !== 'function') { App.flash('The ' + tab + ' tab has ' + n + ' change' + (n === 1 ? '' : 's') + ' you have not applied yet. Apply or discard them first.', 'warn'); return false; }
+    App.ask.choose('The ' + tab + ' tab has ' + n + ' change' + (n === 1 ? '' : 's') + ' that you have not applied yet.', { title: 'Unapplied changes', buttons: [{ id: 'apply', label: 'Apply and continue', primary: true }, { id: 'discard', label: 'Discard and continue', danger: true }, { id: 'stay', label: 'Stay here' }], cancel: 'stay' })
+      .then(id => { if (id === 'apply') { applyDraft(); again(); } else if (id === 'discard') { discardDraft(); drawDraftBar(); again(); } });
+    return false;
   }
   App.resolveDraft = resolveDraft;
   // An edit made here to a Planning Center field is only a note until Planning Center has it. That count lives in this bar (with a link to the list), so there is one place that says "changes": under the Apply line when a draft is open, alone on any other tab.
@@ -98,7 +102,10 @@
     if (e.target.id === 'btnPcNeedHide') { pcHidden = true; drawDraftBar(); return; }
     if (e.target.id === 'lnkPcNeed') { e.preventDefault(); App.showReport('pcChanges'); return; }
     if (e.target.id === 'btnDraftApply') { applyDraft(); drawDraftBar(); toTab(); }
-    if (e.target.id === 'btnDraftDiscard') { const n = draftChanges().length; if (n && !confirm('Throw away ' + n + ' change' + (n === 1 ? '' : 's') + ' on this tab?')) return; discardDraft(); drawDraftBar(); toTab(); }
+    if (e.target.id === 'btnDraftDiscard') {      /* a draft is not on the Undo stack until Apply, so this stays a confirmation, in the app's dialog */
+      const n = draftChanges().length, go = () => { discardDraft(); drawDraftBar(); toTab(); };
+      if (n) App.ask.confirm('Throw away ' + n + ' change' + (n === 1 ? '' : 's') + ' on this tab?', { title: 'Discard changes?', ok: 'Discard', danger: true }).then(yes => { if (yes) go(); }); else go();
+    }
   });
 
   // Every edit lands in the history, and its changes go on the undo stack (this session only; up to UNDO_MAX edits).
@@ -168,7 +175,7 @@
     // Short in the bar ("18 unsaved edits"); the whole line, with the file and the last download, is the tooltip. A clean file just says "saved".
     el.textContent = !season ? base + (dirty ? ' \u00b7 not saved' : '') : dirty ? (edits ? edits + ' unsaved edit' + (edits === 1 ? '' : 's') : 'unsaved changes') : (savedAt ? 'saved ' + hhmm(savedAt) : base);      // with no data file the bar says so (and that what was loaded is not saved), not "1 unsaved edit"
     el.className = 'status' + (dirty ? ' dirty' : '') + (overdue() ? ' nudge' : ''); el.title = base + tail + (overdue() ? ' (press Download data file)' : '');
-    const dl = $('btnSeasonSave'); if (dl) { dl.classList.toggle('unsaved', !!dirty); dl.title = dirty ? 'Unsaved changes: press to save' : ''; if (dirty) dl.setAttribute('aria-label', dl.textContent.trim() + ', ' + (edits ? edits + ' unsaved edit' + (edits === 1 ? '' : 's') : 'unsaved changes')); else dl.removeAttribute('aria-label'); }      // the name a screen reader reads says the file is unsaved (R12)      // the dot on Download data file (plan item 3)
+    const dl = $('btnSeasonSave'); if (dl) { dl.classList.toggle('unsaved', !!dirty); dl.dataset.n = dirty && edits ? String(edits) : ''; dl.title = dirty ? 'Unsaved changes: press to save' : ''; if (dirty) dl.setAttribute('aria-label', dl.textContent.trim() + ', ' + (edits ? edits + ' unsaved edit' + (edits === 1 ? '' : 's') : 'unsaved changes')); else dl.removeAttribute('aria-label'); }      // the name a screen reader reads says the file is unsaved (R12)      // the dot on Download data file (plan item 3)
     const nb = $('saveNudge');      // on a phone, unsaved work that has waited too long gets a Save bar with big buttons at the bottom (R12; stands in for a crash-recovery draft)
     if (nb) {
       const show = overdue() && onPhone() && !modalOpen(); nb.hidden = !show; document.body.classList.toggle('nudging', show);
@@ -225,14 +232,20 @@
     $('dfCancel').onclick = () => dlg.close();
     $('dfGo').onclick = () => {
       const decisions = rows.map(r => ({ item: items[+r.dataset.i], action: act(r), to: to(r), prefer: r.querySelector('select[data-pref]').value }));
-      let n; try { n = Season.fixDates(s, decisions); } catch (err) { return alert(err.message); }
+      let n; try { n = Season.fixDates(s, decisions); } catch (err) { return App.ask.alert(err.message); }
       dlg.close(); done(n);
     };
     dlg.showModal();
   }
+  /* The club year, asked in the app's dialog (one form for a new data file and for New season): YYYY-YY (2027-2028 is shortened); resolves to the year, or null on Cancel. `check(year)` may return a message to refuse it. */
+  const nextYear = y => { const m = /^(\d{4})-(\d{2})/.exec(y || ''); return m ? (+m[1] + 1) + '-' + String((+m[2] + 1) % 100).padStart(2, '0') : Season.defaultYear(App.today()); };
+  const askClubYear = (title, message, value, check) => App.ask.form({ title, message, ok: 'OK', fields: [{ name: 'year', label: 'Club year', type: 'text', required: true, value, pattern: '\\d{4}-(\\d{2}|\\d{4})', hint: 'Like 2026-27.' }],
+    validate: v => { const y = shortYear(v.year); const w = check ? check(y) : ''; return w ? { name: 'year', message: w } : ''; } }).then(v => v ? shortYear(v.year) : null);
+  const shortYear = y => { y = String(y || '').trim(); const l = /^(\d{4})-(\d{4})$/.exec(y); return l ? l[1] + '-' + l[2].slice(2) : y; };
   let openingText = '';      // the file text the season being opened came from (app-drive.js uses it to know which Drive file a season belongs to)
   App.openSeason = (text, opts) => {
-    if (dirty && !(opts && opts.refresh) && !confirm('Discard unsaved changes?')) return;      // opts.refresh: a merged Drive save showing what it saved (nothing was edited since its text was taken)
+    /* opts.refresh: a merged Drive save showing what it saved (nothing was edited since its text was taken). Otherwise ask in the app's dialog and, on yes, open it: the returned promise lets the open-files loop wait for the answer before it imports anything else. */
+    if (dirty && !(opts && (opts.refresh || opts.discardOk))) return App.ask.confirm('Discard unsaved changes?', { title: 'Discard unsaved changes?', ok: 'Discard and open', danger: true }).then(yes => yes ? App.openSeason(text, Object.assign({}, opts, { discardOk: true })) : undefined);
     openingText = text;
     const s = Season.fromJson(text), bad = Season.badDates(s);
     if (!bad.length) return openParsed(s);
@@ -244,18 +257,18 @@
     });
   };
   function openParsed(s, fixed) {
-    setSeason(s); App.seasonSource = { season: s, text: openingText };
+    setSeason(s); App.seasonSource = { season: s, text: openingText }; if (App.applyStartTab) App.applyStartTab();
     if (fixed) { markEdit(); status(); App.updateStatus(); }                // the repaired copy is not on disk yet
     // An older season-only file has no roster, colors or calendar of its own; say so instead of leaving empty tabs unexplained.
-    if (!Object.keys(season.roster.people).length && !(App.master && App.master.people.length)) alert('This is an older season-only data file: it holds attendance, games and awards, but no roster, color teams, calendar or rotation.\n\nOpen your newest awana-…-yyyymmdd-hhmmss.json instead (it has everything), or add a Planning Center export now to supply the roster.');
+    if (!Object.keys(season.roster.people).length && !(App.master && App.master.people.length)) App.ask.alert('This is an older season-only data file: it holds attendance, games and awards, but no roster, color teams, calendar or rotation.\n\nOpen your newest awana-…-yyyymmdd-hhmmss.json instead (it has everything), or add a Planning Center export now to supply the roster.');
   }
   // Save the data file the way the Save button does (the computer, or Drive in the chosen style). Resolves true when it was sent, false when it was not (cancelled, no year, a held draft).
   // opts.auto is the automatic save: it never asks anything (no club year, no Planning Center warning) and skips a file with a draft waiting to be applied.
   App.saveNow = opts => new Promise(resolve => {
     const auto = !!(opts && opts.auto);
-    if (!season) { if (auto) return resolve(false); const y = prompt('Club year for this data file?', Season.defaultYear(App.today())); if (!y) return resolve(false); adopt(Season.blank(y.trim())); }
+    if (!season) { if (auto) return resolve(false); askClubYear('Club year', 'Which club year is this data file for?', Season.defaultYear(App.today())).then(y => { if (!y) return resolve(false); adopt(Season.blank(y)); App.saveNow(opts).then(resolve); }); return; }
     if (auto && draftTab && draftChanges().length) return resolve(false);
-    if (!resolveDraft()) return resolve(false);                          // the file must hold what the History says
+    if (!resolveDraft(() => App.saveNow(opts))) return resolve(false);                          // the file must hold what the History says
     // Where it goes: Drive (its own naming, unchanged); otherwise this computer. Stage 2: a file opened from this computer is saved over under its own name (no timestamp, new files awana-<year>.json); config.saveStyleLocal 'dated' keeps a dated file each time.
     // A download made from the Save menu while saving to Drive is a one-off copy: a timestamped name, no Save-as, never over an earlier copy.
     const oneOff = !!(opts && opts.local && App.driveSave && App.driveSave.active());
@@ -284,7 +297,7 @@
     el.innerHTML = '<p class="status">' + (App.master ? 'No data file is open.' : 'Load a roster first.') + '</p>' +
       (App.master ? '<p>Import your saved <code>awana-&hellip;.json</code> with <b>Import&hellip;</b>, or <button id="btnStartSeason" class="primary">Start a new data file</button></p>' : '');
     const b = el.querySelector('#btnStartSeason');
-    if (b) b.onclick = () => { const y = prompt('Club year?', '2026-27'); if (y) { adopt(Season.blank(y.trim())); } };
+    if (b) b.onclick = () => { askClubYear('Start a new data file', 'Which club year is it for?', Season.defaultYear(App.today())).then(y => { if (y) adopt(Season.blank(y)); }); };
   }
   const ready = el => { if (!App.master || !season) { startPanel(el); return false; } return true; };
 
@@ -302,14 +315,45 @@
     const past = n.filter(x => x.date <= t);
     return (past.length ? past[past.length - 1] : n[0] || { date: '' }).date;
   }
+  // UX-05: which tab a data file opens on (config.startTab: absent or 'roster' = Roster, 'todo', 'tonight'). Applied once from openParsed, never after an Update now restore or a merge.
+  // 'tonight': on a club night, or the day after one, Attendance on that night; any other day To do.
+  App.applyStartTab = () => {
+    const m = season && season.config && season.config.startTab; if (!m || m === 'roster') return;
+    if (m === 'todo') { App.showTab('todo'); return; }
+    const t = App.today(), d = new Date(t + 'T12:00:00'); d.setDate(d.getDate() - 1); const yday = d.toISOString().slice(0, 10), nights = nightList().map(x => x.date);
+    if (nights.includes(t)) ui.attDate = t; else if (nights.includes(yday)) ui.attDate = yday; else { App.showTab('todo'); return; }
+    App.showTab('attend');
+  };
+  // UX-12: what is left tonight, for the strip at the top of To do. Only on a club night or the day after one (the same rule as Start on). Not counted in the To do number.
+  // rooms: classes with an active child; one is entered when any of its children has a mark on that night. games: Sparks and T&T (the groups with color teams); entered when the night has a result for the group.
+  App.tonight = () => {
+    if (!season || !App.master) return null;
+    const t = App.today(), d = new Date(t + 'T12:00:00'); d.setDate(d.getDate() - 1); const yday = d.toISOString().slice(0, 10), nights = nightList().map(x => x.date);
+    const date = nights.includes(t) ? t : nights.includes(yday) ? yday : ''; if (!date) return null;
+    const kids = App.master.people.filter(p => Model.isActive(p) && Model.isClubber(p)), att = season.attendance[date] || {}, byRoom = {};
+    kids.forEach(p => { const r = Model.room(p); if (r) (byRoom[r] = byRoom[r] || []).push(p[Model.X.ID]); });
+    const rooms = Object.keys(byRoom).sort((a, b) => Model.roomRank(a) - Model.roomRank(b) || a.localeCompare(b)), missing = rooms.filter(r => !byRoom[r].some(id => att[id] !== undefined));
+    const groups = ['Sparks', 'T&T'].filter(g => Model.hasColorTeams(g)), gm = season.games[date] || {}, gamesDone = groups.filter(g => gm[g] && Object.keys(gm[g]).length).length;
+    return { date, rooms: rooms.length, roomsEntered: rooms.length - missing.length, firstMissingRoom: missing[0] || '', games: groups.length, gamesEntered: gamesDone, toAnnounce: +(document.getElementById('awardsBadge') || {}).textContent || 0 };
+  };
+  App.tonightGo = kind => {
+    const n = App.tonight(); if (!n) return;
+    if (kind === 'attend') { ui.attDate = n.date; if (n.firstMissingRoom) ui.attRoom = n.firstMissingRoom; App.showTab('attend'); }
+    else if (kind === 'games') { ui.gameDate = n.date; App.showTab('games'); }
+    else App.showTab('awards');
+  };
   const quarterOf = d => (App.calendar.find(r => r.Date === d) || {}).Quarter || App.settings.quarter;
   // The quarter we are in TODAY, from the calendar (the latest club night on or before today). quarterOf(today) falls back to the Reports quarter on any day that is not a club night, and that choice holds for a week,
   // so looking at Q3 on a Monday made To do ask for Q3 colors and stop asking for Q2 (Fable review, suspected item 2).
   const quarterNow = () => (window.Calendar && App.calendar && App.calendar.length ? Calendar.currentQuarter(App.calendar, App.today()) : '') || App.settings.quarter;
+  // One text for a club night everywhere (UX-16): "Wed 11/11 (Q2)", then " · today", " · last" (the night Attendance and Games open on) or " · next" (the night Awards opens on), then " ✓" when it has been entered.
+  function nightLabel(date, quarter) {
+    const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(date + 'T12:00:00Z').getUTCDay()], q = quarter !== undefined ? quarter : ((nightList().find(n => n.date === date) || {}).quarter || '');
+    const t = App.today(), mark = date === t ? ' · today' : date === defaultNight() ? ' · last' : date === nextNight() && date > t ? ' · next' : '';
+    return dow + ' ' + MD(date) + (q ? ' (' + q + ')' : '') + mark + (entered(date) ? ' ✓' : '');
+  }
   function nightSelect(id, value) {
-    const dow = d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(d + 'T12:00:00Z').getUTCDay()];
-    return '<select id="' + id + '">' + nightList().map(n => '<option value="' + esc(n.date) + '"' + (n.date === value ? ' selected' : '') + '>' +
-      esc(dow(n.date) + ' ' + MD(n.date) + (n.quarter ? ' (' + n.quarter + ')' : '')) + (entered(n.date) ? ' ✓' : '') + '</option>').join('') + '</select>';
+    return '<select id="' + id + '">' + nightList().map(n => '<option value="' + esc(n.date) + '"' + (n.date === value ? ' selected' : '') + '>' + esc(nightLabel(n.date, n.quarter)) + '</option>').join('') + '</select>';
   }
   const kidsOf = g => App.master.people.filter(p => Model.isActive(p) && Model.isClubber(p) && Model.groupOf(Model.room(p)) === g).sort(Model.byRoomThenName);
   const allKids = () => App.master.people.filter(p => Model.isActive(p) && Model.isClubber(p));
@@ -332,7 +376,7 @@
     rows.forEach(r => { (byNight[r.date] = byNight[r.date] || []).push(r); });
     const nameOf = pid => { const p = App.master.people.find(x => x[Model.X.ID] === pid); return p ? Model.fullName(p) + (Model.isVolunteer(p) && Model.isActive(p) ? '' : ' (not on the volunteer list)') : pid + ' (not on the roster)'; };
     const body = Object.keys(byNight).sort().map(d => '<h4>' + esc(Model.md(d)) + (App.absenceClubDates().includes(d) ? '' : ' (no longer a club night)') + '</h4><table class="roster"><thead><tr><th>Volunteer</th><th>Reason</th><th></th></tr></thead><tbody>' +
-      byNight[d].map(r => '<tr><td>' + esc(nameOf(r.personId)) + '</td><td>' + esc(r.reason) + '</td><td><button type="button" data-absnight="' + esc(r.personId + '|' + r.absId + '|' + r.date) + '">Clear this night</button> <button type="button" data-absall="' + esc(r.personId + '|' + r.absId) + '">Clear whole absence</button> <button type="button" data-absrem="' + esc(r.personId + '|' + r.absId) + '">Clear remaining nights</button></td></tr>').join('') + '</tbody></table>').join('');
+      byNight[d].map(r => '<tr><td>' + esc(nameOf(r.personId)) + '</td><td>' + esc(r.reason) + '</td><td><button type="button" data-absnight="1" data-pid="' + esc(r.personId) + '" data-aid="' + esc(r.absId) + '" data-date="' + esc(r.date) + '">Clear this night</button> <button type="button" data-absall="1" data-pid="' + esc(r.personId) + '" data-aid="' + esc(r.absId) + '">Clear whole absence</button> <button type="button" data-absrem="1" data-pid="' + esc(r.personId) + '" data-aid="' + esc(r.absId) + '">Clear remaining nights</button></td></tr>').join('') + '</tbody></table>').join('');
     return '<section class="pcard absencecard"><h3>Volunteer absences</h3><p class="status">Entering an absence is the acknowledgement. Each row is one club night. <label>Show <select id="absView"><option value="all"' + (upcomingOnly ? '' : ' selected') + '>All</option><option value="upcoming"' + (upcomingOnly ? ' selected' : '') + '>Upcoming (from today)</option></select></label></p>' +
       (body || '<p class="status">No absences' + (upcomingOnly ? ' ahead' : '') + '.</p>') +
       '<h4>Add an absence</h4><p class="pf"><label>Volunteer <select id="absPick"><option value="">Choose</option>' + people.map(p => '<option value="' + esc(Model.X ? p[Model.X.ID] : p[0]) + '">' + esc(Model.fullName(p)) + '</option>').join('') + '</select></label> <label>From <input type="date" id="absFrom"></label> <label>To <input type="date" id="absTo"></label> <label>Reason <input type="text" id="absReason" maxlength="200"></label> <button type="button" data-absadd2="1" class="primary">Add absence</button></p><p class="status">Only club nights from the club calendar are recorded.</p></section>';
@@ -385,7 +429,8 @@
   });
   App.attendBackLabel = () => ui.attDate ? 'Back to Attendance (' + MD(ui.attDate) + ' \u00b7 ' + ui.attRoom + ')' : 'Back to Attendance';
   App.backToAttend = () => {
-    const r = attendReturn; App.showTab('attend'); if (App.tab !== 'attend') return false;      // held changes on the Person tab are applied (or you stay) first
+    if (App.resolveDraft && !App.resolveDraft(() => App.backToAttend())) return false;      // held changes on the Person tab: the question is asked, and the answer re-runs this whole step (the message and the scroll too), not only the tab switch
+    const r = attendReturn; App.showTab('attend'); if (App.tab !== 'attend') return false;
     if (r) {
       const p = App.master.people.find(x => idOf(x) === r.id), now = p ? attRoomOf(p) : '';
       if (now && now !== r.room) { ui.attRoom = r.room; renderAttend(); App.flash(Model.fullName(p) + ' is now in ' + now + ', so is no longer on this sheet. Pick ' + now + ' to see them.', 'info'); }
@@ -399,9 +444,9 @@
   // Volunteer absences in the Volunteers room (S11): clear a night, the whole absence, or the remaining nights; add one.
   $('attendWrap').addEventListener('click', e => {
     const one = e.target.closest('button[data-absnight]'), all = e.target.closest('button[data-absall]'), rem = e.target.closest('button[data-absrem]'), add = e.target.closest('button[data-absadd2]');
-    if (one) { const [pid, aid, date] = one.dataset.absnight.split('|'); App.clearAbsenceNights(pid, aid, [date]); renderAttend(); return; }
-    if (all) { const [pid, aid] = all.dataset.absall.split('|'); App.clearAbsence(pid, aid); renderAttend(); return; }
-    if (rem) { const [pid, aid] = rem.dataset.absrem.split('|'), today = App.today(), mine = App.absenceList().filter(r => r.personId === pid && r.absId === aid && r.date >= today).map(r => r.date); App.clearAbsenceNights(pid, aid, mine); renderAttend(); return; }
+    if (one) { App.clearAbsenceNights(one.dataset.pid, one.dataset.aid, [one.dataset.date]); renderAttend(); return; }
+    if (all) { App.clearAbsence(all.dataset.pid, all.dataset.aid); renderAttend(); return; }
+    if (rem) { const pid = rem.dataset.pid, aid = rem.dataset.aid, today = App.today(), mine = App.absenceList().filter(r => r.personId === pid && r.absId === aid && r.date >= today).map(r => r.date); App.clearAbsenceNights(pid, aid, mine); renderAttend(); return; }
     if (add) { const v = (document.getElementById('absPick') || {}).value, from = (document.getElementById('absFrom') || {}).value || '', to = (document.getElementById('absTo') || {}).value || from, reason = (document.getElementById('absReason') || {}).value || '';
       if (!v) { App.flash('Choose a volunteer first.', 'error'); return; }
       try { const n = App.absenceNightsBetween(from, to).length; App.addAbsence(v, from, to, reason); App.flash(n + ' club night' + (n === 1 ? '' : 's') + ' recorded.', 'info'); } catch (err) { App.flash(err.message, 'error'); }
@@ -430,14 +475,16 @@
     attPeople(ui.attRoom).forEach(p => Season.setMark(season, ui.attDate, idOf(p), 'a', 1, groupOfPerson(p))); touchSeason(); renderAttend();
   });
   $('btnClearRoom').addEventListener('click', () => {
-    if (!confirm('Clear every mark for ' + ui.attRoom + ' on ' + MD(ui.attDate) + '?')) return;
-    attPeople(ui.attRoom).forEach(p => Season.MARKS.forEach(m => Season.setMark(season, ui.attDate, idOf(p), m, 0))); touchSeason(); renderAttend();
+    /* one Undo step: do it, then offer Undo (UX-20) */
+    const room = ui.attRoom, date = ui.attDate; let n = 0;
+    attPeople(room).forEach(p => Season.MARKS.forEach(m => { if (((season.attendance[date] || {})[idOf(p)] || {})[m]) n++; Season.setMark(season, date, idOf(p), m, 0); }));
+    touchSeason(); renderAttend(); App.done(n ? 'Cleared ' + n + ' mark' + (n === 1 ? '' : 's') + ' for ' + room + ' on ' + MD(date) + '.' : 'Nothing was marked for ' + room + ' on ' + MD(date) + '.', { undo: n > 0 });
   });
 
   // Attendance is live by default (each tick is kept at once, which is what a phone at the door needs). Ticking this holds the night as a draft until Apply.
   $('attHold').checked = ui.attHold;
   $('attHold').addEventListener('change', e => {
-    if (!e.target.checked && !resolveDraft()) { e.target.checked = true; return; }
+    const box = e.target; if (!box.checked && !resolveDraft(() => { box.checked = false; box.dispatchEvent(new Event('change', { bubbles: true })); })) { box.checked = true; return; }
     ui.attHold = e.target.checked;      // a view choice for this visit only: not stored
     drawDraftBar();
   });
@@ -446,15 +493,19 @@
   document.addEventListener('click', e => {
     if (!e.target.closest('#btnNewSeason')) return;
     if (!season) return;
-    if (dirty && !confirm('You have unsaved changes. Download the data file first, or they will be lost. Continue anyway?')) return;
-    const y = prompt('Year for the new season? (people, calendar, award lists, and last year’s progress and awards carry over once as earlier-year work; last year’s colors are archived under last year’s label and start blank; attendance, games and history start empty, and attendance counts are kept for team balance)', ''); if (!y) return;
+    const startNew = () => askClubYear('New season', 'People, calendar, award lists, and last year’s progress and awards carry over once as earlier-year work. Last year’s colors are archived under last year’s label and start blank. Attendance, games and history start empty, and attendance counts are kept for team balance.', nextYear(season.year), v => { try { Season.newSeason(season, v); return ''; } catch (err) { return err.message; } }).then(y => { if (y) beginNewSeason(y); });      /* a year that is not like 2027-28 is refused inside the form, before anything changes */
+    if (dirty) App.ask.choose('You have unsaved changes. Download the data file first, or they will be lost.', { title: 'Unsaved changes', buttons: [{ id: 'save', label: 'Download, then continue', primary: true }, { id: 'go', label: 'Continue without saving', danger: true }, { id: 'cancel', label: 'Cancel' }], cancel: 'cancel' })
+      .then(async id => { if (id === 'cancel') return; if (id === 'save' && !(await App.saveNow())) return; startNew(); });
+    else startNew();
+  });
+  function beginNewSeason(y) {
     const oldYear = season.year;
-    let fresh; try { fresh = Season.newSeason(season, y.trim()); } catch (err) { alert(err.message); return; }      // a year that is not like 2027-28 is refused before anything changes
+    let fresh; try { fresh = Season.newSeason(season, y.trim()); } catch (err) { App.ask.alert(err.message); return; }
     setSeason(fresh, { noImport: true });
     let said = '';
     try { const r = oldYear && App.archiveColors ? App.archiveColors(oldYear) : null; if (r && r.archived.length) said = 'Last year\'s colors were archived as ' + oldYear + ' and Q1 to Q4 are blank. The calendar is still last year\'s: replace it on the Calendar tab, then assign colors on Color teams.'; } catch (err) { said = 'Last year\'s colors were left in place (' + err.message + '). Use Start new year on Color teams to archive them.'; }
     markEdit(); status(); if (said && App.flash) App.flash(said, 'info');
-  });
+  }
 
   // ---------- games ----------
   // The order the colors are listed in on this tab (entry rows, and standings that are tied) is the team order on the Options tab. The data does not depend on it.
@@ -470,22 +521,31 @@
       const places = Season.TEAMS.map(t => rec[t] && rec[t].place).filter(Boolean), dup = places.length !== new Set(places).size;
       const st = Season.standings(season, g, q, App.calendar);
       return '<section class="gamegrp" data-group="' + esc(g) + '"><h3>' + esc(g) + '</h3>' + (dup ? '<p class="bad">Two teams have the same place. Ties are allowed, but check the paper sheet.</p>' : '') +
-        '<table class="roster games"><thead><tr><th>Team</th><th>Place</th><th>Spirit</th><th>Points</th></tr></thead><tbody>' +
+        '<table class="roster games entry"><thead><tr><th>Team</th><th>Place</th><th>Spirit</th><th>Points</th><th><span class="vh">Clear</span></th></tr></thead><tbody>' +
         GAME_COLORS.map(t => { const r = rec[t] || {}, p = Season.teamPoints(season, ui.gameDate, g, t);
-          return '<tr data-team="' + t + '"><td>' + teamChip(t) + '</td><td><select data-f="place" aria-label="' + esc(g + ' ' + t + ' place') + '">' + ['', 1, 2, 3, 4].map(n => opt(n, r.place === undefined ? '' : r.place)).join('') + '</select></td>' +
-            '<td><select data-f="spirit" aria-label="' + esc(g + ' ' + t + ' spirit') + '">' + ['', 0, 1, 2, 3].map(n => opt(n, r.spirit === undefined ? '' : r.spirit)).join('') + '</select></td><td>' + (p ? p.place + p.spirit : '') + '</td></tr>'; }).join('') + '</tbody></table>' +
+          /* UX-11: a tap on a number sets it, a tap on the set number clears it (four buttons instead of a drop-down) */
+          const tap = (f, vals, cur) => '<span class="tapgrp" role="group" aria-label="' + esc(g + ' ' + t + ' ' + f) + '">' + vals.map(n => '<button type="button" data-f="' + f + '" data-v="' + n + '" aria-pressed="' + (cur === n) + '"' + (cur === n ? ' class="on"' : '') + '>' + n + '</button>').join('') + '</span>';
+          return '<tr data-team="' + t + '"><td>' + teamChip(t) + '</td><td>' + tap('place', [1, 2, 3, 4], r.place) + '</td>' +
+            '<td>' + tap('spirit', [0, 1, 2, 3], r.spirit) + '</td><td>' + (p ? p.place + p.spirit : '') + '</td><td><button type="button" data-clearrow="1" aria-label="Clear ' + esc(g + ' ' + t) + '"' + (r.place === undefined && r.spirit === undefined ? ' disabled' : '') + '>Clear</button></td></tr>'; }).join('') + '</tbody></table>' +
         '<h4>' + esc(g + ' standings, ' + q) + '</h4><table class="roster games"><thead><tr><th>Rank</th><th>Team</th><th>Nights</th><th>Avg place</th><th>Spirit</th><th>Points</th></tr></thead><tbody>' +
         st.slice().sort((a, b) => (a.rank || 99) - (b.rank || 99) || GAME_COLORS.indexOf(a.team) - GAME_COLORS.indexOf(b.team)).map(r => '<tr><td>' + (r.rank || '') + '</td><td>' + teamChip(r.team) + '</td><td>' + r.nights + '</td><td>' + (r.avgPlace === null ? '' : r.avgPlace) + '</td><td>' + r.spirit + '</td><td>' + r.points + '</td></tr>').join('') + '</tbody></table></section>';
     };
     el.innerHTML = '<div class="gamecols">' + ['Sparks', 'T&T'].map(groupHtml).join('') + '</div>';
   }
   $('gamesBar').addEventListener('change', e => { if (e.target.id === 'gameDate') { ui.gameDate = e.target.value; renderGames(); } });
-  $('gamesWrap').addEventListener('change', e => {
-    const sel = e.target.closest('select[data-f]'); if (!sel) return;
-    const g = sel.closest('section.gamegrp').dataset.group, t = sel.closest('tr').dataset.team, cur = ((season.games[ui.gameDate] || {})[g] || {})[t] || {};
-    const next = Object.assign({}, cur); if (sel.value === '') delete next[sel.dataset.f]; else next[sel.dataset.f] = +sel.value;
-    try { Season.setGame(season, ui.gameDate, g, t, next); } catch (err) { alert(err.message); }
+  // UX-11: tap a number to set it, tap it again to clear it; Clear empties the row. When three places are set and different, the fourth team gets the one left over (same Undo step); ties are allowed and never filled.
+  $('gamesWrap').addEventListener('click', e => {
+    const b = e.target.closest('button[data-f], button[data-clearrow]'); if (!b || b.disabled) return;
+    const g = b.closest('section.gamegrp').dataset.group, t = b.closest('tr').dataset.team, rec = () => ((season.games[ui.gameDate] || {})[g] || {}), cur = rec()[t] || {};
+    const next = Object.assign({}, cur);
+    let cleared = false; if (b.dataset.clearrow) { delete next.place; delete next.spirit; cleared = true; } else if (cur[b.dataset.f] === +b.dataset.v) { delete next[b.dataset.f]; cleared = true; } else next[b.dataset.f] = +b.dataset.v;
+    try {
+      Season.setGame(season, ui.gameDate, g, t, next);
+      if (b.dataset.f === 'place' && !cleared) { const TEAMS = Season.teamOrder(season), r = rec(), set = TEAMS.filter(x => r[x] && r[x].place !== undefined), left = TEAMS.filter(x => !(r[x] && r[x].place !== undefined));
+        if (set.length === 3 && left.length === 1) { const used = set.map(x => r[x].place); if (new Set(used).size === 3) { const free = [1, 2, 3, 4].filter(n => !used.includes(n)); if (free.length === 1) Season.setGame(season, ui.gameDate, g, left[0], Object.assign({}, r[left[0]] || {}, { place: free[0] })); } } }
+    } catch (err) { App.ask.alert(err.message); }
     touchSeason(); renderGames();
+    const again = $('gamesWrap').querySelector(b.dataset.clearrow ? 'section.gamegrp[data-group="' + CSS.escape(g) + '"] tr[data-team="' + CSS.escape(t) + '"] [data-f]' : 'section.gamegrp[data-group="' + CSS.escape(g) + '"] tr[data-team="' + CSS.escape(t) + '"] [data-f="' + b.dataset.f + '"][data-v="' + b.dataset.v + '"]'); if (again) again.focus({ preventScroll: true });
   });
 
   // ---------- awards ----------
@@ -523,7 +583,7 @@
   function announceSection(kids) {
     const items = []; kids.forEach(p => Season.pendingAwards(season, idOf(p), grpOf(p), App.calendar).forEach(r => items.push({ id: idOf(p), p, award: r.award, date: r.earned, held: r.held })));
     const rows = sortRows(items), ready = rows.filter(r => !r.held).length, held = rows.length - ready;
-    return '<section class="pcard announce" id="awSecAnnounce"><h3>Announce on' + esc(MD(ui.awDate)) + ' (' + ready + (held ? ', ' + held + ' held' : '') + ')</h3>' +
+    return '<section class="pcard announce" id="awSecAnnounce"><h3>Announce on ' + esc(MD(ui.awDate)) + ' (' + ready + (held ? ', ' + held + ' held' : '') + ')</h3>' +
       (rows.length ? '<p class="status">Earned, and not yet announced. The slides show these awards every time you draw them. <b>Mark all announced</b> records them as told to the group on ' + esc(MD(ui.awDate)) + ' and takes them off the slides. Tick <b>Hold</b> to keep an award off the slides until you untick it (a child who will be away); a held award is never marked announced. End-of-year awards are told to the group now and given at the end-of-year awards.</p>' +
         '<table class="roster"><thead><tr><th>Name</th><th>Class</th><th>Award</th><th>Earned</th><th>Hold</th><th>No date</th></tr></thead><tbody>' + rows.map(i => '<tr data-id="' + esc(i.id) + '" data-award="' + esc(i.award) + '"' + (i.held ? ' class="held"' : '') + '><td>' + nameCell(i.p) + '</td><td>' + roomCell(i.p) + '</td><td>' + esc(Season.awardLabel(season, i.id, i.award)) + (eoy(i.p, i.award) ? ' <span class="status">(end of year)</span>' : '') + '</td><td class="status">' + esc(i.date ? MD(i.date) : '') + '</td>' +
           '<td><label title="' + (i.held ? 'Held off the slides (untick to release it)' : 'Tick to keep this award off the slides until you release it') + '"><input type="checkbox" data-hold="' + esc(i.award) + '"' + (i.held ? ' checked' : '') + ' aria-label="Hold: ' + esc(Season.awardLabel(season, i.id, i.award)) + ' for ' + esc(Model.fullName(i.p)) + '"> ' + (i.held ? 'held' : '') + '</label></td><td><button type="button" data-annnodate="' + esc(i.award) + '" data-aid="' + esc(i.id) + '" title="Count this award as told to the group, with no date, so it leaves this list and the slides">Told, no date</button></td></tr>').join('') + '</tbody></table>' +
@@ -589,13 +649,13 @@
   $('awSubs').addEventListener('click', e => { const b = e.target.closest('button[data-awsub]'); if (b) { ui.awSub = b.dataset.awsub; renderAwards(); } });
   $('awardsWrap').addEventListener('click', e => {
     const hgt = e.target.closest && e.target.closest('button[data-hogtoday]');
-    if (hgt) { try { Season.setGiven(season, hgt.dataset.hogtoday, hgt.dataset.hoaward, App.today()); } catch (err) { alert(err.message); } touchSeason(); renderAwards(); return; }
+    if (hgt) { try { Season.setGiven(season, hgt.dataset.hogtoday, hgt.dataset.hoaward, App.today()); } catch (err) { App.ask.alert(err.message); } touchSeason(); renderAwards(); return; }
     const hgn = e.target.closest && e.target.closest('input[data-hognodate]');
-    if (hgn) { try { Season.setGiven(season, hgn.dataset.hognodate, hgn.dataset.hoaward, hgn.checked ? App.today() : '', { noDate: true }); } catch (err) { alert(err.message); hgn.checked = false; } touchSeason(); renderAwards(); return; }
+    if (hgn) { try { Season.setGiven(season, hgn.dataset.hognodate, hgn.dataset.hoaward, hgn.checked ? App.today() : '', { noDate: true }); } catch (err) { App.ask.alert(err.message); hgn.checked = false; } touchSeason(); renderAwards(); return; }
     const awp = e.target.closest && e.target.closest('a[data-awprog]');
     if (awp) { e.preventDefault(); App.goProgress(awp.dataset.awprog); return; }
     const ig = e.target.closest && e.target.closest('button[data-annnodate]');
-    if (ig) { try { Season.setAnnNoDate(season, ig.dataset.aid, ig.dataset.annnodate, true); } catch (err) { alert(err.message); } touchSeason(); renderAwards(); return; }      // Ignore: told to the group, with no date
+    if (ig) { try { Season.setAnnNoDate(season, ig.dataset.aid, ig.dataset.annnodate, true); } catch (err) { App.ask.alert(err.message); } touchSeason(); renderAwards(); return; }      // Ignore: told to the group, with no date
     const id = e.target.id;
     if (id === 'btnAnnounce') {      // Mark all announced: every unheld award listed (under the group, class and type shown) is told-to-the-group on the night chosen
       const picks = [...$('awSecAnnounce').querySelectorAll('tbody tr[data-award]:not(.held)')].map(r => [r.dataset.id, r.dataset.award]);
@@ -678,7 +738,7 @@
     v.code = Season.bookCode(season, v.code);
     const bk = Check.bookCode(v.code, season.config.books); if (bk) App.flash(bk.msg + ' (saved as typed; it is on the To do list)', 'warn');
     const was = Season.handbookParts(season.handbooks[id]).code;
-    try { Season.setHandbook(season, id, v); } catch (err) { alert(err.message); }
+    try { Season.setHandbook(season, id, v); } catch (err) { App.ask.alert(err.message); }
     touchSeason();
     const ci = box.querySelector('[data-hb="code"]'), cw = Check.bookCode(v.code, season.config.books);      // mark or clear the box now: the page is not redrawn while you tab between the boxes
     if (ci) { ci.classList.toggle('warnfield', !!cw); ci.setAttribute('aria-invalid', cw ? 'true' : 'false'); ci.title = cw ? cw.msg : ''; }
@@ -936,19 +996,20 @@
   // Blue Jewels by hand (leaders): grant a slot with a date and a note, or drop an earned or granted one. Sparks only; kept in the file.
   function blueJewelAction(e) {
     const d = e.target.closest && e.target.closest('[data-bjdrop],[data-bjgrant]'); if (!d) return;
-    const book = d.dataset.bjbook, slot = +d.dataset.bjslot;
-    try {
-      if (d.dataset.bjgrant !== undefined) {
-        const date = prompt('Day the Blue Jewel was earned (YYYY-MM-DD):', App.today()); if (!date) return;
-        const note = prompt('Why it is granted by hand (kept in the file with it):', '') || '';
-        Season.grantBlue(season, ui.prKid, book, slot, date.trim(), note.trim());
-      } else {
-        if (!confirm('Drop this Blue Jewel? It leaves the wings, and its award is removed from the lists (announced, given or told), so the counts match.')) return;
-        const ov = d.dataset.bjov === '1';
-        Season.dropBlue(season, ui.prKid, ov ? { kind: 'override', book, slot, n: +d.dataset.bjgem, date: d.dataset.bjdate } : { kind: 'earned', book, slot, gem: +d.dataset.bjgem, date: d.dataset.bjdate });
-      }
-    } catch (err) { alert(err.message); return; }
-    touchSeason(); redrawSheet();
+    const book = d.dataset.bjbook, slot = +d.dataset.bjslot, kid = ui.prKid, finish = () => { touchSeason(); redrawSheet(); };
+    if (d.dataset.bjgrant !== undefined) {      /* one form: the day (a date picker) and the reason */
+      App.ask.form({ title: 'Grant a Blue Jewel by hand', ok: 'Grant', fields: [
+        { name: 'day', label: 'Day the Blue Jewel was earned', type: 'date', required: true, value: App.today() },
+        { name: 'note', label: 'Why it is granted by hand', type: 'text', maxlength: 200, hint: 'Kept in the file with it.' }] }).then(v => {
+        if (!v) return;
+        try { Season.grantBlue(season, kid, book, slot, v.day, String(v.note || '').trim()); } catch (err) { App.ask.alert(err.message); return; }
+        finish();
+      });
+      return;
+    }
+    const ov = d.dataset.bjov === '1';      /* dropping is one Undo step: do it, then offer Undo (UX-20) */
+    try { Season.dropBlue(season, kid, ov ? { kind: 'override', book, slot, n: +d.dataset.bjgem, date: d.dataset.bjdate } : { kind: 'earned', book, slot, gem: +d.dataset.bjgem, date: d.dataset.bjdate }); } catch (err) { App.ask.alert(err.message); return; }
+    finish(); App.done('Blue Jewel dropped. Its award is removed from the lists (announced, given or told).');
   }
   ['progressWrap', 'personWrap'].forEach(id => $(id).addEventListener('click', blueJewelAction));      // collapse the sheet under its header (Print, flag) and back
   // The sheet's boxes work on the Progress sub-tab of the Person tab (progressWrap). The handlers below listen on the wrap, and personWrap only inside its sheet area.
@@ -976,16 +1037,16 @@
     if (t.dataset && t.dataset.recv !== undefined) { commitRecv(t, false); return; }      // the date received, under the book's tab: saved as soon as it is a whole date; the sheet redraws when you leave the box
     if (t.dataset && t.dataset.hb) { if (saveHandbook(t.closest('.hbbox'), ui.prKid)) { ui._lastKid = ''; redrawSheet(); } return; }      // only a new book changes what is on screen, so tabbing between the boxes keeps focus
     if (t.dataset && t.dataset.key && t.type !== 'date') commitProgress(t, true);
-    if (t.dataset && t.dataset.bookdone) { try { Season.setBookDone(season, ui.prKid, t.dataset.bookdone, t.checked); } catch (err) { alert(err.message); } touchSeason(); redrawSheet(); return; }
-    if (t.dataset && t.dataset.recvnd !== undefined) { try { Season.setReceived(season, ui.prKid, t.dataset.recvnd, '', { noDate: t.checked }); } catch (err) { alert(err.message); } touchSeason(); redrawSheet(); return; }      // book received, date unknown
+    if (t.dataset && t.dataset.bookdone) { try { Season.setBookDone(season, ui.prKid, t.dataset.bookdone, t.checked); } catch (err) { App.ask.alert(err.message); } touchSeason(); redrawSheet(); return; }
+    if (t.dataset && t.dataset.recvnd !== undefined) { try { Season.setReceived(season, ui.prKid, t.dataset.recvnd, '', { noDate: t.checked }); } catch (err) { App.ask.alert(err.message); } touchSeason(); redrawSheet(); return; }      // book received, date unknown
     if (t.dataset && t.dataset.hold !== undefined) { Season.setHold(season, ui.prKid, t.dataset.hold, t.checked); touchSeason(); redrawSheet(); return; }      // the same flag as the Hold box on the Awards tab
     if (t.dataset && t.dataset.annnodateTick !== undefined) {      // announced, date unknown: counts as told to the group; untick to take it back (a real date replaces it)
-      try { Season.setAnnNoDate(season, ui.prKid, t.dataset.annnodateTick, t.checked); } catch (err) { alert(err.message); }
+      try { Season.setAnnNoDate(season, ui.prKid, t.dataset.annnodateTick, t.checked); } catch (err) { App.ask.alert(err.message); }
       touchSeason(); redrawSheet(); return;
     }
     if (t.dataset && t.dataset.gnodate !== undefined) {      // given, date unknown: the day it was ticked is kept inside, but never shown or printed as a given date
       if (t.checked && !sectionGate(t, App.today(), t.dataset.gnodate)) { t.checked = false; return; }
-      try { Season.setGiven(season, ui.prKid, t.dataset.gnodate, t.checked ? App.today() : '', { noDate: true }); if (!t.checked) releaseSigns(t); } catch (err) { alert(err.message); }
+      try { Season.setGiven(season, ui.prKid, t.dataset.gnodate, t.checked ? App.today() : '', { noDate: true }); if (!t.checked) releaseSigns(t); } catch (err) { App.ask.alert(err.message); }
       touchSeason(); redrawSheet();
     }
   });
@@ -1000,7 +1061,7 @@
     if (leaving && unfinished(t, was)) return;
     if (v !== '') { if (!leaving && /^0\d{3}-/.test(v)) return; const bad = Check.date(v); if (bad) { t.value = was; App.flash('Date received: ' + bad.msg, 'error'); return; } }
     if (v === was) return;
-    try { Season.setReceived(season, ui.prKid, book, v); } catch (err) { alert(err.message); t.value = was; return; }
+    try { Season.setReceived(season, ui.prKid, book, v); } catch (err) { App.ask.alert(err.message); t.value = was; return; }
     if (v) lastEntered = v;
     touchSeason(); ui._recvDirty = true;
   }
@@ -1027,7 +1088,7 @@
     if (v !== '') { const bad = Check.date(v); if (bad) { t.value = was; App.flash(bad.msg, 'error'); return; } }
     if (v === was) return;
     if (v && !sectionGate(t, v)) { t.value = was; return; }
-    try { Season.setGiven(season, ui.prKid, t.dataset.gaward, v); if (!v) releaseSigns(t); } catch (err) { alert(err.message); t.value = was; return; }
+    try { Season.setGiven(season, ui.prKid, t.dataset.gaward, v); if (!v) releaseSigns(t); } catch (err) { App.ask.alert(err.message); t.value = was; return; }
     touchSeason(); if (redraw) redrawSheet();
   }
   // Announced (per award): a date sets the night it was told to the group, an empty box takes it back to "earned, not announced". Given is never touched.
@@ -1036,7 +1097,7 @@
     if (unfinished(t, was)) return;
     if (v !== '') { const bad = Check.date(v); if (bad) { t.value = was; App.flash(bad.msg, 'error'); return; } }
     if (v === was) return;
-    try { Season.setAnnounced(season, ui.prKid, t.dataset.aaward, v); } catch (err) { alert(err.message); t.value = was; return; }
+    try { Season.setAnnounced(season, ui.prKid, t.dataset.aaward, v); } catch (err) { App.ask.alert(err.message); t.value = was; return; }
     touchSeason(); if (redraw) redrawSheet();
   }
   function commitProgress(t, redraw) {
@@ -1046,7 +1107,7 @@
     const v = t.value;
     if (t.type === 'date' && v !== '') { const bad = Check.date(v); if (bad) { t.value = stored(t); App.flash(bad.msg, 'error'); return; } }
     if (t.type === 'date' && v === stored(t)) return;
-    try { Season.setProgress(season, ui.prKid, t.dataset.scope, t.dataset.key, v); } catch (err) { alert(err.message); t.value = stored(t); return; }
+    try { Season.setProgress(season, ui.prKid, t.dataset.scope, t.dataset.key, v); } catch (err) { App.ask.alert(err.message); t.value = stored(t); return; }
     touchSeason(); if (redraw) redrawSheet();
   }
   onSheets('focusout', e => { const t = e.target; if (t.type === 'date' && (t.dataset.key || t.dataset.gaward || t.dataset.aaward)) commitProgress(t, !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#progressWrap button, .sheetarea button'))); });
@@ -1060,42 +1121,42 @@
   onSheets('keydown', e => { if (e.key === 'Enter' && e.target.type === 'date' && (e.target.dataset.key || e.target.dataset.gaward || e.target.dataset.aaward)) { e.preventDefault(); commitProgress(e.target, true); } });
   onSheets('click', e => {
     const tg = e.target.closest('button[data-gtoday]');
-    if (tg) { try { Season.setGiven(season, ui.prKid, tg.dataset.gtoday, App.today()); } catch (err) { alert(err.message); } touchSeason(); redrawSheet(); return; }
+    if (tg) { try { Season.setGiven(season, ui.prKid, tg.dataset.gtoday, App.today()); } catch (err) { App.ask.alert(err.message); } touchSeason(); redrawSheet(); return; }
     const gs = e.target.closest('button[data-gsame]');
-    if (gs && lastEntered) { try { Season.setGiven(season, ui.prKid, gs.dataset.gsame, lastEntered); } catch (err) { alert(err.message); } touchSeason(); redrawSheet(); return; }      // Given: paste the last date entered
+    if (gs && lastEntered) { try { Season.setGiven(season, ui.prKid, gs.dataset.gsame, lastEntered); } catch (err) { App.ask.alert(err.message); } touchSeason(); redrawSheet(); return; }      // Given: paste the last date entered
     const as = e.target.closest('button[data-asame]');
-    if (as && lastEntered) { try { Season.setAnnounced(season, ui.prKid, as.dataset.asame, lastEntered); } catch (err) { alert(err.message); } touchSeason(); redrawSheet(); return; }      // Announced: paste the last date entered
+    if (as && lastEntered) { try { Season.setAnnounced(season, ui.prKid, as.dataset.asame, lastEntered); } catch (err) { App.ask.alert(err.message); } touchSeason(); redrawSheet(); return; }      // Announced: paste the last date entered
     const rs = e.target.closest('button[data-rsame]');
-    if (rs && lastEntered) { try { Season.setReceived(season, ui.prKid, rs.dataset.rsame, lastEntered); } catch (err) { alert(err.message); } touchSeason(); redrawSheet(); return; }      // Received: paste the last date entered
+    if (rs && lastEntered) { try { Season.setReceived(season, ui.prKid, rs.dataset.rsame, lastEntered); } catch (err) { App.ask.alert(err.message); } touchSeason(); redrawSheet(); return; }      // Received: paste the last date entered
     const rz = e.target.closest('button[data-recvsz]');
-    if (rz) { try { Season.setReceived(season, ui.prKid, rz.dataset.recvsz, rz.dataset.date); } catch (err) { alert(err.message); } touchSeason(); redrawSheet(); return; }
+    if (rz) { try { Season.setReceived(season, ui.prKid, rz.dataset.recvsz, rz.dataset.date); } catch (err) { App.ask.alert(err.message); } touchSeason(); redrawSheet(); return; }
     const rt = e.target.closest('button[data-recvtoday]');
-    if (rt) { try { Season.setReceived(season, ui.prKid, rt.dataset.recvtoday, App.today()); } catch (err) { alert(err.message); } touchSeason(); redrawSheet(); return; }
+    if (rt) { try { Season.setReceived(season, ui.prKid, rt.dataset.recvtoday, App.today()); } catch (err) { App.ask.alert(err.message); } touchSeason(); redrawSheet(); return; }
     const at = e.target.closest('button[data-atoday]');
-    if (at) { try { Season.setAnnounced(season, ui.prKid, at.dataset.atoday, App.today()); } catch (err) { alert(err.message); } touchSeason(); redrawSheet(); return; }      // Announced: today
+    if (at) { try { Season.setAnnounced(season, ui.prKid, at.dataset.atoday, App.today()); } catch (err) { App.ask.alert(err.message); } touchSeason(); redrawSheet(); return; }      // Announced: today
     const cl = e.target.closest('button[data-copylast]');
     if (cl) {      // Same date: this box and every empty one before it (the keys are worked out when the sheet is drawn) get the last date entered before it
-      for (const key of cl.dataset.copylast.split(',').filter(Boolean)) { try { Season.setProgress(season, ui.prKid, cl.dataset.scope, key, cl.dataset.date); } catch (err) { alert(err.message); break; } }
+      for (const key of cl.dataset.copylast.split(',').filter(Boolean)) { try { Season.setProgress(season, ui.prKid, cl.dataset.scope, key, cl.dataset.date); } catch (err) { App.ask.alert(err.message); break; } }
       touchSeason(); redrawSheet(); return;
     }
     const cn = e.target.closest('button[data-clearnd]');
     if (cn) {      // a no-date sign-off has an empty box, so this is how it is taken back (the section is unfinished again)
       const inp = cn.closest('.pcell').querySelector('input[data-key]');
-      try { Season.setProgress(season, ui.prKid, inp.dataset.scope, inp.dataset.key, ''); } catch (err) { alert(err.message); }
+      try { Season.setProgress(season, ui.prKid, inp.dataset.scope, inp.dataset.key, ''); } catch (err) { App.ask.alert(err.message); }
       touchSeason(); redrawSheet(); return;
     }
     const td = e.target.closest('button[data-today]');
     if (td) {
       const inp = td.closest('.pcell').querySelector('input[data-key]');
-      try { Season.setProgress(season, ui.prKid, inp.dataset.scope, inp.dataset.key, App.today()); } catch (err) { alert(err.message); }
+      try { Season.setProgress(season, ui.prKid, inp.dataset.scope, inp.dataset.key, App.today()); } catch (err) { App.ask.alert(err.message); }
       touchSeason(); redrawSheet(); return;
     }
     const b = e.target.closest('button[data-book]'); if (b) { ui.prBook = b.dataset.book; redrawSheet(); return; }
     if (e.target.id === 'btnPastGiven') {      // everything this child finished before the season's first club night: handed over long ago, day unknown
       const list = Season.pastYearAwards(season, ui.prKid);
-      if (list.length && confirm('Mark ' + list.length + ' award' + (list.length === 1 ? '' : 's') + ' from earlier years as given, with no date?\n\n' + list.join('\n') + '\n\nNothing is announced or printed with a date. Undo takes it back.')) {
-        try { Season.markPastYearsGiven(season, App.today(), [ui.prKid]); } catch (err) { alert(err.message); return; }
-        touchSeason(); redrawSheet(); App.flash(list.length + ' marked given, no date.', 'info');
+      if (list.length) {      /* one Undo step: do it, then offer Undo (UX-20) */
+        try { Season.markPastYearsGiven(season, App.today(), [ui.prKid]); } catch (err) { App.ask.alert(err.message); return; }
+        touchSeason(); redrawSheet(); App.done(list.length + ' award' + (list.length === 1 ? '' : 's') + ' from earlier years marked as given, with no date (' + list.join(', ') + '). Nothing is announced or printed with a date.');
       }
       return;
     }
@@ -1172,7 +1233,7 @@
     el.innerHTML = h;
   }
   $('hReconcile').addEventListener('click', () => {
-    if (!App.resolveDraft()) return;
+    if (!App.resolveDraft(() => $('hReconcile').click())) return;
     if (!Season.reconcile(season, new Date().toISOString())) return renderHistory();
     snap = Season.snapshot(season); markEdit(); status(); App.updateStatus(); App.refresh();      // Restore to the previous version is the way back
   });
@@ -1184,30 +1245,26 @@
   });
   const hTag = key => () => {
     const i = ui[key]; if (i < 1) return;
-    const name = prompt('Name for version ' + i + ' (leave empty to remove the name)', season.history[i - 1].tag || ''); if (name === null) return;
-    Season.tag(season, i, name); touchSeason(); renderHistory();
+    App.ask.form({ title: 'Name version ' + i, ok: 'Save name', fields: [{ name: 'name', label: 'Name for version ' + i, type: 'text', value: season.history[i - 1].tag || '', maxlength: 80, hint: 'Leave empty to remove the name.' }] })
+      .then(v => { if (!v) return; Season.tag(season, i, v.name); touchSeason(); renderHistory(); });
   };
   $('hTagFrom').addEventListener('click', hTag('hFrom')); $('hTagTo').addEventListener('click', hTag('hTo'));
   // A restore deletes history, so it asks three times, and each time the person types the phrase exactly. Any other answer (or Cancel) stops it.
   const RESTORE_PHRASE = "I understand what i'm about to do, I have made backups, and i am confident in my decision. Please Proceed with my dangerous request.";
-  function askRestorePhrase() {
-    for (let i = 1; i <= 3; i++) {
-      const a = prompt('Restore confirmation ' + i + ' of 3.\n\nType this sentence exactly, then press OK:\n\n' + RESTORE_PHRASE);
-      if (a === null) return false;
-      if (a.trim() !== RESTORE_PHRASE) { alert('That does not match, so nothing was restored.'); return false; }
-    }
+  async function askRestorePhrase() {      /* the OK button stays disabled until the sentence matches exactly, so a wrong answer cannot be sent */
+    for (let i = 1; i <= 3; i++) if (!(await App.ask.typed(RESTORE_PHRASE, { title: 'Restore confirmation ' + i + ' of 3', message: 'Type this sentence exactly:' }))) return false;
     return true;
   }
   // Gross restore: back up the current file, delete everything after the chosen version, load the older one (unsaved).
-  $('hRestore').addEventListener('click', () => {
+  $('hRestore').addEventListener('click', async () => {
     const n = season.history.length, v = Season.compare(season, ui.hFrom, ui.hLatest ? n : ui.hTo).from, r = Season.restoreTo(season, v);
-    if (!r.dropped.entries) return alert('That is already the latest version, so there is nothing to restore.');
-    if (!confirm('Restore to ' + versionLabel(v) + '?\n\nThis deletes ' + r.dropped.entries + ' later version' + (r.dropped.entries === 1 ? '' : 's') + ' (' + r.dropped.changes +
-      ' changes) from the file you are working on. A backup of the current file downloads first.')) return;
-    if (!askRestorePhrase()) return;
-    App.guardedSave(() => {
+    if (!r.dropped.entries) return App.ask.alert('That is already the latest version, so there is nothing to restore.');
+    if (!(await App.ask.confirm('Restore to ' + versionLabel(v) + '?\n\nThis deletes ' + r.dropped.entries + ' later version' + (r.dropped.entries === 1 ? '' : 's') + ' (' + r.dropped.changes +
+      ' changes) from the file you are working on. A backup of the current file downloads first.', { title: 'Restore this version?', ok: 'Restore', danger: true }))) return;
+    if (!(await askRestorePhrase())) { App.flash('Nothing was restored.', 'info'); return; }
+    App.guardedSave(async () => {
       App.download(Season.fileName(season.year, new Date(), 'before-restore'), Season.toJson(season), 'application/json');
-      if (!confirm('The backup was downloaded. Check that it saved, then press OK to go back to version ' + v + '.')) return;
+      if (!(await App.ask.confirm('The backup was downloaded. Check that it saved, then go back to version ' + v + '.', { title: 'Backup downloaded', ok: 'It saved: go back', danger: true }))) return;
       ui.hFrom = null; ui.hLatest = true;
       setSeason(Season.restoreTo(season, v).season, { noImport: true }); markEdit(); status();
     });
@@ -1219,8 +1276,7 @@
   // For the Person tab (app-person.js).
   // A note on any element of any tab comes from the Flag button in the top bar (app-flagmode.js), which saves it through addFlag.
   // ---- Volunteer absences (S11): club nights come from the club calendar only (Calendar.isNight); the record is kept with the person.
-  // A held club night needs a child present (S11 decision, 2026-11-16): the roster decides who is a child. Someone not on the roster counts as a child, as before.
-  Season.setChildTest(id => { const p = App.master && App.master.people.find(x => x[Model.X.ID] === id); return !p || Model.isClubber(p); });
+  /* A held club night needs a child present (S11, 2026-11-16). Who is a child comes from the file's own roster inside Season.heldNights (Model.childTestOf): nothing to set up here any more (CR-09). */
   const absenceClubDates = () => (App.calendar || []).filter(Calendar.isNight).map(r => r.Date).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
   Object.assign(App, { absenceClubDates, absenceNightsBetween: (from, to) => absenceClubDates().filter(d => d >= from && d <= to),
     addAbsence: (personId, from, to, reason) => { const id = Season.addAbsence(season, personId, App.absenceNightsBetween(from, to), reason, absenceClubDates()); touchSeason(); return id; },
@@ -1231,7 +1287,7 @@
     quarterNow, flagsChanged: () => { App.onRefresh.forEach(f => f()); const t = App.tabs && App.tabs[App.tab]; if (t && App.tab !== 'todo') t(); if (App.updateTodoBadge) App.updateTodoBadge(); }, addNote: text => { Season.addFlag(season, { level: 'general', note: text }); touchSeason(); }, nightList, quarterOf, markCols: MARK_COLS,
     awardsToGive: () => App.master && season ? toGive(giveKids(), App.today()) : [],
     awardsToAnnounce: () => App.master && season ? giveKids().reduce((n, p) => n + announceDue(p, Model.groupOf(Model.room(p)), App.today()).length, 0) : 0,      // earned and not announced yet: the number on the Awards tab
-    nextNight,
+    nextNight, nightLabel,
     // From a child's Awards tab: open the Awards tab on the Announce page for that night and child's class (and the slide pictures if asked).
     awardsFor: (id, date, slide) => { const p = personOf(id); if (!p || !date) return; ui.awSub = 'announce'; ui.awDate = date; ui.awGroup = grpOf(p); ui.awRoom = Model.room(p); ui.awType = ''; App.showTab('awards'); if (slide) $('btnAwImages').click(); },
     // Open a child's Progress sub-tab on the Person tab (the Progress tab no longer exists).

@@ -1,7 +1,7 @@
-// Blue Jewels by hand on the Progress sheet: "Grant by hand" fills an empty slot (a date and a note are asked for), "Drop" removes it again (asked to confirm). Sparks only. Invented test club only.
+// Blue Jewels by hand on the Progress sheet: "Grant by hand" fills an empty slot (one form: a date picker and a reason), "Drop" removes it again at once with an Undo message. Sparks only. Invented test club only.
 // Usage: NODE_PATH=<dir with playwright> node test/blue-hand-browser.test.js
 const assert = require('assert'), fs = require('fs'), http = require('http'), path = require('path');
-const { chromium } = require('playwright');
+const { chromium } = require('playwright'), { onAppDialog } = require('./lib/app-dialogs');
 const app = path.join(__dirname, '..'), td = path.join(app, '..', 'test-data');
 const DATA = path.join(td, fs.readdirSync(td).find(f => /TEST.*\.json$/.test(f)));
 let passed = 0, failed = 0;
@@ -17,7 +17,8 @@ const server = http.createServer((req, res) => {
   const browser = await chromium.launch(), url = 'http://localhost:' + server.address().port + '/index.html';
   const open = async () => {
     const ctx = await browser.newContext({ acceptDownloads: true, viewport: { width: 1366, height: 900 } }), page = await ctx.newPage(), msgs = [], answers = [];
-    page.on('dialog', async d => { msgs.push(d.message()); if (d.type() === 'prompt') { await d.accept(answers.shift() || ''); } else { await d.accept(); } });
+    /* the grant is one form (a date picker and a reason): each answer is an object { day, note } */
+    onAppDialog(page, async d => { msgs.push(d.message()); if (d.type() === 'form') { const a = answers.shift() || {}; for (const k of Object.keys(a)) await d.fill(k, a[k]); await d.accept(); } else await d.accept(); });
     page.on('pageerror', e => msgs.push('PAGE ERROR ' + e.message));
     await page.goto(url); await page.setInputFiles('#splashFiles', [DATA]); await page.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent));
     return { page, msgs, answers, ctx };
@@ -28,7 +29,7 @@ const server = http.createServer((req, res) => {
     const s = await open(); const { page } = s;
     const id = await sparksKid(page); await page.evaluate(i => App.goProgress(i), id); await page.waitForTimeout(300);
     const btn = page.locator('[data-bjgrant]').first(); assert(await btn.count() > 0, 'a Grant by hand button is on the row');
-    s.answers.push('2026-10-14', 'Entered from paper, missed the night');
+    s.answers.push({ day: '2026-10-14', note: 'Entered from paper, missed the night' });
     await btn.click(); await page.waitForTimeout(300);
     const ov = await page.evaluate(i => (App.season.blueOverrides || {})[i] || [], id);
     assert.strictEqual(ov.length, 1, 'one override saved'); assert.strictEqual(ov[0].date, '2026-10-14'); assert.strictEqual(ov[0].note, 'Entered from paper, missed the night');
@@ -37,27 +38,31 @@ const server = http.createServer((req, res) => {
     await s.ctx.close();
   });
 
-  await test('Drop removes a granted Blue Jewel (after a confirm) and its slot is free again', async () => {
+  await test('Drop removes a granted Blue Jewel at once, offers Undo, and its slot is free again; Undo puts it back', async () => {
     const s = await open(); const { page } = s;
     const id = await sparksKid(page); await page.evaluate(i => App.goProgress(i), id); await page.waitForTimeout(300);
-    s.answers.push('2026-10-14', 'test');
+    s.answers.push({ day: '2026-10-14', note: 'test' });
     await page.locator('[data-bjgrant]').first().click(); await page.waitForTimeout(300);
     await page.locator('[data-bjdrop][data-bjov="1"]').first().click(); await page.waitForTimeout(300);
     const ov = await page.evaluate(i => (App.season.blueOverrides || {})[i] || [], id);
     assert.strictEqual(ov.length, 0, 'the grant is gone');
     assert(await page.locator('[data-bjgrant]').count() > 0, 'the slot can be granted again');
+    assert(await page.isVisible('#doneFlash') && /Blue Jewel dropped/.test(await page.textContent('#doneFlash')), 'a message with Undo');
+    await page.click('#doneUndo'); await page.waitForTimeout(300);
+    assert.strictEqual((await page.evaluate(i => (App.season.blueOverrides || {})[i] || [], id)).length, 1, 'Undo put the grant back');
     assert.deepStrictEqual(s.msgs.filter(m => /PAGE ERROR/.test(m)), [], 'no script errors');
     await s.ctx.close();
   });
 
-  await test('a grant with a bad date is refused with a message, and nothing is saved', async () => {
+  await test('a grant with no day is refused inside the form (the error shows, the form stays open), and nothing is saved', async () => {
     const s = await open(); const { page } = s;
     const id = await sparksKid(page); await page.evaluate(i => App.goProgress(i), id); await page.waitForTimeout(300);
-    s.answers.push('not a date', '');
-    await page.locator('[data-bjgrant]').first().click(); await page.waitForTimeout(300);
+    s.answers.push({ day: '' });
+    await page.locator('[data-bjgrant]').first().click(); await page.waitForTimeout(400);
     const ov = await page.evaluate(i => (App.season.blueOverrides || {})[i] || [], id);
     assert.strictEqual(ov.length, 0, 'nothing saved');
-    assert(s.msgs.some(m => /date|YYYY|not/i.test(m)), 'a message about the date: ' + s.msgs.join(' | '));
+    assert(await page.isVisible('#ask'), 'the form is still open'); assert(/needed/.test(await page.textContent('#askErr0')), 'an error under the day: ' + await page.textContent('#askErr0'));
+    await page.click('#ask [data-ask="cancel"]'); await page.waitForTimeout(200); assert.strictEqual((await page.evaluate(i => (App.season.blueOverrides || {})[i] || [], id)).length, 0, 'still nothing after Cancel');
     await s.ctx.close();
   });
 

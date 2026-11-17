@@ -72,7 +72,15 @@ const server = http.createServer((req, res) => {
   await test('if the carried session cannot be put back it is downloaded as a file instead of lost', async () => {
     const ctx = await browser.newContext({ acceptDownloads: true }), page = await ctx.newPage(), msgs = []; page.on('dialog', d => { msgs.push(d.message()); d.accept(); });
     await page.goto(url); await page.evaluate(() => sessionStorage.setItem('awana-handoff', JSON.stringify({ t: Date.now(), tab: 'roster', season: '{ this is not a data file' })));
-    const dl = page.waitForEvent('download', { timeout: 8000 }); await page.reload(); const d = await dl; assert(/^awana-session-recovered-\d+\.json$/.test(d.suggestedFilename()), d.suggestedFilename()); assert(msgs.some(m => /could not be put back/.test(m)), msgs.join()); assert.strictEqual(await page.evaluate(() => sessionStorage.getItem('awana-handoff')), null); await ctx.close();
+    const dl = page.waitForEvent('download', { timeout: 8000 }); await page.reload(); const d = await dl; await page.waitForTimeout(500); assert(/^awana-session-recovered-\d+\.json$/.test(d.suggestedFilename()), d.suggestedFilename()); assert(msgs.some(m => /could not be put back/.test(m)), msgs.join()); assert.strictEqual(await page.evaluate(() => sessionStorage.getItem('awana-handoff')), null); await ctx.close();
+  });
+  await test('a carried copy older than 10 minutes (an update that never finished) is downloaded as a file, not opened, and the key is gone (CR-13)', async () => {
+    const ctx = await browser.newContext({ acceptDownloads: true }), page = await ctx.newPage(); page.on('dialog', d => d.accept());
+    await page.goto(url); await page.evaluate(() => sessionStorage.setItem('awana-handoff', JSON.stringify({ t: Date.now() - 11 * 60 * 1000, tab: 'roster', season: '{"format":"awana-season","version":6,"year":"2026-27"}' })));
+    const dl = page.waitForEvent('download', { timeout: 8000 }); await page.reload(); const d = await dl;
+    assert(/^awana-session-recovered-\d+\.json$/.test(d.suggestedFilename()), d.suggestedFilename());
+    assert.strictEqual(await page.evaluate(() => sessionStorage.getItem('awana-handoff')), null, 'the key is gone'); assert.strictEqual(await page.evaluate(() => !!App.season), false, 'nothing was opened over the fresh page');
+    await ctx.close();
   });
   await test('auto-save: off by default; on, it saves only when something is unsaved (a download), says when, skips while a window is open, and stops when turned off', async () => {
     const { page, ctx } = await open(); await tab(page, 'options'); await page.waitForTimeout(250); assert.strictEqual(await page.$eval('#optAutoOn', e => e.checked), false); assert.deepStrictEqual(await page.$$eval('#optAutoMin option', o => o.map(x => x.value)), ['1', '2', '5', '10', '15', '30']); assert.strictEqual(await page.$eval('#optAutoMin', e => e.value), '5');

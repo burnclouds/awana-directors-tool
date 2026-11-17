@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-teamgrid.js'] = '1.11.2';
+(this.AwanaVersions = this.AwanaVersions || {})['app-teamgrid.js'] = '1.13.0';
 // Color teams: the year grid. One row per child, one column per quarter. A quarter reads as locked (played or locked by hand), ready to lock
 // (the next one, printed shortly before it starts) or projected (a guess that can still change). A color Mike set by hand is a pin.
 // Under the grid: team sizes and expected turnout for the whole group (the group plays together, so a class shows only its part of each team).
@@ -22,13 +22,13 @@
   }
   function lock(q) {
     const hx = A.teamHistory && A.teamHistory(), blanks = kidsAll().filter(p => !Teams.endIn(p, q, hx && hx(p)) && !Model.noTeam(p, q)).length;      // a child whose color came from a move is not blank
-    if (blanks && !confirm(blanks + ' child' + (blanks === 1 ? ' has' : 'ren have') + ' no color in ' + q + ' yet. Lock it anyway?')) return false;
-    TeamPlan.lock(A.season, q, A.today()); A.touch(); A.refresh(); focusAfter.sel = '[data-tgunlock="' + q + '"]'; return true;
+    TeamPlan.lock(A.season, q, A.today()); A.touch(); A.refresh(); focusAfter.sel = '[data-tgunlock="' + q + '"]';      /* locked at once, with an Undo message that says who has no color yet (UX-20) */
+    A.done(q + ' locked.' + (blanks ? ' ' + blanks + ' child' + (blanks === 1 ? ' has' : 'ren have') + ' no color in ' + q + ' yet.' : '')); return true;      /* App.done says "Apply or Discard" on a staged draft */
   }
   function unlock(q) {
-    if (!confirm('Unlock ' + q + '? Its colors stay as they are. The ones the plan projected can move again when you recalculate; the ones you set by hand stay.')) return false;
-    try { TeamPlan.unlock(A.season, q, A.calendar, A.today()); } catch (err) { alert(err.message); return false; }
-    A.touch(); A.refresh(); focusAfter.sel = '[data-tglock="' + q + '"]'; return true;
+    try { TeamPlan.unlock(A.season, q, A.calendar, A.today()); } catch (err) { A.ask.alert(err.message); return false; }
+    A.touch(); A.refresh(); focusAfter.sel = '[data-tglock="' + q + '"]';      /* unlocked at once, with Undo (UX-20) */
+    A.done('Unlocked ' + q + '. Its colors stay as they are; the ones the plan projected can move again when you recalculate, the ones you set by hand stay.'); return true;
   }
 
   function html() {
@@ -90,9 +90,11 @@
   // Team balance now: for one quarter, each color's children, expected attendance a night (teamplan.js: this season's attendance blended with earlier years) and the gap to the average team,
   // with a plain-words flag when the regulars are on one team. It is drawn from the same colors as the grid, so it moves as you move children. The group plays together, so a class shows its own part of each team too.
   function balanceHtml(ctx, groups, states) {
+    /* UX-15: the balance follows the quarter the grid shows until someone picks another; when they differ, it says so */
+    const shown = (document.getElementById('tQuarter') || {}).value; if (!ui.bqPicked && Q.includes(shown)) ui.bq = shown;
     if (!Q.includes(ui.bq)) ui.bq = Q.find((_, i) => states[i] !== 'locked') || 'Q4';
     const pill = q => '<button type="button" data-tgbq="' + q + '" aria-pressed="' + (ui.bq === q) + '"' + (ui.bq === q ? ' class="on"' : '') + '>' + q + '</button>';
-    let h = '<section class="tgbal" aria-label="Team balance now"><h4>Team balance now' + Info.html('games.balance') + '</h4><div class="tgscope"><span class="status" id="tgBqLbl">Quarter</span> <span role="group" aria-labelledby="tgBqLbl">' + Q.map(pill).join('') + '</span></div>';
+    let h = '<section class="tgbal" aria-label="Team balance now"><h4>Team balance now' + Info.html('games.balance') + '</h4><div class="tgscope"><span class="status" id="tgBqLbl">Balance for:</span> <span role="group" aria-labelledby="tgBqLbl">' + Q.map(pill).join('') + '</span>' + (Q.includes(shown) && shown !== ui.bq ? ' <span class="status">(the grid shows ' + shown + ')</span>' : '') + '</div>';
     groups.forEach(g => {
       const b = TeamPlan.balance(ctx, g, p => colorIn(ctx, states, p, ui.bq)), mine = ui.scope === 'class' && ui.cls && Model.groupOf(ui.cls) === g;
       const inClass = c => kidsAll().filter(p => Model.room(p) === ui.cls && colorIn(ctx, states, p, ui.bq) === c).length;
@@ -210,13 +212,15 @@
     return out;
   }
   // spec: { title, intro, draw(rng) -> { rows, ...whatever apply needs }, apply(res), done() }
+  // UX-18: a spec may instead carry scopes: [{ id, label, intro, draw, apply }] (and scope: the one chosen first). The dialog then shows the choice as radio buttons and every change of scope draws again; one preview for Fill blanks, whatever it covers.
   function preview(spec) {
     const dlg = document.getElementById('dlg'); if (!dlg) return;
-    let res = null;
+    let res = null, scopeId = spec.scopes ? (spec.scope || spec.scopes[0].id) : '';
+    const cur = () => spec.scopes ? spec.scopes.find(s => s.id === scopeId) || spec.scopes[0] : spec;
     const paint = () => {
       const warn = proposalWarnings(res.rows), n = res.rows.length;
       const rows = res.rows.slice().sort((a, b) => Model.byRoomThenName(a.p, b.p) || a.q.localeCompare(b.q));
-      dlg.innerHTML = '<h3 style="margin-top:0">' + esc(spec.title) + '</h3><p class="status">' + esc(spec.intro) + ' Nothing is saved until you press Confirm.</p>' +
+      dlg.innerHTML = '<h3 style="margin-top:0">' + esc(spec.title) + '</h3><p class="status">' + esc(cur().intro || spec.intro) + ' Nothing is saved until you press Confirm.</p>' + (spec.scopes ? '<fieldset class="tgscopes"><legend>Fill</legend>' + spec.scopes.map(sc => '<label><input type="radio" name="tgScope" value="' + esc(sc.id) + '"' + (sc.id === scopeId ? ' checked' : '') + '> ' + esc(sc.label) + '</label>').join(' ') + '</fieldset>' : '') +
         '<p id="tgPrevCount"><b>' + n + ' color' + (n === 1 ? '' : 's') + ' would be set.</b></p>' +
         '<div id="tgPrevWarn" class="tgbalance' + (warn.length ? ' bad' : '') + '" role="status" aria-live="polite">' + (warn.length ? warn.map(w => '<p>' + esc(w) + '</p>').join('') : '<span class="status">No warnings: no color is repeated and the teams stay even.</span>') + '</div>' +
         '<table class="roster tgprev"><thead><tr><th scope="col">Child</th><th scope="col">Class</th><th scope="col">Quarter</th><th scope="col">Color</th></tr></thead><tbody>' +
@@ -224,22 +228,20 @@
         '<div class="dlgbtns tgprevbtns"><button type="button" id="tgPrevCancel">Cancel</button><button type="button" id="tgPrevAgain">Draw again</button><button type="button" id="tgPrevOk" class="primary"' + (n ? '' : ' disabled') + '>Confirm</button></div>';
       const $ = x => document.getElementById(x);
       $('tgPrevCancel').onclick = () => { dlg.close(); if (spec.cancel) spec.cancel(); };
-      $('tgPrevAgain').onclick = () => { res = spec.draw(Teams.mulberry32(newSeed())); paint(); $('tgPrevAgain').focus(); };
-      $('tgPrevOk').onclick = () => { dlg.close(); spec.apply(res); };
+      $('tgPrevAgain').onclick = () => { res = cur().draw(Teams.mulberry32(newSeed())); paint(); $('tgPrevAgain').focus(); };
+      dlg.querySelectorAll('input[name="tgScope"]').forEach(r => r.onchange = () => { scopeId = r.value; res = cur().draw(Teams.mulberry32(newSeed())); paint(); const again = dlg.querySelector('input[name="tgScope"][value="' + scopeId + '"]'); if (again) again.focus(); });
+      $('tgPrevOk').onclick = () => { dlg.close(); cur().apply(res); };
     };
-    res = spec.draw(Teams.mulberry32(newSeed())); paint(); dlg.showModal(); const ok = dlg.querySelector('#tgPrevOk'); if (ok && !ok.disabled) ok.focus();
+    res = cur().draw(Teams.mulberry32(newSeed())); paint(); dlg.showModal(); const ok = dlg.querySelector('#tgPrevOk'); if (ok && !ok.disabled) ok.focus();
   }
-  // Fill: the year plan's projection for every open quarter, shown first.
-  function previewFill() {
-    const mk = () => ({ master: A.master, season: A.season, calendar: A.calendar, today: A.today(), history: A.teamHistory() });
-    preview({
-      title: 'Fill the blank colors', intro: 'This is the plan for every open quarter. Locked quarters, pins and No team children are not touched.',
-      draw: rng => { const plan = TeamPlan.project(mk(), { rng }); return { plan, rows: plan.changes.map(c => ({ p: byId(c.id), q: c.q, color: c.to })).filter(r => r.p) }; },
-      apply: res => { TeamPlan.applyPlan(mk(), res.plan); A.touch(); A.refresh(); focusAfter.sel = '.tgwhy'; restoreFocus(document.getElementById('teamsWrap') || document); },
-      cancel: () => { const b = document.querySelector('[data-tgfill]'); if (b) b.focus(); },
-    });
-    return false;
+  // Fill: the year plan's projection for every open quarter, shown first. allScope() is that plan as one choice in the Fill blanks dialog (app.js adds "This quarter" beside it).
+  const planCtx = () => ({ master: A.master, season: A.season, calendar: A.calendar, today: A.today(), history: A.teamHistory() });
+  function allScope() {
+    return { id: 'all', label: 'Every open quarter', intro: 'This is the year plan for every open quarter. Locked quarters, pins and No team children are not touched.',
+      draw: rng => { const plan = TeamPlan.project(planCtx(), { rng }); return { plan, rows: plan.changes.map(c => ({ p: byId(c.id), q: c.q, color: c.to })).filter(r => r.p) }; },
+      apply: res => { TeamPlan.applyPlan(planCtx(), res.plan); A.touch(); A.refresh(); focusAfter.sel = '.tgwhy'; restoreFocus(document.getElementById('teamsWrap') || document); } };
   }
+  function previewFill() { if (App.fillBlanks) App.fillBlanks('all'); return false; }
   function handle(e) {
     if (e.type === 'click' && e.target.closest) {
       const lk = e.target.closest('[data-tglock]'), ul = e.target.closest('[data-tgunlock]');
@@ -251,7 +253,7 @@
     }
     if (e.type === 'change' && e.target.dataset && e.target.dataset.tgcell) return setColor(e.target);
     const mv = e.type === 'click' && e.target.closest && e.target.closest('[data-tgmove]'); if (mv) return move(mv);
-    const bq = e.type === 'click' && e.target.closest && e.target.closest('[data-tgbq]'); if (bq) { ui.bq = bq.dataset.tgbq; focusAfter.sel = '[data-tgbq="' + ui.bq + '"]'; return true; }
+    const bq = e.type === 'click' && e.target.closest && e.target.closest('[data-tgbq]'); if (bq) { ui.bq = bq.dataset.tgbq; ui.bqPicked = ui.bq !== (document.getElementById('tQuarter') || {}).value; focusAfter.sel = '[data-tgbq="' + ui.bq + '"]'; return true; }
     const b = e.target.closest && e.target.closest('[data-tgscope]');
     if (b && e.type === 'click') { ui.scope = b.dataset.tgscope; focusAfter.sel = '[data-tgscope="' + ui.scope + '"]'; return true; }
     if (e.type === 'change' && e.target.id === 'tgClass') { ui.cls = e.target.value; focusAfter.sel = '#tgClass'; return true; }
@@ -260,5 +262,5 @@
   }
   function restoreFocus(root) { const el = focusAfter.sel && root.querySelector(focusAfter.sel); focusAfter.sel = ''; if (el) el.focus(); }
 
-  window.TeamGrid = { html, handle, restoreFocus, ui, preview, proposalWarnings };
+  window.TeamGrid = { html, handle, restoreFocus, ui, preview, proposalWarnings, allScope };
 })();
