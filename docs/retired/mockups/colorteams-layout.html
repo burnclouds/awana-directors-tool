@@ -1,0 +1,84 @@
+<h2>Color teams tab: how projected and locked quarters look</h2>
+<p class="subtitle">Made-up children and numbers. Today is 11/3: Q1 has been played, Q2 starts soon, Q3 and Q4 are still guesses. Which one feels right for deciding, editing and printing?</p>
+
+<style>
+  .chip{display:inline-block;min-width:54px;text-align:center;padding:3px 8px;border-radius:12px;font-size:12px;font-weight:700;color:#fff}
+  .R{background:#c62828}.B{background:#1565c0}.G{background:#2e7d32}.Y{background:#f9a825;color:#222}
+  .proj{background:transparent!important;border:2px dashed currentColor;color:inherit}
+  .proj.R{color:#c62828}.proj.B{color:#1565c0}.proj.G{color:#2e7d32}.proj.Y{color:#b07d00}
+  .pin::after{content:" \1F4CC";font-size:11px}
+  .tbl{width:100%;border-collapse:collapse;font-size:13px}
+  .tbl th,.tbl td{padding:6px 8px;border-bottom:1px solid #ddd;text-align:center}
+  .tbl td:first-child,.tbl th:first-child{text-align:left}
+  .lockedh{background:#37474f;color:#fff}
+  .readyh{background:#ef6c00;color:#fff}
+  .projh{background:#eceff1;color:#455a64;border-top:3px dashed #90a4ae}
+  .seg{display:flex;gap:6px;margin:6px 0 10px;font-size:12px}
+  .seg span{padding:3px 10px;border:1px solid #90a4ae;border-radius:14px}
+  .seg .on{background:#455a64;color:#fff}
+  .strip{font-size:12px;color:#455a64;margin-top:8px}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .b{padding:4px 10px;border:1px solid #90a4ae;border-radius:5px;font-size:12px;background:#fff}
+  .b.p{background:#1f5fbf;color:#fff;border-color:#1f5fbf}
+  .note{font-size:12px;color:#455a64;margin-top:8px}
+</style>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>All four quarters side by side</h3>
+      <p>You see the whole year at once. Locked quarters are solid, the quarter about to start is orange and waiting for you, later quarters are dashed "projected".</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>One quarter at a time</h3>
+      <p>Tabs Q1 to Q4 with a state label on each. Roomier for phones, but the year is not visible at once.</p>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Option A: Color teams &gt; Sparks A (made-up names)</div>
+  <div class="mockup-body">
+    <div class="seg">Show: <span class="on">By class</span><span>By group</span><span>Whole club</span> &nbsp;&nbsp; Class: <span class="on">Sparks A</span><span>Sparks B</span><span>Sparks C</span></div>
+    <table class="tbl">
+      <tr><th></th>
+        <th class="lockedh">Q1 &middot; locked<br><small>9/16 &ndash; 11/4</small></th>
+        <th class="readyh">Q2 &middot; ready to lock<br><small>starts 11/11</small></th>
+        <th class="projh">Q3 &middot; projected</th>
+        <th class="projh">Q4 &middot; projected</th></tr>
+      <tr><td>Ava Linden</td><td><span class="chip R">Red</span></td><td><span class="chip proj B">Blue</span></td><td><span class="chip proj G">Green</span></td><td><span class="chip proj Y">Yellow</span></td></tr>
+      <tr><td>Ben Hollis</td><td><span class="chip B">Blue</span></td><td><span class="chip proj Y pin">Yellow</span></td><td><span class="chip proj R">Red</span></td><td><span class="chip proj G">Green</span></td></tr>
+      <tr><td>Cora Wen</td><td><span class="chip G">Green</span></td><td><span class="chip proj R">Red</span></td><td><span class="chip proj B">Blue</span></td><td><span class="chip proj Y">Yellow</span></td></tr>
+      <tr><td>Dev Patel <small>(joined 10/21)</small></td><td><span class="chip Y">Yellow</span></td><td><span class="chip proj G">Green</span></td><td><span class="chip proj B">Blue</span></td><td><span class="chip proj R">Red</span></td></tr>
+      <tr><td>Ella Marsh <small>(moved 10/14)</small></td><td><span class="chip B">Blue &rarr; Red</span></td><td><span class="chip proj G">Green</span></td><td><span class="chip proj Y">Yellow</span></td><td><span class="chip proj B">Blue</span></td></tr>
+      <tr><td><b>Team size</b> (head count)</td><td><small>R4 B4 G3 Y3</small></td><td><small>R3 B4 G4 Y3</small></td><td><small>R4 B3 G4 Y3</small></td><td><small>R3 B4 G3 Y4</small></td></tr>
+      <tr><td><b>Expected turnout</b></td><td><small>from the night counts</small></td><td><small>R2.8 B3.1 G3.4 Y2.2</small></td><td><small>guess</small></td><td><small>guess</small></td></tr>
+    </table>
+    <div class="btnrow">
+      <span class="b p">Lock Q2 and print sheets</span>
+      <span class="b">Recalculate Q3 and Q4 (changes 2 children)</span>
+      <span class="b">Show teams for the whole club</span>
+    </div>
+    <div class="note">&#128204; = you set this by hand. Recalculation never moves a pinned child. Q1 is locked: a change there is a manual edit and is recorded as a move on a date.</div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Option B: the same class, one quarter at a time</div>
+  <div class="mockup-body">
+    <div class="seg"><span>Q1 locked</span><span class="on">Q2 ready to lock</span><span>Q3 projected</span><span>Q4 projected</span> &nbsp;&nbsp; By class &middot; Sparks A</div>
+    <table class="tbl">
+      <tr><th>Child</th><th>Team in Q2</th><th>Had before</th><th>Change</th></tr>
+      <tr><td>Ava Linden</td><td><span class="chip proj B">Blue</span></td><td>Red</td><td><span class="b">Change&hellip;</span></td></tr>
+      <tr><td>Ben Hollis</td><td><span class="chip proj Y pin">Yellow</span></td><td>Blue</td><td><span class="b">Change&hellip;</span></td></tr>
+      <tr><td>Cora Wen</td><td><span class="chip proj R">Red</span></td><td>Green</td><td><span class="b">Change&hellip;</span></td></tr>
+    </table>
+    <div class="strip">Sizes R3 B4 G4 Y3 &middot; expected turnout R2.8 B3.1 G3.4 Y2.2</div>
+  </div>
+</div>
+
+<p class="subtitle">Click A or B, then tell me in the terminal what you would change. In particular: does anything here miss how you decide a quarter?</p>

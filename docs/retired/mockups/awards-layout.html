@@ -1,0 +1,70 @@
+<h2>Simplified Awards tab</h2>
+<p class="subtitle">Sample names only. Awards tab lists earned-but-not-announced; Hand out is the by-room report.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Awards tab: two pages, no Given ticks, no history</div>
+  <div class="mockup-body">
+    <div class="mock-nav">Announce (7) &nbsp;|&nbsp; Hand out (12)</div>
+
+    <p><b>Group</b> [All ▾] &nbsp; <b>Class</b> [All ▾] &nbsp; <b>Sort</b> [Class and name ▾] &nbsp; <b>Announce on</b> [Wed Nov 12 ▾]</p>
+    <p>
+      <button class="mock-button">Slide images…</button>
+      <button class="mock-button">Read-off list…</button>
+      <button class="mock-button">Add award by hand…</button>
+      <button class="mock-button">Award lists…</button>
+      <button class="mock-button"><b>Mark all announced</b> (5)</button>
+    </p>
+
+    <h3>Earned, not yet announced</h3>
+    <table style="width:100%;border-collapse:collapse" cellpadding="6">
+      <tr style="text-align:left;border-bottom:1px solid #999"><th>Class</th><th>Child</th><th>Award</th><th>Earned</th><th>Hold</th></tr>
+      <tr><td>Sparks A</td><td>Ava T.</td><td>Red Jewel 2</td><td>Nov 5</td><td>☐</td></tr>
+      <tr><td>Sparks A</td><td>Ben R.</td><td>HG Green Emblem</td><td>Nov 5</td><td>☐</td></tr>
+      <tr><td>Sparks B</td><td>Cora M.</td><td>Blue Jewel 1</td><td>Nov 5</td><td>☐</td></tr>
+      <tr style="opacity:.55"><td>T&amp;T Girls</td><td>Dana K.</td><td>Silver 1</td><td>Nov 5</td><td>☑ <i>held, off slides</i></td></tr>
+      <tr style="opacity:.55"><td>T&amp;T Boys</td><td>Eli S.</td><td>Start Zone 2</td><td>Nov 5</td><td>☑ <i>held, off slides</i></td></tr>
+    </table>
+    <p class="subtitle">Held awards stay on this list, are left off slides, and are skipped by Mark all announced.</p>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Hand out page: by class, for room leaders (kept as is)</div>
+  <div class="mockup-body">
+    <p><b>Sparks A</b> &nbsp; <button class="mock-button">Printable list</button></p>
+    <table style="width:100%;border-collapse:collapse" cellpadding="6">
+      <tr style="text-align:left;border-bottom:1px solid #999"><th>Child</th><th>Award</th><th>Earned</th><th>Announced</th></tr>
+      <tr><td>Ava T.</td><td>Red Jewel 2</td><td>Nov 5</td><td>not yet</td></tr>
+      <tr><td>Ben R.</td><td>HG Green Emblem</td><td>Nov 5</td><td>not yet</td></tr>
+      <tr><td>Fay L.</td><td>Blue Jewel 3</td><td>Oct 29</td><td>Nov 5</td></tr>
+    </table>
+    <p class="subtitle">Lists everything earned and not Given. Disappears once leaders mark it Given on Progress.</p>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Progress sheet: where Given and Announced live, per earned award</div>
+  <div class="mockup-body">
+    <p><b>Ava T.</b> &nbsp; Sparks A &nbsp; HG</p>
+    <table style="width:100%;border-collapse:collapse" cellpadding="6">
+      <tr style="text-align:left;border-bottom:1px solid #999"><th>Award</th><th>Earned</th><th>Announced</th><th>Given</th></tr>
+      <tr><td>Red Jewel 1</td><td>Oct 22</td><td>Oct 29</td><td>Oct 29</td></tr>
+      <tr><td>Red Jewel 2</td><td>Nov 5</td><td><i>blank</i> &nbsp;☐ hold</td><td><i>blank</i> &nbsp;☐ no date</td></tr>
+    </table>
+    <p class="subtitle">Announced is the small field to edit by hand if you need to fix a mistake.</p>
+  </div>
+</div>
+
+<div class="section">
+  <h3>One layout question</h3>
+  <div class="options">
+    <div class="option" data-choice="hold-awards" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content"><h3>Hold box on the Awards tab</h3><p>As drawn above. One click per award, right where you generate slides.</p></div>
+    </div>
+    <div class="option" data-choice="hold-progress" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content"><h3>Hold only on Progress</h3><p>Awards tab stays purely a list. You set the hold on the child's sheet next to Announced.</p></div>
+    </div>
+  </div>
+</div>

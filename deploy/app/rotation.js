@@ -1,0 +1,2 @@
+(this.AwanaVersions = this.AwanaVersions || {})['rotation.js'] = '1.0.0';
+!function(e){const t=e.Csv||("undefined"!=typeof require?require("./csv.js"):null),o={load:function(e){const o=t.parse(e).filter((e=>e.some((e=>""!==e))));if(o.length<2||"Time"!==o[0][0])throw new Error('Not a rotation CSV: first header cell must be "Time".');const r=Math.max(...o.map((e=>e.length)));return o.map((e=>Array.from({length:r},((t,o)=>e[o]||""))))},toCsv:e=>t.serialize(e,!0),blank:()=>[["Time","Group 1"],["6:30 - 6:45",""]]};"undefined"!=typeof module?module.exports=o:e.Rotation=o}(this);

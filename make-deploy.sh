@@ -1,0 +1,72 @@
+#!/bin/sh
+# Refresh deploy/ from dev/ (code only), then check that no data came along. Then commit deploy/ and push: the GitHub Pages workflow (.github/workflows/pages.yml) publishes it. No copy is made anywhere else.
+set -e
+cd "$(dirname "$0")"
+# A changed .js or .html file must carry a new version number, so the Debug tab can tell what is running.
+ver() { case "$1" in *.js) head -1 "$1" | sed -n "s/.*= '\([^']*\)';.*/\1/p";; *.html) sed -n 's/.*name="app-version" content="\([^"]*\)".*/\1/p' "$1" | head -1;; esac; }
+# The published index.html names every script and style with ?v=<app version>, so a new version is fetched fresh instead of coming from the browser's cache (this is what lets the app's "Update now" load the new code).
+stamp() { v=$(ver "$1"); sed -E "s/(src|href)=\"([A-Za-z0-9_.-]+\.(js|css))\"/\1=\"\2?v=$v\"/g" "$1"; }
+# The scripts are minified (dev/tools/minify.js, terser from node_modules: run "npm install" here once). Line 1 of each script, the version registration, is kept as written.
+[ -d node_modules/terser ] || { echo 'STOP: terser is not installed. Run "npm install" in this folder first.'; exit 1; }
+build=$(mktemp -d); trap 'rm -rf "$build"' EXIT
+mkdir -p "$build/app"
+rsync -a --exclude test/ --exclude '*.js' dev/app/ "$build/app/"
+for f in dev/app/*.js; do [ "$(basename "$f")" = sw.js ] && continue; node dev/tools/minify.js "$f" "$build/app/$(basename "$f")"; done      # sw.js is a template, written below
+stale=""; changed=n
+for f in dev/app/*.js dev/app/*.html; do
+  [ "$(basename "$f")" = sw.js ] && continue      # the service worker's version is its release (below), not a line in the file
+  b="$build/app/$(basename "$f")"; d="deploy/app/$(basename "$f")"
+  if [ -f "$d" ]; then
+    case "$f" in *.html) same=$([ "$(stamp "$f")" = "$(cat "$d")" ] && echo y || echo n);; *) same=$({ cmp -s "$b" "$d" || cmp -s "$f" "$d"; } && echo y || echo n);; esac      # a copy from before minifying is the dev file itself: unchanged too
+    if [ "$same" = n ] && [ "$(basename "$f")" != drive-config.js ]; then changed=y; fi      # drive-config.js is replaced by the real one below; it is compared separately
+    if [ "$same" = n ] && [ "$(ver "$f")" = "$(ver "$d")" ]; then stale="$stale $(basename "$f") (still $(ver "$f"))"; fi
+  else changed=y      # a new script or page
+  fi
+done
+if [ -n "$stale" ]; then echo "STOP: changed but the version number was not bumped:$stale"; exit 1; fi
+# Every check below runs on the build and the source files BEFORE anything in deploy/ is written, so a refused build leaves deploy/ exactly as it was.
+bad=$(find "$build/app" -type f ! \( -name '*.js' -o -name '*.html' -o -name '*.css' -o -name manifest.json -o -name 'icon*.png' -o -name icon.svg \))      # the web app manifest and its icons are allowed (PWA)
+if [ -n "$bad" ]; then echo "STOP: non-code files in the build (deploy/ was not touched):"; echo "$bad"; exit 1; fi
+for f in dev/test-data/*.json dev/test-data/*.csv; do
+  [ -f "$f" ] || continue
+  case "$(basename "$f")" in *TEST*) ;; *) echo "STOP: $f is not marked TEST, so it is not copied to deploy/app/try/"; exit 1;; esac
+done
+data=$(ls dev/test-data/*.json 2>/dev/null | sort | tail -n 1)
+if [ -n "$data" ] && ! node -e 'process.exit(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).fake === true ? 0 : 1)' "$data" 2>/dev/null; then
+  echo "STOP: $data is not marked \"fake\": true, so it is not copied to deploy/app/try/"; exit 1
+fi
+# The release id: app version + build. A build that differs from what is deployed must carry a new one, or phones keep the old release (the service worker caches per release).
+rel="$(sed -n 's/.*name="app-version" content="\([^"]*\)".*/\1/p' dev/app/index.html | head -1)+$(sed -n 's/.*name="app-build" content="\([^"]*\)".*/\1/p' dev/app/index.html | head -1)"
+other=$(cd "$build/app" && find . -type f ! -name '*.js' ! -name '*.html' | while IFS= read -r f; do cmp -s "$f" "$OLDPWD/deploy/app/$f" || echo "$f"; done)      # styles, fonts, manifest, icons: new or different
+gone=$(cd deploy/app 2>/dev/null && find . -type f ! -path './try/*' ! -name sw.js ! -name drive-config.js | while IFS= read -r f; do [ -f "$build/app/$f" ] || echo "$f"; done || true)      # deployed files that dev no longer has (none on a first deploy)
+[ -n "$other$gone" ] && changed=y
+[ -f deploy-config/drive-config.js ] && [ -f deploy/app/drive-config.js ] && ! cmp -s deploy-config/drive-config.js deploy/app/drive-config.js && changed=y
+old=$(sed -n "s/.*const RELEASE = '\([^']*\)'.*/\1/p" deploy/app/sw.js 2>/dev/null | head -1)
+if [ "$changed" = y ] && [ -n "$old" ] && [ "$old" = "$rel" ]; then echo "STOP: files changed but app-version and app-build are unchanged (release $rel). Bump app-version in dev/app/index.html."; exit 1; fi
+mkdir -p deploy/app
+rsync -a --delete "$build/app/" deploy/app/
+stamp dev/app/index.html > deploy/app/index.html
+# The published copy has the real Google Drive settings (deploy-config/drive-config.js); dev/app/drive-config.js stays empty so development and the tests never reach Google.
+[ -f deploy-config/drive-config.js ] && cp deploy-config/drive-config.js deploy/app/drive-config.js
+printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=app/index.html"><title>Gonkulator</title><a href="app/index.html">Open the app</a>\n' > deploy/index.html
+# The invented club for "Try it out": only the anonymized test set, and only files that say TEST in their names (the app then treats them as test data).
+mkdir -p deploy/app/try
+data=$(ls dev/test-data/*.json 2>/dev/null | sort | tail -n 1)
+csvs=$(ls dev/test-data/*.csv 2>/dev/null | sort)
+{ [ -n "$data" ] && echo "$data"; [ -n "$csvs" ] && echo "$csvs"; } | while IFS= read -r f; do
+  case "$(basename "$f")" in *TEST*) cp "$f" deploy/app/try/;; *) echo "STOP: $f is not marked TEST, so it is not copied to deploy/app/try/"; exit 1;; esac
+done
+if [ -n "$data" ]; then
+  exp=$(echo "$csvs" | head -n 1 | xargs -d '\n' -r -n1 basename); imp=$(echo "$csvs" | tail -n 1 | xargs -d '\n' -r -n1 basename)
+  [ "$exp" = "$imp" ] && imp=""
+  printf '{"data":"%s","export":"%s","import":"%s"}\n' "$(basename "$data")" "$exp" "$imp" > deploy/app/try/manifest.json
+fi
+# The service worker (plan item 2): its release is this app version and build, and it keeps every file of this deploy except try/ (the sample club, fetched as it is).
+# index.html is in the list too, as the page the app opens to when offline.
+list=$(cd deploy/app && find . -type f ! -path './try/*' ! -name sw.js | sed 's#^\./##' | sort)
+json=$(printf '%s\n' "$list" | node -e 'const l=require("fs").readFileSync(0,"utf8").split("\n").filter(Boolean);process.stdout.write(JSON.stringify(l))')
+sed -e "s|__RELEASE__|$rel|" -e "s|__SHELL__|$json|" dev/app/sw.js > deploy/app/sw.js
+bad=$(find deploy -type f ! -path 'deploy/app/try/*' ! \( -name '*.js' -o -name '*.html' -o -name '*.css' -o -name manifest.json -o -name 'icon*.png' -o -name icon.svg \))      # the web app manifest and its icons are allowed (PWA)
+bad="$bad$(find deploy/app/try -type f ! \( -name '*TEST*.json' -o -name '*TEST*.csv' -o -name manifest.json \))"
+if [ -n "$bad" ]; then echo "STOP: non-code files in deploy/:"; echo "$bad"; exit 1; fi
+echo "deploy/ refreshed:"; find deploy -type f | sort

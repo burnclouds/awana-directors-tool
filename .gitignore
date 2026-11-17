@@ -1,0 +1,32 @@
+# Children's PII: never commit data
+archive/
+dev/*.csv
+dev/*.json
+dev/*.txt
+*.csv
+*.json
+*.txt
+*.xlsx
+*.pdf
+*.png
+*.jpg
+drive-download-*/
+node_modules/
+!package.json
+!package-lock.json
+# Files a fresh clone needs. Narrow on purpose: only the app manifest and icons, and invented files marked TEST.
+!dev/app/manifest.json
+!dev/app/icon-*.png
+!dev/test-data/*TEST*.json
+!dev/test-data/*TEST*.csv
+!deploy/app/manifest.json
+!deploy/app/icon-*.png
+!deploy/app/try/manifest.json
+!deploy/app/try/*TEST*.json
+!deploy/app/try/*TEST*.csv
+.superpowers/
+.claude/worktrees/
+
+# Real children's data. No test needs it any more (the four real-file tests run on dev/test-data) and the folder was moved out of the project on 2026-11-14 (to ~/awana-real-data-private).
+# The entry stays as a guard: if a folder with this name is ever put back, git ignores the whole folder by name, whatever the file types.
+dev/test-inputs-REAL-DATA-do-not-commit/

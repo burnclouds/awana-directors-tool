@@ -1,0 +1,8 @@
+{
+  "name": "awana-gonkulator",
+  "private": true,
+  "description": "Build tools only: make-deploy.sh minifies the scripts with terser. The app itself has no dependencies.",
+  "devDependencies": {
+    "terser": "5.31.6"
+  }
+}
