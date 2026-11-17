@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.16.4';
+(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.17.2';
 // Print reports. Each render(ctx) returns HTML; ctx = { master, settings, opts }.
 (function (root) {
   const M = root.Model || (typeof require !== 'undefined' ? require('./model.js') : null);
@@ -98,7 +98,7 @@
       if (byName) people.slice().sort(cmp).forEach(p => rows.push(row(p, teamAsOf(ctx, p), star(p))));
       else (ctx.season ? Season.teamOrder(ctx.season) : TEAM_COLORS).concat(['']).forEach(t => people.filter(p => teamAsOf(ctx, p) === t).sort(cmp).forEach(p => rows.push(row(p, t, star(p)))));
       const head = byName ? ['Group', lastFirst ? 'Last, first name' : 'Full name', sheetQuarter(ctx) + ' Color Team', 'Class'] : ['Group', sheetQuarter(ctx) + ' Color Team', lastFirst ? 'Last, first name' : 'Full name', 'Class'];
-      return sheet(g + ' ' + sheetQuarter(ctx) + ' Color Teams' + (byName ? ' (by name)' : ''), table(head, rows), 'portrait', esc(teamNote(ctx)));
+      return sheet(g + ' ' + sheetQuarter(ctx) + ' Color Teams' + (byName ? ' (by name)' : ''), table(head, rows, 'tight'), 'portrait', esc(teamNote(ctx)));
     }).join('');
   }
 
@@ -170,15 +170,13 @@
   }
 
   // ---------- uniforms: who ordered, paid, received ----------
-  // Name, class, what they wear, our size, then the dates. The parent's size (the older form asked) and the two older size columns appear only when the file has them.
-  const UNI_HEAD = ['Name', 'Class', 'Item', 'Parent size', 'Size', 'Ordered', 'Size ordered', 'Received', 'Given', 'Size given', 'Notes'];
-  const trivialSize = v => !v || /^(n\/?a|none|no|na|nka|-+)$/i.test(v.trim());
-  const uniformCols = master => { const old = M.uniformLegacy(master.people).sizes, parent = master.pcCols.includes(C.SHIRT); return { old, parent, head: UNI_HEAD.filter(h => (h !== 'Parent size' || parent) && ((h !== 'Size ordered' && h !== 'Size given') || old)) }; };
+  // Name, class, what they wear, our size, then the dates. The two older size columns appear only when the file has them. (The parent's size from Planning Center is not shown: the club does not use it.)
+  const UNI_HEAD = ['Name', 'Class', 'Item', 'Size', 'Ordered', 'Size ordered', 'Received', 'Given', 'Size given', 'Notes'];
+  const uniformCols = master => { const old = M.uniformLegacy(master.people).sizes; return { old, head: UNI_HEAD.filter(h => (h !== 'Size ordered' && h !== 'Size given') || old) }; };
   const uniformHead = master => uniformCols(master).head;
   function uniformRows(master) {
     const k = uniformCols(master);
     return kids(master).filter(p => M.uniformItems(p).length).sort(M.byRoomThenName).map(p => [esc(M.fullName(p)), esc(M.room(p)), esc(M.uniformItems(p).join(', '))]
-      .concat(k.parent ? [esc(trivialSize(M.eff(p, C.SHIRT)) ? '' : M.eff(p, C.SHIRT))] : [])
       .concat([esc(p[M.UNI.SIZE_VERIFIED]), esc(p[M.UNI.ORDERED])]).concat(k.old ? [esc(p[M.UNI.SIZE_ORDERED])] : [])
       .concat([esc(p[M.UNI.RECEIVED]), esc(p[M.UNI.GIVEN] || (p[M.UNI.GIVEN_FLAG] ? '\u2713 (no date)' : ''))]).concat(k.old ? [esc(p[M.UNI.SIZE_GIVEN])] : []).concat([esc(p[M.UNI.NOTES])]));
   }
@@ -219,7 +217,7 @@
   }
 
   const LIST = [
-    { id: 'attendance', title: 'Attendance sheets (per room)', render: attendance, opts: ['room', 'quarter', 'date'] },
+    { id: 'attendance', title: 'Attendance sheets (per room)', render: attendance, opts: ['room', 'quarter'] },
     { id: 'teams', title: 'Color teams (Sparks, T&T)', render: colorTeams, opts: ['order', 'quarter'] },
     { id: 'binderClass', title: 'Emergency, medical and photos by class (class binders)', render: binderClass, opts: ['room'] },
     { id: 'binderAll', title: 'Emergency, medical and photos, everyone by name (coaches binder)', render: binderAll },
@@ -236,7 +234,7 @@
   // A bundle is { name, items: [{ report: <id of a report in LIST>, room?: <one class>, group?: <Sparks or T&T> }] }. config.bundles holds the club's own; until one is saved here the standard bundle is used.
   const DEFAULT_BUNDLES = () => [{ name: 'Quarterly Printables', items: [{ report: 'attendance' }, { report: 'binderClass' }, { report: 'teams' }, { report: 'binderAll' }] },
     { name: 'Coaches binder', items: [{ report: 'binderClass' }, { report: 'binderAll' }, { report: 'volunteers' }, { report: 'binderTeams' }] },
-    { name: 'Class binder', items: [{ report: 'attendance' }, { report: 'binderClass' }, { report: 'volunteers' }, { report: 'progressSheets' }] }];      // choose the class on the Reports tab first: each part follows it      // a starting point: the club edits it under Options > Report bundles
+    { name: 'Class binder', perClass: true, items: [{ report: 'attendance' }, { report: 'binderClass' }, { report: 'volunteers' }, { report: 'progressSheets' }] }];      // perClass: the Class picker applies to each part (Reports tab and the Print class binders pop-up)      // a starting point: the club edits it under Options > Report bundles
   // Reports that were folded into others or dropped (1.50.35): a saved bundle that names one keeps working. The emergency-contact and medical lists became the class binder (by class) and the coaches binder (everyone by name),
   // and the master schedule, nightly rotation and attendance summary reports are gone, so a bundle simply skips them.
   const REPORT_ALIAS = { ecClass: 'binderClass', medical: 'binderClass', medicalClass: 'binderClass', ecName: 'binderAll', medicalAll: 'binderAll' }, REPORT_GONE = ['schedule', 'rotation', 'attendanceSummary'];
@@ -254,10 +252,11 @@
     // Before the quarter starts its pages are "as of its first night"; once it has started they show the color each child plays now (a move later in the quarter must not print on a binder reprinted mid-quarter).
     const first = firstNightOf(ctx.calendar, quarter), todayStr = ctx.today || new Date().toLocaleDateString('en-CA');
     const settings = Object.assign({}, ctx.settings, { quarter }), date = first && todayStr < first ? first : '', out = [];
+    // "Planning Center data as of" goes only under the pages that carry Planning Center contact and medical data (the same pages as a single report), not under attendance sheets or team lists.
+    const CONTACT = ['binderClass', 'binderAll', 'volunteers', 'photos'], asOf = html => ctx.master && ctx.master.pcAsOf ? html.replace(/<\/h2>/g, '</h2><p class="sub asof">Planning Center data as of ' + esc(ctx.master.pcAsOf) + '</p>') : html;
     (bundle.items || []).forEach(it => { const def = LIST.find(r => r.id === it.report); if (!def) return;
-      out.push(def.render(Object.assign({}, ctx, { settings, opts: Object.assign({}, ctx.opts, { room: it.room || '', group: it.group || ctx.opts.group, date, asOfFirst: !!date }) }))); });
-    const html = out.join('');
-    return ctx.master && ctx.master.pcAsOf ? html.replace(/<\/h2>/g, '</h2><p class="sub asof">Planning Center data as of ' + esc(ctx.master.pcAsOf) + '</p>') : html;
+      const h = def.render(Object.assign({}, ctx, { settings, opts: Object.assign({}, ctx.opts, { room: it.room || '', group: it.group || ctx.opts.group, date, asOfFirst: !!date }) })); out.push(CONTACT.includes(def.id) ? asOf(h) : h); });
+    return out.join('');
   }
   const api = { LIST, DEFAULT_BUNDLES, bundlesOf, runBundle, nextQuarter, firstNightOf, esc, TEAM_COLORS, kids, roomsOf, nightDates, uniformRows, uniformHead, UNI_HEAD, table };
   if (typeof module !== 'undefined') module.exports = api; else root.Reports = api;

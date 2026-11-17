@@ -60,8 +60,8 @@ const server = http.createServer((req, res) => {
     const b = await fresh(noCol); await b.page.click('#colsClose').catch(() => {}); assert(await b.page.isVisible('#pcColsBar')); await tab(b.page, 'uniforms'); await b.page.waitForTimeout(250);
     assert(/Nobody has a uniform to track/.test(await b.page.textContent('#uniWrap'))); await b.ctx.close();
   });
-  await test('this year\'s form (per-program columns and parent size) still shows its columns, and the data in the older boxes keeps showing', async () => {
-    const { page, ctx } = await fresh(EXPORT); await tab(page, 'uniforms'); await page.waitForTimeout(300); const c = await cols(page); assert(c.includes('Parent size (PC)') && c.includes('Size') && !c.includes('Size ordered'), c.join('|'));
+  await test('this year\'s form (per-program columns) shows its columns without a parent size, and the data in the older boxes keeps showing', async () => {
+    const { page, ctx } = await fresh(EXPORT); await tab(page, 'uniforms'); await page.waitForTimeout(300); const c = await cols(page); assert(!c.some(x => /parent/i.test(x)) && c.includes('Size') && !c.includes('Size ordered'), c.join('|'));
     await page.evaluate(() => { Model.uniformItems; const p = App.master.people.find(x => Model.uniformItems(x).length); p.x_Uni_SizeOrdered = 'M'; App.touch(); App.refresh(); }); await tab(page, 'roster'); await tab(page, 'uniforms'); await page.waitForTimeout(250);
     assert((await cols(page)).includes('Size ordered') && (await cols(page)).includes('Size given'), 'data in the older boxes brings them back'); await ctx.close();
   });

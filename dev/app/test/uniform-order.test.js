@@ -44,7 +44,7 @@ test('the report and the columns: no parent-size or older size columns unless th
   const m = M.loadMaster(nextYear('Uniform', yes), '2026-10-28'); let h = Reports.uniformHead(m); assert.deepStrictEqual(h, ['Name', 'Class', 'Item', 'Size', 'Ordered', 'Received', 'Given', 'Notes']);
   Reports.uniformRows(m).forEach(r => assert.strictEqual(r.length, h.length)); const kid = kids(m).find(p => M.uniformItems(p).length); kid[UNI.SIZE_ORDERED] = 'M';
   h = Reports.uniformHead(m); assert.deepStrictEqual(h, ['Name', 'Class', 'Item', 'Size', 'Ordered', 'Size ordered', 'Received', 'Given', 'Size given', 'Notes'], 'a file with data in the older boxes keeps them'); Reports.uniformRows(m).forEach(r => assert.strictEqual(r.length, h.length));
-  const std = M.loadMaster(text, '2026-10-28'); assert(Reports.uniformHead(std).includes('Parent size'), 'an export that still asks the parent size shows it'); Reports.uniformRows(std).forEach(r => assert.strictEqual(r.length, Reports.uniformHead(std).length));
+  const std = M.loadMaster(text, '2026-10-28'); assert(!Reports.uniformHead(std).includes('Parent size'), 'the parent size is not shown: the club does not use it'); Reports.uniformRows(std).forEach(r => assert.strictEqual(r.length, Reports.uniformHead(std).length));
   assert(!Reports.uniformHead(m).some(x => /paid|balance|owe/i.test(x)), 'no money column');
 });
 console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

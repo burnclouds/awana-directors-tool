@@ -42,7 +42,7 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   await test('a Cubbies child and a T&T child get their own books; Start Zone only on the first T&T book', async () => {
     await open(kids.c); assert((await bookTabs()).some(x => /Appleseed|HoneyComb/i.test(x)), (await bookTabs()).join('|'));
     await open(kids.t); const t = await bookTabs(); assert(t.some(x => /Agents|Discovery|Grace|Evidence/.test(x)), t.join('|'));
-    await page.selectOption('#peAddSheet', 'DoG'); await page.waitForTimeout(300); assert(!/Start Zone/.test(await page.textContent('#progressWrap')), 'not on Discovery of Grace');
+    await page.click('#progressWrap .booktabs button[data-book="DoG"]'); await page.waitForTimeout(300); assert(!/Start Zone/.test(await page.textContent('#progressWrap')), 'not on Discovery of Grace');
   });
   await test('the Awards sub-tab shows what the child earned and was told to the group, has no Given tick, and opens the Announce page for the chosen night', async () => {
     await open(kids.s, 'awards'); assert((await subTabs()).includes('awards'), 'Awards sub-tab exists');

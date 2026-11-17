@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.67.1';
+(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.68.0';
 // Season store: everything recorded during one club year, kept in one JSON file keyed by person ID
 // (attendance, games, awards, handbooks, section-by-section progress, the roster) plus the lists and templates they use.
 //
@@ -22,7 +22,9 @@
   const YEAR_BOOK_GROUPS = ['Cubbies', 'Sparks', 'T&T'], SPARKS_BOOKS = ['sequence', 'together'];
   const usesYearBook = (s, group) => YEAR_BOOK_GROUPS.includes(group) && (group !== 'Sparks' || s.config.sparksBooks === 'together');
   // The group a book belongs to; an older file's book list may lack it, so the standard list fills in.
-  const bookGroup = (s, key) => ((s.config.books || {})[key] || {}).group || (Catalog.defaultConfig().books[key] || {}).group || '';
+  // The standard list is built once (it used to be rebuilt on every call, which was most of the time drawing a long report); only the group of a key is kept, never a shared object.
+  let defGroups = null; const defGroup = key => { if (!defGroups) { defGroups = {}; const b = Catalog.defaultConfig().books; Object.keys(b).forEach(k => { defGroups[k] = (b[k] || {}).group || ''; }); } return defGroups[key] || ''; };
+  const bookGroup = (s, key) => ((s.config.books || {})[key] || {}).group || defGroup(key);
   const yearBook = (s, group) => { const k = usesYearBook(s, group) && ((s.config.yearBook || {})[group] || ''); return k && (s.config.books || {})[k] && bookGroup(s, k) === group ? k : ''; };
   function setYearBook(s, group, code) {
     if (!usesYearBook(s, group)) throw new Error(group === 'Sparks' ? 'Sparks have a book for the year only with the All Together method (Options tab).' : 'Only Cubbies, Sparks and T&T have a book for the year.');
@@ -849,6 +851,9 @@
   }
   // Every award a child has earned this season: worked out from Progress and attendance, plus any recorded by hand (announced or given) since an award you record is one you say they earned.
   // Earned is the main idea; announcing is a reminder to tell the crowd and Given tracks what was handed over. [{ award, earned (day, '' for one recorded by hand) }].
+  // Earned or announced, and not yet given (a date or the "no date" tick both count as given), not on the group's exclude list, and not an end-of-year award (those wait for the ceremony list).
+  // One rule for the Awards tab's To hand out list, its badge and the Awards to hand out strips, so they always agree.
+  function toHandOut(s, id, group, calRows) { const skip = (s.config.exclude || {})[group] || []; return awardLedger(s, id, group, calRows).filter(r => !r.given && !skip.includes(r.award) && !isEndOfYear(s, group, r.award)); }
   function earnedAwards(s, id, group, calRows) { return awardLedger(s, id, group, calRows).filter(r => !r.carried).map(r => ({ award: r.award, earned: r.earned })); }
   // ---- Earned -> Announced -> Given ----
   // Earned is worked out (suggestedAwards, blueJewels); Announced is awards[date][id]; Given is a date per child and award, set on the Progress record or the Awards tab. Given does not wait for Announced: an award can be handed over on another night, and the inventory wants the day it left the shelf.
@@ -1440,7 +1445,7 @@
     return { keep, skipped: items.filter(it => it !== keep) };
   }
   const api = { SECTIONS, KNOWN_TOP, nightStatus, volunteerNights, volunteerExpected, addAbsence, clearAbsenceNights, clearAbsence, absenceList, FLAG_LEVELS, FLAG_NO_KID, shiftDates, freshenFake, FORMAT, VERSION, fileName, MARKS, QUARTERS, TEAMS, blank, toJson, fromJson, isRealDate, badDates, guessDate, dateClashes, fixDates, newSeason, turnoutCounts, addPastYear, addEarlierYear, seasonStart, sectionsThisSeason, defaultYear, setMark, hasNight, heldNights, newest, totals, blueJewels,
-    teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
+    toHandOut, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
     setProgress, addExtraSheet, blueWingPlan, sparkJewels, heldGems, grantBlue, dropBlue, isAnnNoDate, setAnnNoDate, noDateSigns, isSignNoDate, signShown, signsShown, unsignedIn, markSignsNoDate, baseAward, jewelName, awardLabel, childBook, sparksCurrent, receivedOf, receivedShown, isReceivedNoDate, setReceived, completedBlocks, finishedBooks, bookStatus, completionAwards, setBookDone, suggestedAwards, firstNight, pastYearAwards, markPastYearsGiven, counted,
     normDriveDirs, isGivenNoDate, givenShown, isHeld, setHold, addFlag, setFlagNote, clearFlag, setBugReply, BUG_STATUS, noteList, bugList, flagList, flagsOf, flagsAt, flagsAtPlace, renameAward, snapshot, diff, merge3, applyChanges, record, labelOf, at, replayDiff, reconcile, tag, restoreTo, compare, kindOf, describe, MERGE_MINUTES };
   if (typeof module !== 'undefined') module.exports = api; else root.Season = api;

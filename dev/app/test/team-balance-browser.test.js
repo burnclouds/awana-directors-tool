@@ -49,7 +49,7 @@ const TODAY = '2026-12-20';      // Q1 and Q2 are locked (started), Q3 ready, Q4
   });
   await test('the (i) on the year grid explains how teams are decided and balanced', async () => {
     const { page } = await open(); const i = await page.$('#teamsWrap .info[data-info="games.balance"]'); assert(i, 'the (i) is there'); await i.click(); await page.waitForTimeout(200);
-    const text = await page.evaluate(() => document.body.innerText); ['never repeats a color', 'Expected attendance', 'earlier years', 'pin', 'warns'].forEach(w => assert(new RegExp(w, 'i').test(text), 'the note says ' + w));
+    const text = await page.evaluate(() => document.body.innerText); ['never repeats a color', 'Expected attendance', 'earlier years', 'solid', 'warns'].forEach(w => assert(new RegExp(w, 'i').test(text), 'the note says ' + w));
     await page.close();
   });
   await test('Options: Add an earlier year keeps counts only and never twice; the blend knob is stored only when changed', async () => {

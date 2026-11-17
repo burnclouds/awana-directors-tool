@@ -17,28 +17,28 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
   await page.goto(url); await page.setInputFiles('#splashFiles', [DATA]); await page.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent));
   const pageCss = () => page.$eval('#pageStyle', e => e.textContent).catch(() => '');
   const showReport = async id => { await page.evaluate(r => App.showReport(r), id); await page.waitForFunction(() => document.querySelectorAll('#report .sheet').length > 0); };
-  const openBinders = async ticks => {
+  const openBinders = async (quick, classes = []) => {      // quick: the quick pick's name; classes: indexes of the class boxes to tick (none = the whole club)
     await page.evaluate(() => document.querySelector('.tabs button[data-tab="reports"]').click()); await page.waitForTimeout(200);
     await page.click('#rSubs button[data-rsub="binders"]'); await page.click('#btnBinders'); await page.waitForTimeout(200);
-    for (const t of ticks) await page.check('#dlg input[data-bind="' + t + '"]');
+    await page.selectOption('#bindQuick', { label: quick }); await page.click('#bindNone');
+    for (const t of classes) await page.check('#dlg input[data-bind="' + t + '"]');
     await page.click('#bindGo'); await page.waitForTimeout(400);
   };
   const firstOrient = () => page.evaluate(() => { const s = document.querySelector('#report .sheet'); return s ? (s.classList.contains('landscape') ? 'landscape' : 'portrait') : ''; });
   await test('coaches binder: the page style follows the first sheet and the page-pick row exists', async () => {
     await showReport('attendance');
     const before = await pageCss(); assert(/@page \{ size: landscape/.test(before), 'precondition: attendance set landscape paper');
-    await openBinders(['coaches']);
+    await openBinders('Coaches binder');
     const first = await firstOrient(); assert(first, 'no sheets in #report');
     assert(new RegExp('@page \\{ size: ' + first + ';').test(await pageCss()), 'first sheet is ' + first + ' but #pageStyle says: ' + (await pageCss()).slice(0, 60));
     const sheets = await page.locator('#report .sheet').count(); assert(sheets >= 2, 'coaches binder should be several sheets');
     assert(await page.locator('#pagePick').isVisible(), 'the page-pick row is hidden');
-    if (sheets > 12) { await page.click('#btnChoosePages'); assert.strictEqual(await page.locator('#dlg input[data-pg]').count(), sheets, 'one tick per sheet in the Choose pages pop-up'); await page.click('#pgDone'); }
-    else assert.strictEqual(await page.locator('#pagePick input[type=checkbox]').count(), sheets, 'one tick per sheet');
+    await page.click('#btnChoosePages'); assert.strictEqual(await page.locator('#dlg input[data-pg]').count(), sheets, 'one tick per sheet in the Choose pages pop-up'); await page.click('#pgDone');
   });
   await test('coming from a portrait report, a class binder (landscape attendance first) says landscape', async () => {
     await showReport('teams');
     assert(/@page \{ size: portrait/.test(await pageCss()), 'precondition: the color teams report set portrait paper');
-    await openBinders(['2']);      // Sparks A: attendance is its first sheet
+    await openBinders('Class binder', ['2']);      // Sparks A: attendance is its first sheet
     assert.strictEqual(await firstOrient(), 'landscape', 'the first sheet should be the landscape attendance sheet');
     assert(/@page \{ size: landscape/.test(await pageCss()), '#pageStyle did not follow: ' + (await pageCss()).slice(0, 60));
     assert(await page.locator('#pagePick').isVisible(), 'the page-pick row is hidden');

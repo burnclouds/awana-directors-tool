@@ -738,3 +738,31 @@ dialog.helpsheet { max-width:min(92vw,640px); max-height:86vh; overflow:auto; bo
 .pglist { max-height:55vh; overflow:auto; columns:2 16em; column-gap:18px; padding:6px 2px; } .pglist label { display:block; break-inside:avoid; padding:3px 0; } #dlg .bar button + button { margin-left:6px; }
 /* Print class binders pop-up: the binders to pick and the option are two separate boxes. */
 fieldset.bindopt { background:color-mix(in srgb, var(--accent) 8%, transparent); border-style:dashed; margin-top:12px; } fieldset.bindpick .bar button + button { margin-left:6px; }
+/* Color teams list (Sparks, T&T): tighter rows on paper so a group of about 50 children fits one page instead of spilling onto a second. */
+@media print { #report table.grid.tight td, #report table.grid.tight th { padding:1px 6px; font-size:12px; line-height:1.2; } }
+/* Uniforms (1.51.15c): the text columns wrap so the tab fits at 1280px without a sideways scroll; on a phone each child is a card (CSS only: the same table, so every handler and the bulk buttons work unchanged). */
+table.uni th { white-space:normal; vertical-align:bottom; } table.uni td.wr { white-space:normal; overflow-wrap:break-word; }
+@media (max-width:760px) {
+  #uniWrap.scroll { overflow:visible; }
+  table.uni, table.uni tbody { display:block; width:100%; } table.uni thead { display:none; }
+  table.uni tr { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; padding:10px 12px; margin:0 0 10px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+  table.uni td { display:block; padding:0; border:0; white-space:normal; min-width:0; }
+  table.uni td[data-label]::before { content:attr(data-label); display:block; font-size:12px; color:var(--mute); line-height:1.3; }
+  table.uni td.uname { font-weight:700; font-size:17px; } table.uni td.uclass { text-align:right; color:var(--mute); }
+  table.uni td.uitem, table.uni td.udate, table.uni td.unotes { grid-column:1 / -1; }
+  table.uni input[type=text], table.uni input[type=date] { width:100%; box-sizing:border-box; }
+}
+/* Year grid: a color set by hand is SOLID (the pin icon is gone), a suggested one keeps the dashed outline; a legend line says so. Dark text on the pastel fills reads in both schemes. */
+table.tg select.tgsel.tgset { opacity:1; color:#1b1f24; -webkit-text-fill-color:#1b1f24; border:2px solid #555; font-weight:600; }
+table.tg select.tgsel.tgset.team-Red { background-color:#ea9999; border-color:#c62828; } table.tg select.tgsel.tgset.team-Blue { background-color:#6d9eeb; border-color:#1565c0; } table.tg select.tgsel.tgset.team-Green { background-color:#b6d7a8; border-color:#2e7d32; } table.tg select.tgsel.tgset.team-Yellow { background-color:#ffe599; border-color:#b07d00; }
+.tglegend .tgkey { display:inline-block; padding:0 8px; margin:0 2px; border-radius:4px; font-size:12px; } .tglegend .tgkey-set { color:#1b1f24; border:2px solid #1565c0; font-weight:600; } .tglegend .tgkey-proj { background:transparent; border:2px dashed var(--mute); color:var(--ink); }
+/* Person > Progress: the + Add sheet menu sits at the end of the book tabs. */
+.booktabs select { align-self:center; }
+/* Long reports on screen: sheets off screen are not laid out until they scroll near (about a third of the time to show 100 progress sheets). Print and the PDF still lay out every page. */
+@media screen { #report > .onepage, #report > .sheet { content-visibility:auto; contain-intrinsic-size:auto 440px; } }
+/* Awards to hand out: a narrow strip per child (4.5in), two columns on landscape Letter, to cut apart for the distribution box. No colour, so it prints on any printer. */
+.sheet.strips .striprow { display:flex; width:9.5in; max-width:100%; margin:0 auto; gap:0.5in; align-items:stretch; }
+.strip { width:4.5in; box-sizing:border-box; border:1px dashed #000; padding:3px 8px 4px; break-inside:avoid; background:#fff; color:#000; }
+.stripname { display:flex; justify-content:space-between; gap:8px; font-size:12pt; line-height:1.25; border-bottom:1px solid #999; margin-bottom:2px; } .stripname span { font-size:10pt; }
+.stripaward { display:flex; align-items:center; gap:8px; min-height:0.28in; font-size:11pt; } .stlabel { flex:1; min-width:0; overflow-wrap:anywhere; } .stlabel small { color:#555; font-size:9pt; }
+.stbox { width:0.18in; height:0.18in; border:1px solid #000; flex:none; } .stinit { width:0.45in; height:0.22in; border:1px solid #000; flex:none; }

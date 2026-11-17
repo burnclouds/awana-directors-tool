@@ -16,7 +16,7 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
   await page.goto(url); await page.setInputFiles('#splashFiles', [DATA]); await page.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent));
   // The progress sheets used to hold date boxes; the new record sheet (BACKLOG T6) is plain table text, so no report prints a date input now. The beforeprint / afterprint hook and the print rule stay for any date box a
   // report might carry, and are pinned here with one empty and one filled date box put into the report area.
-  await page.evaluate(() => { window.App.showReport('progressSheets'); const r = document.getElementById('report'); r.insertAdjacentHTML('beforeend', '<input type="date" id="tEmpty"><input type="date" id="tFull" value="2026-09-30">'); }); await page.waitForTimeout(300);
+  await page.evaluate(() => { window.App.showReport('progressSheets'); }); await page.waitForSelector('#report .onepage'); await page.evaluate(() => { const r = document.getElementById('report'); r.insertAdjacentHTML('beforeend', '<input type="date" id="tEmpty"><input type="date" id="tFull" value="2026-09-30">'); }); await page.waitForTimeout(300);
   await test('before printing no date box is marked', async () => {
     assert.strictEqual(await page.locator('input[type=date][data-blank-print]').count(), 0);
   });

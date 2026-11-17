@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.67.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.69.0';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -777,9 +777,10 @@
   const sel = $('rSel');
   // Report groups (the sub-tabs above the report box): each one shows only its own reports in the one list below, so the list and everything that picks a report from it (showReport, the tests) work as before.
   // The group of a report is looked up here, not stored with the report. The group chosen is for this visit only.
-  const RSUBS = { attend: ['attendance', 'attendDates', 'standings', 'paceWatch'], binders: ['binderClass', 'binderAll', 'binderTeams', 'volunteers', 'teams', 'photos', 'uniforms'], progress: ['progressSheets', 'achievement', 'awardsByChild', 'handbooks', 'booksYear'] };
-  const subOf = v => /^bundle:/.test(v) ? 'binders' : Object.keys(RSUBS).find(k => RSUBS[k].includes(v)) || 'other';      // everything else (awards hand-out, slips, ceremony, lessons, Planning Center changes) is "Other"
+  const RSUBS = { attend: ['attendance', 'attendDates', 'weeklySlips'], teams: ['teams', 'binderTeams', 'standings'], binders: ['binderClass', 'binderAll', 'volunteers', 'photos'], progress: ['progressSheets', 'achievement', 'awardsByChild', 'ceremony', 'handOut', 'booksYear', 'handbooks', 'paceWatch'] };
+  const subOf = v => /^bundle:/.test(v) ? 'binders' : Object.keys(RSUBS).find(k => RSUBS[k].includes(v)) || 'other';      // everything else (uniforms, lessons, Planning Center changes) is "Other"
   let rsub = 'attend'; const lastIn = {};
+  let binderSel = null, binderPrefs = null;      // binderSel: the binders chosen in the Print class binders pop-up ({ name, items }); binderPrefs: the pop-up's last settings, kept for the visit
   function applySub() {
     [...sel.options].forEach(o => { o.hidden = subOf(o.value) !== rsub; });
     sel.querySelectorAll('optgroup').forEach(g => { g.hidden = rsub !== 'binders'; });
@@ -789,25 +790,29 @@
   // Reports, then the club's report bundles (several reports printed as one job; defined on Options). Rebuilt when the data changes because the bundles live in the data file.
   function fillReportSel() {
     const keep = sel.value, bs = Reports.bundlesOf(App.season);
-    sel.innerHTML = Reports.LIST.map(r => '<option value="' + r.id + '">' + esc(r.title) + '</option>').join('') + '<optgroup label="Print several at once">' + bs.map((b, i) => '<option value="bundle:' + i + '">' + esc(b.name) + ' (bundle)</option>').join('') + '</optgroup>';
+    sel.innerHTML = Reports.LIST.map(r => '<option value="' + r.id + '">' + esc(r.title) + '</option>').join('') + '<optgroup label="Print several at once">' + (binderSel ? '<option value="bundle:picked">Your binders: ' + esc(binderSel.name) + '</option>' : '') + bs.map((b, i) => '<option value="bundle:' + i + '">' + esc(b.name) + ' (bundle)</option>').join('') + '</optgroup>';
     sel.value = [...sel.options].some(o => o.value === keep) ? keep : (Reports.LIST[0] || {}).id;
     rsub = subOf(sel.value); applySub();
   }
   fillReportSel(); App.fillReportSel = fillReportSel;
   let bundleQ = '';      // the quarter chosen for a bundle; empty until chosen, then it is the next quarter
   $('sQuarter').value = settings.quarter;
-  const bundleOf = () => /^bundle:\d+$/.test(sel.value) ? Reports.bundlesOf(App.season)[+sel.value.slice(7)] || null : null;
+  const bundleOf = () => sel.value === 'bundle:picked' ? binderSel : /^bundle:\d+$/.test(sel.value) ? Reports.bundlesOf(App.season)[+sel.value.slice(7)] || null : null;
   function renderBundle(b) {
     ['oRoom', 'oGroup', 'oDate', 'oKid', 'qWrap', 'calNote', 'oNoBook'].forEach(id => { $(id).hidden = true; });
-    // One quarter control in bundle mode: the top "Quarter to print" (bundleQ). The lower bar stays, but only for what a bundle really uses: List order and Title (MC-01, UX-01).
-    $('dateBar').hidden = false; $('oOrder').hidden = false; $('tWrap').hidden = false;
-    $('bWrap').hidden = false;
+    // One quarter control in bundle mode: the top "Quarter to print" (bundleQ). The lower bar shows only what the bundle's reports use: List order for the color team lists, Title for the pace watch list (MC-01, UX-01).
+    const uses = id => (b.items || []).some(i => i.report === id), order = uses('teams'), title = uses('paceWatch'), perClass = !!b.perClass && b !== binderSel;
+    $('dateBar').hidden = !(order || title); $('oOrder').hidden = !order; $('tWrap').hidden = !title; $('bWrap').hidden = false;
     if (!bundleQ) bundleQ = Reports.nextQuarter(calendar, today(), settings.quarter);
     $('bQuarter').value = bundleQ;
+    // A bundle marked perClass (the standard Class binder) takes its class from the Class picker, as its comment always said.
+    $('oRoom').hidden = !perClass;
+    if (perClass && master) { const rs = $('oRoomSel'), cur = rs.value, rl = Reports.roomsOf(Reports.kids(master)); rs.innerHTML = '<option value="">All classes</option>' + rl.map(r => '<option>' + esc(r) + '</option>').join(''); rs.value = rl.includes(cur) ? cur : ''; }
+    const room = perClass ? $('oRoomSel').value : '', items = room ? (b.items || []).filter(i => !(i.report === 'progressSheets' && Model.groupOf(room) === 'Puggles')).map(i => i.report === 'volunteers' ? i : Object.assign({}, i, { room })) : (b.items || []);
     const nights = Calendar.nights(calendar, bundleQ).length;
-    $('bNote').textContent = (b.items || []).length + ' report' + ((b.items || []).length === 1 ? '' : 's') + ' in one print job' + (calendar.length ? ' · ' + nights + ' club nights in ' + bundleQ : '');
+    $('bNote').textContent = (b === binderSel ? b.name + ' · ' : '') + (b === binderSel ? '' : items.length + ' report' + (items.length === 1 ? '' : 's') + ' in one print job') + (calendar.length ? (b === binderSel ? '' : ' · ') + nights + ' club nights in ' + bundleQ : '');
     if (!master) { $('report').innerHTML = '<p class="status">Load a roster first.</p>'; return; }
-    $('report').innerHTML = Reports.runBundle({ master, settings, calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, bk) => App.sheets.html(p, bk), opts: { order: $('oOrderSel').value, group: $('oGroupSel').value } }, b, bundleQ) || '<p class="status">This bundle has no reports. Add some on the Options tab.</p>';      // progressSheet: a bundle that lists Progress sheets (the Class binder one) draws them like the Progress Sheets report, not the "print from the app" note
+    $('report').innerHTML = Reports.runBundle({ master, settings, calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, bk) => App.sheets.html(p, bk), opts: { order: $('oOrderSel').value, group: $('oGroupSel').value } }, Object.assign({}, b, { items }), bundleQ) || '<p class="status">This bundle has no reports. Add some on the Options tab.</p>';
     setPageStyle();
   }
   // The paper: the first sheet decides the page (so the printout does not start with a blank page, which a named page on the very first sheet causes); a sheet of the other orientation gets its own named page.
@@ -819,10 +824,19 @@
   }
   App.setPageStyle = setPageStyle;
   let bundleKey = '';
-  // Reports made of one page per class (or child) get a row of boxes: untick a page and it is left out of the printed PDF. Ticks last until the report is redrawn.
-  function renderReport() { renderReportCore(); pagePick(); }
-  const PAGE_TICKS_MAX = 12;
-  // More than PAGE_TICKS_MAX pages: one line ("Pages to print: all 143") and a Choose pages button; the pop-up lists the names with Select all and Select none. The ticks act on the sheets at once, as the inline ones do.
+  // Reports made of one page per class (or child) say how many pages will print; "Choose pages" opens the list, and a page unticked there is left out of the printed PDF. The choice lasts until the report is redrawn.
+  // A report of many pages (progress sheets for the whole club) says it is being drawn first, so a slow computer shows that something is happening.
+  let drawingBig = false;
+  function renderReport() {
+    const rooms = ['Cubbies', 'Sparks', 'T&T'], n = sel.value === 'progressSheets' && master && !bundleOf() ? Reports.kids(master).filter(p => rooms.includes(Model.groupOf(Model.room(p))) && (!$('oRoomSel').value || Model.room(p) === $('oRoomSel').value)).length : 0;
+    if (n > 30 && !drawingBig) {
+      drawingBig = true; $('pagePick').hidden = true; $('report').innerHTML = '<p class="status" role="status" id="drawing">Drawing ' + n + ' progress sheets&hellip;</p>';
+      requestAnimationFrame(() => setTimeout(() => { drawingBig = false; renderReportCore(); pagePick(); }, 0)); return;
+    }
+    if (drawingBig) return;      // another change while it is being drawn: the drawing in progress picks up the pickers as they are now
+    renderReportCore(); pagePick();
+  }
+  // Two or more pages: one line ("Pages to print: all 143") and a Choose pages button; the pop-up lists the names with Select all and Select none. The ticks act on the sheets at once, as the inline ones do.
   function pagePickPopup(box, lead, sheets) {
     const name = (s, i) => { const h = s.querySelector('h2'); return h ? h.textContent : 'Page ' + (i + 1); }, on = () => sheets.filter(s => !s.classList.contains('skip')).length;
     const sum = () => { lead.id = 'pageSum'; lead.textContent = 'Pages to print: ' + (on() === sheets.length ? 'all ' + sheets.length : on() + ' of ' + sheets.length); };
@@ -841,30 +855,27 @@
     box.textContent = ''; box.hidden = sheets.length < 2;
     if (sheets.length < 2) return;
     const lead = document.createElement('span'); lead.className = 'status'; lead.textContent = 'Pages to print:'; box.appendChild(lead);
-    if (sheets.length > PAGE_TICKS_MAX) return pagePickPopup(box, lead, sheets);      // a long run of pages (a whole club) is chosen in a pop-up, not as a wall of ticks
-    sheets.forEach((s, i) => {
-      const lab = document.createElement('label'), cb = document.createElement('input'), h = s.querySelector('h2');
-      cb.type = 'checkbox'; cb.checked = true; cb.setAttribute('aria-label', 'Print ' + (h ? h.textContent : 'page ' + (i + 1)));
-      cb.addEventListener('change', () => s.classList.toggle('skip', !cb.checked));
-      lab.appendChild(cb); lab.appendChild(document.createTextNode(' ' + (h ? h.textContent : 'Page ' + (i + 1)))); box.appendChild(lab);
-    });
+    pagePickPopup(box, lead, sheets);      // every run of pages (a room each, a child each) is chosen in one pop-up: names, Select all, Select none
   }
   function renderReportCore() {
     syncQ();
     rsub = subOf(sel.value); lastIn[rsub] = sel.value; applySub();      // the group follows the report (a report chosen from elsewhere, such as the To do page, opens in its own group)
-    const bk = Reports.bundlesOf(App.season).map(b => b.name).join('|'); if (bk !== bundleKey) { bundleKey = bk; fillReportSel(); }      // another file, or the bundles were edited on Options
-    $('bWrap').hidden = true; const bundle = bundleOf();
+    const bk = Reports.bundlesOf(App.season).map(b => b.name).join('|') + '|' + (binderSel ? binderSel.name : ''); if (bk !== bundleKey) { bundleKey = bk; fillReportSel(); }      // another file, or the bundles were edited on Options
+    $('bWrap').hidden = true; $('bNote').textContent = ''; const bundle = bundleOf();
     if (bundle) return renderBundle(bundle);
     const def = Reports.LIST.find(r => r.id === sel.value) || Reports.LIST[0], o = def.opts || [];
     $('oRoom').hidden = !o.includes('room');
-    $('oGroup').hidden = !o.includes('group'); $('oDate').hidden = !o.includes('date'); $('oKid').hidden = !o.includes('kid');    $('dateBar').hidden = !(o.includes('quarter') || o.includes('order') || o.includes('title') || o.includes('noBook')); $('oNoBook').hidden = !o.includes('noBook');
+    // A report with groupAll (Awards to hand out) has an "All groups" choice in the Group picker; a report without it never sees that choice.
+    const gsel0 = $('oGroupSel'), allOpt = [...gsel0.options].find(x => x.value === '');
+    if (o.includes('groupAll') && !allOpt) gsel0.insertBefore(new Option('All groups', ''), gsel0.firstChild); else if (!o.includes('groupAll') && allOpt) { const was = gsel0.value === ''; allOpt.remove(); if (was) gsel0.value = 'Sparks'; }
+    $('oGroup').hidden = !(o.includes('group') || o.includes('groupAll')); $('oDate').hidden = !o.includes('date'); $('oKid').hidden = !o.includes('kid');    $('dateBar').hidden = !(o.includes('quarter') || o.includes('order') || o.includes('title') || o.includes('noBook')); $('oNoBook').hidden = !o.includes('noBook');
     $('qWrap').hidden = $('calNote').hidden = !o.includes('quarter'); $('oOrder').hidden = !o.includes('order'); $('tWrap').hidden = !o.includes('title');
     const nights = Calendar.nights(calendar, settings.quarter).length;
     $('calNote').textContent = calendar.length ? nights + ' club nights in ' + settings.quarter + ' from the calendar' : '';
     if (!master) { $('report').innerHTML = '<p class="status">Load a roster first.</p>'; return; }
     const rs = $('oRoomSel'), cur = rs.value;
     // A report with a Group picker lists only that group's rooms in the Room picker (an old choice from another group is dropped).
-    const gsel = $('oGroupSel').value, rl = Reports.roomsOf(Reports.kids(master)).filter(r => (!o.includes('group') || Model.groupOf(r) === gsel) && !(def.id === 'progressSheets' && Model.groupOf(r) === 'Puggles'));      // Puggles have no progress sheets
+    const gsel = $('oGroupSel').value, rl = Reports.roomsOf(Reports.kids(master)).filter(r => (!(o.includes('group') || (o.includes('groupAll') && gsel !== '')) || Model.groupOf(r) === gsel) && !(def.id === 'progressSheets' && Model.groupOf(r) === 'Puggles'));      // Puggles have no progress sheets
     rs.innerHTML = '<option value="">All ' + (o.includes('group') ? 'classes' : 'rooms') + '</option>' + rl.map(r => '<option>' + esc(r) + '</option>').join(''); rs.value = rl.includes(cur) ? cur : '';
     const ds = $('oDateSel'), dcur = ds.value, nl = new Set(calendar.filter(Calendar.isNight).map(r => r.Date));
     if (App.season) [App.season.attendance, App.season.awards, App.season.games].forEach(m => Object.keys(m).forEach(d => nl.add(d)));
@@ -915,7 +926,7 @@
     else if (e.key === 'Tab' && !e.shiftKey && !e.target.value && finishDateBox(e.target)) { e.preventDefault(); if (document.activeElement === e.target) focusAfter(e.target); }      // month and day typed, no year: this year is filled in, then on to the next box
   }, true);
   document.addEventListener('focusout', e => { if (isDateBox(e.target)) finishDateBox(e.target); }, true);
-  App.reportOptions = o => { if (o.group) $('oGroupSel').value = o.group; renderReport(); $('oRoomSel').value = o.room || ''; if (o.date) $('oDateSel').value = o.date; $('oKidSel').value = ''; if (o.kid) { renderReport(); $('oKidSel').value = o.kid; } };
+  App.reportOptions = o => { if ('group' in o) $('oGroupSel').value = o.group; renderReport(); $('oRoomSel').value = o.room || ''; if (o.date) $('oDateSel').value = o.date; $('oKidSel').value = ''; if (o.kid) { renderReport(); $('oKidSel').value = o.kid; } };
   App.showReport = id => { sel.value = id; showTab('reports'); };
   [sel, $('oNoBookChk'), $('oRoomSel'), $('oOrderSel'), $('oGroupSel'), $('oDateSel'), $('oKidSel')].forEach(el => el.addEventListener('change', renderReport));
   // A group button shows that group's reports: the one used last in it, or its first.
@@ -1132,21 +1143,23 @@
     t._had = undefined;      // typing is over: a later change (a button, a pop-up pick) saves at once
   }, true);
   App.uniDateOk = t => { if (!t.dataset.udate || t.type !== 'date') return true; if (App.dateUnfinished(t)) return false; if (!t.value) return true; const y = +t.value.slice(0, 4); return y >= 1990 && y <= 2100; };      // a year still being typed (0002-...) is not saved yet
-  const UNI_FIELDS = [['SIZE_VERIFIED', 'Size', 1], ['ORDERED', 'Ordered', 0], ['SIZE_ORDERED', 'Size ordered', 1, 1], ['RECEIVED', 'Received', 0], ['GIVEN', 'Given out', 0], ['SIZE_GIVEN', 'Size given', 1, 1], ['NOTES', 'Notes', 0]];
+  // The sizes first, then the dates, then Notes: what you see, the Tab order and a screen reader's order are the same on a computer and in the phone cards.
+  const UNI_FIELDS = [['SIZE_VERIFIED', 'Size', 1], ['SIZE_ORDERED', 'Size ordered', 1, 1], ['SIZE_GIVEN', 'Size given', 1, 1], ['ORDERED', 'Ordered', 0], ['RECEIVED', 'Received', 0], ['GIVEN', 'Given out', 0], ['NOTES', 'Notes', 0]];
   function renderUniforms() {
     const wrap = $('uniWrap');
     if (!master) { wrap.innerHTML = '<p style="padding:16px" class="status">Load a roster first.</p>'; return; }
-    const f = $('uFilter').value, U = Model.UNI, parent = master.pcCols.includes(C.SHIRT), fields = UNI_FIELDS.filter(x => !x[3] || Model.uniformLegacy(master.people).sizes);
+    const f = $('uFilter').value, U = Model.UNI, fields = UNI_FIELDS.filter(x => !x[3] || Model.uniformLegacy(master.people).sizes);
     const everyone = master.people.filter(p => Model.isActive(p) && Model.isClubber(p) && Model.uniformItems(p).length);
     const list = everyone.filter(p =>
       !f || (f === 'order' && Model.uniToOrder(p)) || (f === 'receive' && p[U.ORDERED] && Model.uniToReceive(p)) || (f === 'give' && p[U.RECEIVED] && !Model.uniGiven(p))).sort(Model.byRoomThenName);
     wrap.innerHTML = !everyone.length ? '<p style="padding:16px" class="status">Nobody has a uniform to track: this export has no uniform column with an order in it (the Planning Center columns window, or the Debug tab, says what was found).</p>' :
-      '<table class="roster uni"><thead><tr><th>Name</th><th>Class</th><th>Item</th>' + (parent ? '<th>Parent size (PC)</th>' : '') +
+      '<table class="roster uni"><thead><tr><th class="wr">Name</th><th class="wr">Class</th><th class="wr">Item</th>' +
       fields.map(x => '<th>' + x[1] + '</th>').join('') + '</tr></thead><tbody>' + list.map(p => {
-        return '<tr data-id="' + esc(p[X.ID]) + '"><td>' + esc(Model.fullName(p)) + '</td><td>' + esc(Model.room(p)) + '</td><td>' + esc(Model.uniformItems(p).join(', ')) + '</td>' + (parent ? '<td>' + esc(Model.eff(p, C.SHIRT)) + '</td>' : '') +
-          fields.map(x => '<td class="' + (x[2] ? 'sm' : '') + '">' + (['ORDERED', 'RECEIVED', 'GIVEN'].includes(x[0]) ? App.uniDateHtml(U[x[0]], p[U[x[0]]]) : '<input type="text" data-u="' + U[x[0]] + '" value="' + esc(p[U[x[0]]]) + '">') +
+        return '<tr data-id="' + esc(p[X.ID]) + '"><td class="wr uname">' + esc(Model.fullName(p)) + '</td><td class="wr uclass">' + esc(Model.room(p)) + '</td><td class="wr uitem" data-label="Item">' + esc(Model.uniformItems(p).join(', ')) + '</td>' +
+          fields.map(x => '<td class="' + (x[2] ? 'sm' : x[0] === 'NOTES' ? 'unotes' : 'udate') + '" data-label="' + x[1] + '">' + (['ORDERED', 'RECEIVED', 'GIVEN'].includes(x[0]) ? App.uniDateHtml(U[x[0]], p[U[x[0]]]) : '<input type="text" data-u="' + U[x[0]] + '" value="' + esc(p[U[x[0]]]) + '">') +
             (x[0] === 'GIVEN' ? '<label class="uov" title="Handed over, but I do not have the date. Counts as given out, like a date."><input type="checkbox" data-uflag="' + U.GIVEN_FLAG + '"' + (p[U.GIVEN_FLAG] ? ' checked' : '') + '> no date</label>' : '') + '</td>').join('') + '</tr>';
       }).join('') + '</tbody></table>';
+    wrap.querySelectorAll('tbody tr[data-id]').forEach(tr => { const who = tr.querySelector('.uname').textContent.trim(); tr.querySelectorAll('input[data-udate], input[data-uflag]').forEach(e => { const l = e.getAttribute('aria-label') || (e.dataset.uflag ? 'Given out, no date' : ''); if (l && !l.includes(who)) e.setAttribute('aria-label', l + ', ' + who); }); });      // every box says whose it is, now that on a phone the name is only the card's title
     $('uCount').textContent = list.length + ' shown';
     /* UX-25: bulk buttons act only on the rows shown that have no date in that column */
     [['uBulkOrdered', 'ORDERED', 'ordered'], ['uBulkReceived', 'RECEIVED', 'received']].forEach(([id, k, w]) => { const n = list.filter(p => !p[U[k]]).length, b = $(id); b.textContent = 'Mark the ' + n + ' shown as ' + w + ' today'; b.disabled = !n; b.dataset.n = n; });
@@ -1342,32 +1355,47 @@
   // Each child's sheet (.onepage in the progress-sheet report) is sized to one printed page by the print CSS alone (style.css, .onepage); no script measures or zooms it.
   window.addEventListener('beforeprint', () => blankDates(true));
   window.addEventListener('afterprint', () => blankDates(false));
-  // Binders: tick the classes and the coaches binder; "Show binders" builds one document for them on the Reports tab (print it from there).
-  const BINDER_CLASSES = ['Puggles', 'Cubbies', 'Sparks A', 'Sparks B', 'Sparks C', 'Sparks D', 'T&T Boys (Group A)', 'T&T Boys (Group B)', 'T&T Girls (Group A)', 'T&T Girls (Group B)'];
-  let bindSheets = true;      // the pop-up's "progress sheets" tick, remembered for the visit
-  const classBinder = (room, withSheets) => [{ report: 'attendance', room }, { report: 'binderClass', room }, { report: 'volunteers' }].concat(withSheets && Model.groupOf(room) !== 'Puggles' ? [{ report: 'progressSheets', room }] : []);      // Puggles have no progress sheets; the tick leaves them out for the other classes
-  const COACHES = [{ report: 'binderClass' }, { report: 'binderAll' }, { report: 'volunteers' }, { report: 'binderTeams' }];
+  // Print class binders: a quick pick (a saved bundle: Class binder, Coaches binder, Quarterly Printables, the club's own) sets the pages that go in; the pages can be adjusted; the classes are ticked (none = the whole club in one set).
+  // "Show binders" makes the choice a selection of the report list ("Your binders"), drawn like any bundle: the bundle quarter, the lock question and the page choice all work on it.
+  const BINDER_PARTS = [['attendance', 'Attendance sheet'], ['binderClass', 'Roster with medical and contact'], ['volunteers', 'Volunteer contact list (a copy in each class binder)'], ['progressSheets', 'Progress sheet for each child (none for Puggles)'], ['binderAll', 'Everyone by name: emergency, medical, photos'], ['binderTeams', 'Color teams by group and color'], ['teams', 'Color teams list (Sparks, T&T)']];
+  const BINDER_PER_CLASS = ['attendance', 'binderClass', 'volunteers', 'progressSheets'];      // pages made once per class when classes are ticked
+  const binderItems = (parts, classes) => {
+    const per = BINDER_PER_CLASS.filter(k => parts.includes(k)), items = [];
+    if (classes.length) classes.forEach(room => per.forEach(k => { if (k === 'progressSheets' && Model.groupOf(room) === 'Puggles') return; items.push({ report: k, room: k === 'volunteers' ? '' : room }); }));      // Puggles have no progress sheets
+    else per.forEach(k => items.push({ report: k }));
+    BINDER_PARTS.map(x => x[0]).filter(k => !BINDER_PER_CLASS.includes(k) && parts.includes(k)).forEach(k => items.push({ report: k }));
+    return items;
+  };
+  const partsOfBundle = b => BINDER_PARTS.map(x => x[0]).filter(k => (b.items || []).some(i => i.report === k));
+  const fixedBundle = b => !!b && (b.items || []).some(i => i.room || i.group);      // a club's own bundle that names classes prints exactly as saved
   $('btnBinders').addEventListener('click', () => {
-    const dl = $('dlg');
-    dl.innerHTML = '<h3 style="margin-top:0">Class binders</h3><p class="status">Each class binder has its attendance, roster with medical and contact, the volunteer list and, if you choose below, a progress sheet for each child. Puggles have no progress sheets.</p>' +
-      '<fieldset class="addgrp bindpick"><legend>Binders to print</legend><p class="bar" style="margin:0 0 4px"><button type="button" id="bindAll">Select all</button><button type="button" id="bindNone">Select none</button><span class="status" id="bindCount"></span></p>' +
-      BINDER_CLASSES.map((c, i) => '<label class="pf chk"><input type="checkbox" data-bind="' + i + '"> ' + esc(c) + ' binder</label>').join('') +
-      '<label class="pf chk"><input type="checkbox" data-bind="coaches"> Coaches binder</label></fieldset>' +
-      '<fieldset class="addgrp bindopt"><legend>Option for the class binders (not a binder to print)</legend><label class="pf chk"><input type="checkbox" id="bindSheets"' + (bindSheets ? ' checked' : '') + '> Include a progress sheet for each child</label></fieldset>' +
+    const dl = $('dlg'), bundles = Reports.bundlesOf(App.season), rooms = Reports.roomsOf(Reports.kids(master));
+    if (!binderPrefs) { const q = Math.max(0, bundles.findIndex(b => b.perClass)); binderPrefs = { quick: String(q), parts: partsOfBundle(bundles[q] || { items: [] }), classes: [] }; }
+    const pr = binderPrefs; if (pr.quick !== '' && !bundles[+pr.quick]) pr.quick = '';
+    dl.innerHTML = '<h3 style="margin-top:0">Print class binders</h3><p class="status">Pick a quick pick, change the pages if you want, and tick the classes. Nothing prints until you press Print on the Reports tab.</p>' +
+      '<fieldset class="addgrp bindquick"><legend>1. Quick pick</legend><label>Pages for <select id="bindQuick">' + bundles.map((b, i) => '<option value="' + i + '"' + (pr.quick === String(i) ? ' selected' : '') + '>' + esc(b.name) + '</option>').join('') + '<option value=""' + (pr.quick === '' ? ' selected' : '') + '>Custom: the pages I tick below</option></select></label> <span class="status" id="bindQuickNote"></span></fieldset>' +
+      '<fieldset class="addgrp bindopt"><legend>2. Pages in each binder (an option, not a binder)</legend>' + BINDER_PARTS.map(([k, l]) => '<label class="pf chk"><input type="checkbox" data-part="' + k + '"' + (k === 'progressSheets' ? ' id="bindSheets"' : '') + (pr.parts.includes(k) ? ' checked' : '') + '> ' + esc(l) + '</label>').join('') + '</fieldset>' +
+      '<fieldset class="addgrp bindpick"><legend>3. Classes to print</legend><p class="bar" style="margin:0 0 4px"><button type="button" id="bindAll">Select all</button><button type="button" id="bindNone">Select none</button><span class="status" id="bindCount"></span></p>' +
+      rooms.map((c, i) => '<label class="pf chk"><input type="checkbox" data-bind="' + i + '" data-room="' + esc(c) + '"' + (pr.classes.includes(c) ? ' checked' : '') + '> ' + esc(c) + '</label>').join('') + '<p class="status" style="margin:4px 0 0">Leave all unticked to print the whole club in one set (the Coaches binder works this way).</p></fieldset>' +
       '<div class="dlgbtns"><button id="bindCancel">Cancel</button><button id="bindGo" class="primary">Show binders</button></div>';
     dl.showModal();
-    const picks = () => [...dl.querySelectorAll('input[data-bind]')], count = () => { $('bindCount').textContent = picks().filter(i => i.checked).length + ' of ' + picks().length + ' selected'; };
-    $('bindAll').onclick = () => { picks().forEach(i => { i.checked = true; }); count(); }; $('bindNone').onclick = () => { picks().forEach(i => { i.checked = false; }); count(); }; dl.onchange = e => { if (e.target.closest && e.target.closest('input[data-bind]')) count(); }; count();
-    $('bindCancel').onclick = () => dl.close();
+    const picks = () => [...dl.querySelectorAll('input[data-bind]')], partBoxes = () => [...dl.querySelectorAll('input[data-part]')], quick = () => $('bindQuick').value;
+    const count = () => { $('bindCount').textContent = picks().filter(i => i.checked).length + ' of ' + picks().length + ' selected'; const b = quick() === '' ? null : bundles[+quick()]; $('bindQuickNote').textContent = fixedBundle(b) ? 'This one prints its saved classes as they are.' : b && b.perClass ? 'Tick the classes below.' : ''; };
+    $('bindQuick').onchange = () => { const b = bundles[+quick()]; if (b) { const keep = partsOfBundle(b); partBoxes().forEach(c => { c.checked = keep.includes(c.dataset.part); }); } count(); };
+    $('bindAll').onclick = () => { picks().forEach(i => { i.checked = true; }); count(); }; $('bindNone').onclick = () => { picks().forEach(i => { i.checked = false; }); count(); };
+    dl.onchange = e => { const t = e.target.closest && e.target.closest('input'); if (!t) return; if (t.dataset.part) $('bindQuick').value = ''; count(); };      // changing a page makes it a custom choice
+    count(); $('bindCancel').onclick = () => dl.close();
     $('bindGo').onclick = () => {
-      const picked = [...dl.querySelectorAll('input[data-bind]:checked')].map(i => i.dataset.bind);
-      if (!picked.length) return App.ask.alert('Tick at least one binder.');
-      bindSheets = $('bindSheets').checked;
-      const items = picked.flatMap(k => k === 'coaches' ? COACHES : classBinder(BINDER_CLASSES[+k], bindSheets));
-      const quarter = App.quarterNow();
-      dl.close(); App.showTab('reports');
-      $('report').innerHTML = Reports.runBundle({ master, settings, calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, b) => App.sheets.html(p, b), opts: {} }, { name: 'Binders', items }, quarter);
-      setPageStyle(); pagePick();      // the paper and the page ticks follow the first sheet, as for any other report (B3)
+      const q = quick(), b = q === '' ? null : bundles[+q], parts = partBoxes().filter(c => c.checked).map(c => c.dataset.part), classes = picks().filter(i => i.checked).map(i => i.dataset.room);
+      binderPrefs = { quick: q, parts, classes };
+      let items, name;
+      if (fixedBundle(b)) { items = (b.items || []).slice(); name = b.name; }
+      else {
+        if (!parts.length) return App.ask.alert('Tick at least one page to put in the binders.');
+        if (b && b.perClass && !classes.length) return App.ask.alert('Tick at least one class for the ' + b.name + '.');
+        items = binderItems(parts, classes); name = (b ? b.name : 'Custom binders') + (classes.length ? ': ' + classes.join(', ') : '');
+      }
+      binderSel = { name, items }; dl.close(); bundleKey = ''; App.showTab('reports'); fillReportSel(); sel.value = 'bundle:picked'; rsub = 'binders'; applySub(); renderReport();      // it is the selected report now (B3: the paper and the page choice follow it)
     };
   });
 })();

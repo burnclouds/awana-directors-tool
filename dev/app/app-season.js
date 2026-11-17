@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.94.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.95.0';
 // Season tabs: Attendance, Games, Awards, Progress, History. Talks to app.js through window.App.
 // The data JSON is the only file we write: season records, roster extras, calendar and rotation. Every edit goes through touchSeason().
 (function () {
@@ -593,17 +593,17 @@
   // The Given controls on a Hand out or Ceremony row: hand it over today, or hand it over with no date. Same record as Progress's Given box.
   const giveButtons = r => '<button type="button" class="todaybtn" data-hogtoday="' + esc(r.id) + '" data-hoaward="' + esc(r.award) + '">Given today</button> <label class="uov"><input type="checkbox" data-hognodate="' + esc(r.id) + '" data-hoaward="' + esc(r.award) + '"> no date</label>';
   function handOutSection(kids) {
-    const rows = []; kids.forEach(p => Season.awardLedger(season, idOf(p), grpOf(p), App.calendar).forEach(r => { const skip = ((season.config.exclude || {})[grpOf(p)] || []).includes(r.award); if (!r.given && !skip && !eoy(p, r.award)) rows.push({ id: idOf(p), p, award: r.award, date: r.earned || r.announced, hand: !r.earned, ann: r.announced }); }));
+    const rows = []; kids.forEach(p => Season.toHandOut(season, idOf(p), grpOf(p), App.calendar).forEach(r => { rows.push({ id: idOf(p), p, award: r.award, date: r.earned || r.announced, hand: !r.earned, ann: r.announced }); }));
     const sorted = sortRows(rows);
     if (!sorted.length) return '<section class="pcard waiting" id="awSecHand"><h3>To hand out (0)</h3><p class="status">Nothing earned is waiting to be given' + roomNote() + '.</p></section>';
-    return '<section class="pcard waiting" id="awSecHand"><h3>To hand out (' + sorted.length + ')</h3><p class="status">Earned, and the child does not have it in hand yet. Room leaders mark an award <b>Given</b> on the child’s Person record, Progress sub-tab when they hand it over; until then it stays here. <b>To have ready:</b> ' + tally(sorted) + ' <button type="button" id="btnAwHandPrint">Printable list by class&hellip;</button></p>' +
+    return '<section class="pcard waiting" id="awSecHand"><h3>To hand out (' + sorted.length + ')</h3><p class="status">Earned, and the child does not have it in hand yet. Room leaders mark an award <b>Given</b> on the child’s Person record, Progress sub-tab when they hand it over; until then it stays here. <b>To have ready:</b> ' + tally(sorted) + ' <button type="button" id="btnAwHandPrint" title="Prints every award type for the group and class shown, as a strip per child to cut apart.">Print award strips&hellip;</button></p>' +
       '<table class="roster"><thead><tr><th>Name</th><th>Class</th><th>Award</th><th>Earned</th><th>Announced</th><th>Given</th></tr></thead><tbody>' + sorted.map(r => '<tr data-id="' + esc(r.id) + '"><td>' + nameLink(r.p) + '</td><td>' + roomCell(r.p) + '</td><td>' + esc(Season.awardLabel(season, r.id, r.award)) + '</td><td class="status">' + esc(r.hand ? 'by hand' : r.date ? MD(r.date) : '') + '</td><td class="status">' + esc(r.ann ? MD(r.ann) : 'not yet') + '</td><td>' + giveButtons(r) + '</td></tr>').join('') + '</tbody></table></section>';
   }
   // 3. End-of-year awards: tagged awards earned and not yet given; they wait here for the end-of-year awards (Given is ticked on Progress).
   function ceremonySection(kids) {
     const rows = []; kids.forEach(p => Season.awardLedger(season, idOf(p), grpOf(p), App.calendar).forEach(r => { if (eoy(p, r.award) && !r.given) rows.push({ id: idOf(p), p, award: r.award, date: r.earned || r.announced, hand: !r.earned, ann: r.announced }); }));
     const sorted = sortRows(rows);
-    return '<section class="pcard ceremony" id="awSecCeremony"><h3>End-of-year awards (' + sorted.length + ')</h3>' + (sorted.length ? '<p class="status">Earned, and given at the end-of-year awards. <b>To have ready:</b> ' + tally(sorted) + ' <button type="button" id="btnAwCeremony">Printable list&hellip;</button></p>' +
+    return '<section class="pcard ceremony" id="awSecCeremony"><h3>End-of-year awards (' + sorted.length + ')</h3>' + (sorted.length ? '<p class="status">Earned, and given at the end-of-year awards. <b>To have ready:</b> ' + tally(sorted) + ' <button type="button" id="btnAwCeremony">Print end-of-year list&hellip;</button></p>' +
       '<table class="roster"><thead><tr><th>Name</th><th>Class</th><th>Award</th><th>Earned</th><th>Announced</th><th>Given</th></tr></thead><tbody>' + sorted.map(r => '<tr data-id="' + esc(r.id) + '"><td>' + nameLink(r.p) + '</td><td>' + roomCell(r.p) + '</td><td>' + esc(Season.awardLabel(season, r.id, r.award)) + '</td><td class="status">' + esc(r.hand ? 'by hand' : r.date ? MD(r.date) : '') + '</td><td class="status">' + esc(r.ann ? MD(r.ann) : 'not yet') + '</td><td>' + giveButtons(r) + '</td></tr>').join('') + '</tbody></table>' : '<p class="status">No end-of-year award is waiting' + roomNote() + '.</p>') + '</section>';
   }
   // Earned or announced, and not yet handed to the child: the list the awards are counted from (inventory) so nothing earned is forgotten. Given can be set before an award is announced.
@@ -629,7 +629,7 @@
     $('awType').innerHTML = '<option value="">All types (' + seen.size + ')</option>' + Object.keys(tc).sort().map(t => '<option value="' + esc(t) + '"' + (t === ui.awType ? ' selected' : '') + '>' + esc(t) + ' (' + tc[t] + ')</option>').join('');
     $('awRoom').innerHTML = '<option value="">All classes</option>' + rooms.map(r => '<option' + (r === ui.awRoom ? ' selected' : '') + '>' + esc(r) + '</option>').join('');
     const kids = awKids();
-    const nAnn = kids.reduce((n, p) => n + announceDue(p, grpOf(p)).length, 0), nHand = kids.reduce((n, p) => n + Season.awardLedger(season, idOf(p), grpOf(p), App.calendar).filter(r => !r.given && !((season.config.exclude || {})[grpOf(p)] || []).includes(r.award) && !eoy(p, r.award)).length, 0);
+    const nAnn = kids.reduce((n, p) => n + announceDue(p, grpOf(p)).length, 0), nHand = kids.reduce((n, p) => n + Season.toHandOut(season, idOf(p), grpOf(p), App.calendar).length, 0);
     document.querySelectorAll('#awSubs button').forEach(b => { const on = b.dataset.awsub === ui.awSub; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); b.querySelector('.badge').textContent = (b.dataset.awsub === 'announce' ? nAnn : nHand) || ''; });
     ['awDateWrap', 'btnAwImages'].forEach(i => { $(i).hidden = ui.awSub !== 'announce'; });
     el.innerHTML = ui.awSub === 'announce' ? announceSection(kids) : handOutSection(kids) + ceremonySection(kids);
@@ -661,8 +661,8 @@
       const picks = [...$('awSecAnnounce').querySelectorAll('tbody tr[data-award]:not(.held)')].map(r => [r.dataset.id, r.dataset.award]);
       const n = Season.announce(season, ui.awDate, picks); if (n) { touchSeason(); App.flash('Marked ' + n + ' award' + (n === 1 ? '' : 's') + ' announced on ' + MD(ui.awDate) + '.', 'info'); } renderAwards(); return;
     }
-    if (id === 'btnAwHandPrint') { App.reportOptions({ group: ui.awGroup === 'All' ? 'Sparks' : ui.awGroup, room: ui.awRoom }); App.showReport('handOut'); return; }
-    if (id === 'btnAwCeremony') { App.reportOptions({ group: ui.awGroup === 'All' ? 'Sparks' : ui.awGroup, room: ui.awRoom }); App.showReport('ceremony'); }
+    if (id === 'btnAwHandPrint') { App.showReport('handOut'); App.reportOptions({ group: ui.awGroup === 'All' ? '' : ui.awGroup, room: ui.awRoom }); return; }      // All groups prints every group (the report has an All groups choice)
+    if (id === 'btnAwCeremony') { App.reportOptions({ group: ui.awGroup === 'All' ? 'Sparks' : ui.awGroup, room: ui.awRoom }); App.showReport('ceremony'); if (ui.awGroup === 'All') App.flash('This list prints one group at a time: Sparks is showing. Change the Group above the report for the others.', 'info'); }
   });
   // Slide images: the awards earned and not yet announced (and not held) drawn as the 1920x1080 "Awards Earned" slides (slides.js), one PNG per group or all in a ZIP. The night is only the title and the Adult Memorization night.
   $('btnAwImages').addEventListener('click', () => {
@@ -784,7 +784,7 @@
     h += '<br><span class="status" title="' + esc(r.dates.map((d, i) => MD(d) + ': ' + r.per[i]).join(', ')) + '">Sections per night attended, oldest to newest:</span> <span class="spark">' + esc(Pace.spark(r.per)) + '</span>' +
       '<br><span class="status">' + r.core + ' core section' + (r.core === 1 ? '' : 's') + ' signed' + (r.last ? ', last ' + esc(MD(r.last)) + (r.nightsSince ? ' (' + r.nightsSince + ' night' + (r.nightsSince === 1 ? '' : 's') + ' attended since)' : '') : '') +
       ' &middot; ' + extraName + ' ' + r.extra + ' of ' + r.extraTotal + ' (not counted in pace) &middot; ' + r.nights + ' night' + (r.nights === 1 ? '' : 's') + ' attended</span>' +
-      '<br><a href="#" class="lnk" id="btnPaceWatch">Pace watch list for this class</a></div>';
+      '<br><a href="#" class="lnk" id="btnPaceWatch">Print pace watch list&hellip;</a></div>';
     return h;
   }
   // One progress sheet: the book's date received, "finished before", and the blocks (Flight 3:16, Start Zone or Apple Acres only with the first book of the group). Used by the Progress tab and by a child's page.
@@ -880,7 +880,7 @@
     const flagbar = (myFlags.length ? '<p class="hbrow flagrow"></p>' : '') +
       myFlags.map(f => '<p class="flagnote"><button type="button" class="flagbtn on" tabindex="-1" data-fids="' + esc(f.id) + '" aria-label="Note: ' + esc(flagWhere(f)) + '" title="Read, edit or clear this note">&#9873;</button> <b>' + esc(flagWhere(f)) + '</b>: ' + esc(f.note) + ' <span class="status">' + esc(MD(f.at)) + '</span> <button type="button" data-clearflag="' + esc(f.id) + '">Clear</button></p>').join('');
     // The sheet header: collapse (hides the sign-offs below it), Print, and the flag button with any flagged notes. Collapsed, only this header shows.
-    const printBtn = bg === Model.groupOf(Model.room(p)) ? '<button id="btnPrPrint">Print this record</button>' : '';
+    const printBtn = bg === Model.groupOf(Model.room(p)) ? '<button id="btnPrPrint">Print record&hellip;</button>' : '';
     let h = '<p class="hbrow shhead"><button type="button" data-shcol aria-expanded="' + (ui.shCollapsed ? 'false' : 'true') + '">' + (ui.shCollapsed ? '&#9656; Show sheet' : '&#9662; Hide sheet') + '</button> ' + printBtn + ' <i class="info" data-info="progress.sheet"></i></p>' + flagbar;
     if (ui.shCollapsed) return h;
     h += recv + bd;
@@ -935,6 +935,11 @@
   // The Person tab picks the child (setKid); the sheet opens on the child's current book unless one was chosen for them (setBook).
   App.sheets = { html: sheetHtml, focus: (id, book) => { ui.prKid = id; ui.prBook = book; ui._lastKid = id; },
     setKid: id => { ui.prKid = id; }, setBook: b => { ui.prBook = b; ui._lastKid = ui.prKid; } };
+  // "+ Add sheet": another book's sheet for this child (kept in the file), beside the book tabs. It offers only books that have no tab yet.
+  const addSheetMenu = codes => {
+    const spare = [...new Set(['Cubbies', 'Sparks', 'T&T'].flatMap(x => Season.bookOrder(season, x)))].filter(c => !codes.includes(c) && season.config.books[c]);
+    return spare.length ? '<select id="peAddSheet" aria-label="Add a progress sheet for another book"><option value="">+ Add sheet</option>' + spare.map(c => '<option value="' + esc(c) + '">' + esc((season.config.books[c] || {}).name || c) + ' (' + esc(Season.bookGroup(season, c) || season.config.books[c].group || '') + ')</option>').join('') + '</select>' : '';
+  };
   function renderProgress() {
     const el = $('progressWrap');
     if (!ready(el)) return;
@@ -962,7 +967,7 @@
       return ['', '', ''];
     };
     const tabs = '<div class="booktabs">' + codes.map(c => { const st = tabState(c);
-      return '<button data-book="' + esc(c) + '" class="' + st[0] + (c === ui.prBook ? ' on' : '') + (c === cur ? ' cur' : '') + '"' + (st[2] ? ' title="' + esc(st[2] + (c === cur && st[0] !== 'st-cur' ? ' (the book this child is in)' : '')) + '"' : '') + '>' + esc(bname(c)) + (st[1] ? '<span class="bkmark" aria-hidden="true">' + st[1] + '</span>' : '') + (c === cur ? ' <span class="curdot" aria-label="(current book)">&#9679;</span>' : '') + '</button>'; }).join('') + '</div>';
+      return '<button data-book="' + esc(c) + '" class="' + st[0] + (c === ui.prBook ? ' on' : '') + (c === cur ? ' cur' : '') + '"' + (st[2] ? ' title="' + esc(st[2] + (c === cur && st[0] !== 'st-cur' ? ' (the book this child is in)' : '')) + '"' : '') + '>' + esc(bname(c)) + (st[1] ? '<span class="bkmark" aria-hidden="true">' + st[1] + '</span>' : '') + (c === cur ? ' <span class="curdot" aria-label="(current book)">&#9679;</span>' : '') + '</button>'; }).join('') + addSheetMenu(codes) + '</div>';
     h = tabs + h + (ui.prBook ? sheetHtml(p, ui.prBook) : '');      // the book tabs come first, above the pace line and the sheet
     const sug = Season.suggestedAwards(season, id, g);
     if (sug.length) h += '<p class="ok"><b>Earned, not yet announced:</b> ' + sug.map(s => esc(s.award) + ' (' + (s.noDate ? 'no date' : esc(MD(s.date))) + ')').join(', ') + '. Announce them on the Awards tab.</p>';
@@ -972,6 +977,10 @@
     el.innerHTML = h + '<div class="prfoot"><button type="button" data-prstep="-1">&larr; Previous child</button><button type="button" data-prstep="1">Next child &rarr;</button></div>';
   }
   App.sheets.renderProgress = renderProgress;
+  $('progressWrap').addEventListener('change', e => {      // the + Add sheet menu beside the book tabs
+    const t = e.target; if (t.id !== 'peAddSheet' || !t.value || !season || !ui.prKid) return;
+    Season.addExtraSheet(season, ui.prKid, t.value); touchSeason(); ui.prBook = t.value; ui._lastKid = ui.prKid; renderProgress();
+  });
   const afterRender = renderProgress; App.sheets.renderProgress = function () { const r = afterRender.apply(this, arguments); if (App.sheets.pinSync) App.sheets.pinSync(); return r; };
   // Phone: once the Group / Class / Child pickers have scrolled out of sight, a one-line bar under the tab menu keeps the child, the class and the book in view, with Previous and Next
   // (so you never scroll back up to see who you are on or to move on). It is fixed to the screen, costs no room at the top, and is hidden by CSS on wider screens.

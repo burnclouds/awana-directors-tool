@@ -41,7 +41,7 @@ const drawnHidden = () => [...document.querySelectorAll('[hidden]')].filter(e =>
     if (!bundle) { await ctx.close(); return; }      // the TEST club has no bundle defined: nothing to check
     await page.evaluate(x => { const s = document.getElementById('rSel'); s.value = x; s.dispatchEvent(new Event('change', { bubbles: true })); }, bundle); await page.waitForTimeout(150);
     const vis = id => page.evaluate(i => { const e = document.getElementById(i); return !!e && getComputedStyle(e).display !== 'none' && e.getClientRects().length > 0; }, id);
-    assert(await vis('bWrap'), 'Quarter to print is shown'); assert(!(await vis('qWrap')), 'the lower Q1-Q4 pills are hidden'); assert(await vis('oOrder'), 'List order stays'); assert(await vis('tWrap'), 'Title stays');
+    assert(await vis('bWrap'), 'Quarter to print is shown'); assert(!(await vis('qWrap')), 'the lower Q1-Q4 pills are hidden'); assert(await vis('oOrder'), 'List order stays'); assert(!(await vis('tWrap')), 'Title is hidden: the standard bundle has no pace watch list');
     assert(/Quarter to print/.test(await page.$eval('#bWrap', e => e.textContent)), 'labelled');
     await page.evaluate(() => { const s = document.getElementById('rSel'); const o = [...s.options].find(x => !/^bundle:/.test(x.value) && /quarter/.test((window.Reports && Reports.LIST.find(r => r.id === x.value) || { opts: [] }).opts.join())); if (o) { s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true })); } }); await page.waitForTimeout(150);
     assert(!(await vis('bWrap')), 'Quarter to print is hidden again'); await ctx.close();

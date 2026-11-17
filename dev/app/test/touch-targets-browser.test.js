@@ -105,13 +105,13 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
     }
   });
   // Last of the phone checks: it sets a color by hand, which changes the data the checks above read.
-  await test('Color teams grid: a color set by hand in an unlocked quarter is a dashed outline like a projection, and the text is readable in light and dark', async () => {
+  await test('Color teams grid: a color set by hand in an unlocked quarter is drawn solid (a projection stays dashed), is named "set by hand", and the text is readable in light and dark', async () => {
     await p.evaluate(() => App.showTab('teams')); await p.waitForSelector('#teamsWrap select.tgproj');
     const now = await p.$eval('#teamsWrap select.tgproj', s => s.value); await p.selectOption('#teamsWrap select.tgproj', now === 'Yellow' ? 'Red' : 'Yellow'); await p.waitForTimeout(300);      // a different color, so the change registers as a hand-set pin
     for (const scheme of ['light', 'dark']) {
       await p.emulateMedia({ colorScheme: scheme });
-      const r = await p.evaluate(() => { const lum = c => { const m = c.match(/[\d.]+/g).map(Number), f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(m[0]) + 0.7152 * f(m[1]) + 0.0722 * f(m[2]); }; const s = document.querySelector('#teamsWrap select.tgsel'), c = getComputedStyle(s); let bg = c.backgroundColor, el = s; while (/rgba\(.*, 0\)$/.test(bg) && el.parentElement) { el = el.parentElement; bg = getComputedStyle(el).backgroundColor; } const a = lum(c.color) + 0.05, b = lum(bg) + 0.05; return { dashed: c.borderTopStyle, proj: s.classList.contains('tgproj'), pin: !!s.parentElement.querySelector('.tgpin'), ratio: Math.max(a, b) / Math.min(a, b) }; });
-      assert(r.proj && r.dashed === 'dashed', scheme + ': a hand-set color is not drawn as a dashed projection'); assert(r.pin, 'the pin mark is missing'); assert(r.ratio >= 4.5, scheme + ': text contrast ' + r.ratio.toFixed(1) + ' is under 4.5');
+      const r = await p.evaluate(() => { const lum = c => { const m = c.match(/[\d.]+/g).map(Number), f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(m[0]) + 0.7152 * f(m[1]) + 0.0722 * f(m[2]); }; const s = document.querySelector('#teamsWrap select.tgset'), c = getComputedStyle(s); let bg = c.backgroundColor, el = s; while (/rgba\(.*, 0\)$/.test(bg) && el.parentElement) { el = el.parentElement; bg = getComputedStyle(el).backgroundColor; } const a = lum(c.color) + 0.05, b = lum(bg) + 0.05; return { dashed: c.borderTopStyle, proj: s.classList.contains('tgset'), pin: /set by hand/.test(s.getAttribute('aria-label') || '') && !s.parentElement.querySelector('.tgpin'), ratio: Math.max(a, b) / Math.min(a, b) }; });
+      assert(r.proj && r.dashed === 'solid', scheme + ': a hand-set color is not drawn solid'); assert(r.pin, 'the hand-set name (aria-label) is missing, or the old pin icon is still there'); assert(r.ratio >= 4.5, scheme + ': text contrast ' + r.ratio.toFixed(1) + ' is under 4.5');
     }
     await p.emulateMedia({ colorScheme: 'light' });
   });

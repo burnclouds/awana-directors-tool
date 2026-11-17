@@ -1,6 +1,6 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-teamgrid.js'] = '1.13.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-teamgrid.js'] = '1.14.0';
 // Color teams: the year grid. One row per child, one column per quarter. A quarter reads as locked (played or locked by hand), ready to lock
-// (the next one, printed shortly before it starts) or projected (a guess that can still change). A color Mike set by hand is a pin.
+// (the next one, printed shortly before it starts) or projected (a guess that can still change). A color set by hand is drawn solid (it is never moved); a suggested one has a dashed outline.
 // Under the grid: team sizes and expected turnout for the whole group (the group plays together, so a class shows only its part of each team).
 // The rules and the numbers are in teamplan.js; this file only draws them.
 (function () {
@@ -50,7 +50,7 @@
     const range = open.length > 1 ? open[0] + ' to ' + open[open.length - 1] : open[0] || '';
     const action = !open.length ? '' : blanks ? '<button type="button" class="primary" data-tgfill>Fill ' + blanks + ' blank color' + (blanks === 1 ? '' : 's') + '</button>' :
       lastPlan.count ? '<button type="button" data-tgrecalc aria-expanded="' + ui.preview + '">Recalculate ' + range + ' (changes ' + lastPlan.count + ' child' + (lastPlan.count === 1 ? '' : 'ren') + ')</button>' : '<button type="button" data-tgrecalc disabled>Nothing to recalculate</button>';
-    let h = '<h3>The year' + Info.html('games.year') + Info.html('games.balance') + '</h3><p class="status">A <b>locked</b> quarter is played or locked by hand. The <b>ready to lock</b> quarter is the next one: lock it, then print its sheets. A <b>projected</b> quarter is a guess that can still change. &#128204; marks a color set by hand, which no recalculation moves.</p>';
+    let h = '<h3>The year' + Info.html('games.year') + Info.html('games.balance') + '</h3><p class="status">A <b>locked</b> quarter is played or locked by hand. The <b>ready to lock</b> quarter is the next one: lock it, then print its sheets. A <b>projected</b> quarter is a guess that can still change.</p>';
     const scopeGroup = ui.scope === 'group' ? ui.group : ui.scope === 'class' ? (Model.groupOf(ui.cls) || 'All') : 'All';      // the group a note on a quarter's column is about
     const btn = (s, text) => '<button type="button" data-tgscope="' + s + '" aria-pressed="' + (ui.scope === s) + '"' + (ui.scope === s ? ' class="on"' : '') + '>' + text + '</button>';
     h += '<div class="tgscope"><span class="status" id="tgShow">Show</span> <span role="group" aria-labelledby="tgShow">' + btn('class', 'By class') + btn('group', 'By group') + btn('club', 'Whole club') + '</span>';
@@ -69,8 +69,7 @@
         const nt = Model.noTeam(p, q);      // "No team": on purpose, no color, no points, outside the team sizes and the planner
         const opts = ['<option value=""' + (v || nt ? '' : ' selected') + '>to assign</option>', '<option value="' + Model.NO_TEAM + '"' + (nt ? ' selected' : '') + '>No team</option>'].concat(colors.map(c => '<option' + (c === v ? ' selected' : '') + '>' + esc(c) + '</option>'));
         if (v && !colors.includes(v)) opts.push('<option selected>' + esc(v) + '</option>');      // a value from a file that is not one of the four colors stays visible, as text
-        return '<td data-q="' + q + '"><select class="team ' + (v ? 'team-' + esc(v) + ' ' : '') + 'tgchip tgsel' + (v ? ' tgproj' : '') + '" data-tgcell="' + q + '" data-kid="' + kid + '" aria-label="' + q + ' color, ' + who + '">' + opts.join('') + '</select>' +
-          (pinned ? ' <span class="tgpin" role="img" aria-label="set by hand">&#128204;</span>' : '') +
+        return '<td data-q="' + q + '"><select class="team ' + (v ? 'team-' + esc(v) + ' ' : '') + 'tgchip tgsel' + (v ? (pinned ? ' tgset' : ' tgproj') : '') + '" data-tgcell="' + q + '" data-kid="' + kid + '" aria-label="' + q + ' color, ' + who + (v ? (pinned ? ', set by hand' : ', suggested') : '') + '"' + (v ? ' title="' + (pinned ? 'Set by hand. Fill and Recalculate leave it alone. To let the planner choose again, pick to assign and press Fill.' : 'Suggested. Fill and Recalculate can change it.') + '"' : '') + '>' + opts.join('') + '</select>' +
           (eff.color && eff.color !== (p['team:' + q] || '') ? '<br><small class="tgmoved">moves to ' + esc(eff.color) + ' (dated move)</small>' : '') +
           (v && TeamPlan.colorUse(ctx, p, q)[v] ? '<br><small class="tgwarn">repeats ' + esc(TeamPlan.colorUse(ctx, p, q)[v].join(' and ')) + '</small>' : '') + '</td>';      // a repeated color is marked in the cell itself, not only when it is picked (A8)      // a move dated in a quarter that has not been played: the counts use it, so the cell says so (A5)
       }).join('') + '</tr>';
@@ -82,7 +81,7 @@
       h += '<tr data-sizes="' + esc(g) + '"><th scope="row" colspan="2">Team sizes, all of ' + esc(g) + '</th>' + Q.map(q => '<td data-q="' + q + '">' + colors.map(c => esc(c) + ' ' + members.filter(p => cIn(p, q) === c).length).join(' &middot; ') + '</td>').join('') + '</tr>' +
         '<tr data-turnout="' + esc(g) + '"><th scope="row" colspan="2">Expected turnout, all of ' + esc(g) + '</th>' + Q.map(q => { const t = TeamPlan.turnout(ctx, g, p => cIn(p, q)); return '<td data-q="' + q + '">' + colors.map(c => esc(c) + ' ' + (t[c] || 0).toFixed(1)).join(' &middot; ') + '</td>'; }).join('') + '</tr>';
     });
-    h += '</tfoot></table></div><p class="status tgnote">' + (ui.scope === 'class' ? 'Team sizes and expected turnout are for all of ' + esc(groups[0]) + ': the group plays its games together, so a class shows only its part of each team. ' : 'Teams are balanced for each group as a whole. ') +
+    h += '</tfoot></table></div><p class="status tglegend"><span class="tgchip team-Blue tgkey tgkey-set">Solid</span> set by hand: Fill and Recalculate leave it alone. <span class="tgchip tgkey tgkey-proj">Dashed</span> suggested: Fill and Recalculate can change it. A <b>locked</b> quarter is final; change one with a dated move.</p><p class="status tgnote">' + (ui.scope === 'class' ? 'Team sizes and expected turnout are for all of ' + esc(groups[0]) + ': the group plays its games together, so a class shows only its part of each team. ' : 'Teams are balanced for each group as a whole. ') +
       'Expected turnout is each child&rsquo;s share of past club nights attended, added up per team.</p></div>' + panel(ctx, groups) + '</div>';
     return h;
   }

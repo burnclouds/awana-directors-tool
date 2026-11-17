@@ -66,13 +66,13 @@ const TODAY = '2026-12-20';
     const { page } = await open(), k = await projectOne(page); await page.evaluate(() => TeamGrid.ui.scope = 'class'); await page.evaluate(() => App.showTab('teams')); await page.waitForSelector('#teamsWrap .tg');
     await page.evaluate(() => document.querySelector('[data-tgscope="class"]').click()); await page.waitForSelector(cell(k.id, 'Q3') + 'select');
     assert(/^Q3 color, /.test(await page.getAttribute(cell(k.id, 'Q3') + 'select', 'aria-label')), 'named');
-    assert.strictEqual(await page.$(cell(k.id, 'Q3') + '.tgpin'), null, 'projected: no pin yet'); assert(await page.$(cell(k.id, 'Q3') + 'select.tgproj'), 'dashed while projected');
+    assert.strictEqual(await page.$(cell(k.id, 'Q3') + 'select.tgset'), null, 'projected: not solid yet'); assert(/suggested/.test(await page.$eval(cell(k.id, 'Q3') + 'select', e => e.getAttribute('aria-label'))), 'named suggested'); assert(await page.$(cell(k.id, 'Q3') + 'select.tgproj'), 'dashed while projected');
     const other = ['Red', 'Blue', 'Green', 'Yellow'].find(c => c !== k.q3 && c !== k.q1 && c !== k.q2);
     await page.selectOption(cell(k.id, 'Q3') + 'select', other); await page.waitForTimeout(150);
-    assert(await page.$(cell(k.id, 'Q3') + '.tgpin'), 'a hand-set color shows the pin'); assert.strictEqual(await page.$eval(cell(k.id, 'Q3') + 'select', e => e.value), other);
+    assert(await page.$(cell(k.id, 'Q3') + 'select.tgset'), 'a hand-set color is solid'); assert.strictEqual(await page.$(cell(k.id, 'Q3') + '.tgpin'), null, 'and there is no pin icon'); assert(/set by hand/.test(await page.$eval(cell(k.id, 'Q3') + 'select', e => e.getAttribute('aria-label'))), 'named set by hand'); assert.strictEqual(await page.$eval(cell(k.id, 'Q3') + 'select', e => e.value), other);
     assert.strictEqual(await page.evaluate(i => App.master.people.find(p => p[Model.X.ID] === i)['team:Q3'], k.id), other);
     await page.selectOption(cell(k.id, 'Q3') + 'select', k.q3); await page.waitForTimeout(150);
-    assert.strictEqual(await page.$(cell(k.id, 'Q3') + '.tgpin'), null, 'choosing the projected color again removes the pin'); await page.close();
+    assert.strictEqual(await page.$(cell(k.id, 'Q3') + 'select.tgset'), null, 'choosing the projected color again is no longer solid'); await page.close();
   });
   await test('choosing a color the child already had this year shows the repeated-color warning', async () => {
     const { page } = await open(), k = await projectOne(page); await page.evaluate(() => App.showTab('teams')); await page.waitForSelector(cell(k.id, 'Q3') + 'select');

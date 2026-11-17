@@ -10,14 +10,15 @@ const MIME = { '.html': 'text/html', '.js': 'application/javascript', '.css': 't
 const server = http.createServer((req, res) => { const f = path.join(app, decodeURIComponent(req.url.split('?')[0]).replace(/^\//, '') || 'index.html'); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end(); } res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' }); res.end(fs.readFileSync(f)); });
 setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref();
 const pages = buf => (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
-// Many pages are chosen in the Choose pages pop-up (more than 12); a few are ticked under the report.
-async function untick(page, which) { if (await page.locator('#btnChoosePages').count()) { await page.click('#btnChoosePages'); await page.locator('#dlg input[data-pg]')[which]().uncheck(); await page.click('#pgDone'); } else await page.locator('#pagePick input')[which]().uncheck(); }
+// Pages are chosen in the Choose pages pop-up.
+async function untick(page, which) { await page.click('#btnChoosePages'); await page.locator('#dlg input[data-pg]')[which]().uncheck(); await page.click('#pgDone'); }
 (async () => {
   await new Promise(r => server.listen(0, r));
   const browser = await chromium.launch(), url = 'http://localhost:' + server.address().port + '/index.html';
   const page = await (await browser.newContext({ viewport: { width: 1366, height: 900 } })).newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message)); page.on('dialog', d => d.accept());
   await page.goto(url); await page.setInputFiles('#splashFiles', [DATA]); await page.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent));
-  await page.evaluate(() => window.App.showReport('progressSheets')); await page.waitForTimeout(300);
+  await page.evaluate(() => window.App.showReport('progressSheets')); await page.waitForSelector('#report .onepage'); await page.waitForTimeout(300);      // a long report says "Drawing ..." first
+  await page.addStyleTag({ content: '#report > .onepage { content-visibility: visible !important; }' });      // sheets off screen are not laid out until they scroll near (screen only); measure them all
   const n = await page.locator('#report .onepage').count();
   const screenH = await page.evaluate(() => [...document.querySelectorAll('#report .onepage')].map(o => [o.getBoundingClientRect().height, o.firstElementChild.getBoundingClientRect().height, getComputedStyle(o).overflow]));
   await test('there are several progress sheets', () => assert(n >= 3, 'n=' + n));

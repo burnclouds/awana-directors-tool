@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['todo.js'] = '1.11.6';
+(this.AwanaVersions = this.AwanaVersions || {})['todo.js'] = '1.11.7';
 // What still needs a person's attention after an import (or any time): classes to assign, colors, handbooks, uniforms, missing
 // details. Pure: roster and season in, a list of groups out; the To do tab draws it and nothing here is stored.
 //   compute({ master, season, quarter, today, newIds }) -> { groups: [{ id, title, level, hint, items: [{ id, name, text, fields, suggest? }] }], people: [{ id, name, room, items: [{ group, title, level, text, fields }] }], total }
@@ -57,7 +57,7 @@
 
     // 4. uniforms: Planning Center says the family ordered and paid; everything after that (size, ordered, received, given) is recorded here
     add('uniform', 'Uniform to order', 'action', 'Uniforms tab. They ordered and paid for one in Planning Center and no order date is recorded here (a uniform already given out, with a date or the no-date box ticked, needs no order date).',
-      kids.filter(p => M.uniformItems(p).length && M.uniToOrder(p)).map(p => row(p, M.uniformItems(p).join(', ') + (p[UNI.SIZE_VERIFIED] ? ', size ' + p[UNI.SIZE_VERIFIED] : M.eff(p, C.SHIRT) && !/^\s*(n\/?a|none|no|na|nka|-+)\s*$/i.test(M.eff(p, C.SHIRT)) ? ', parent says ' + M.eff(p, C.SHIRT) : ', no size recorded yet') + '.', { fields: [UNI.SIZE_VERIFIED, UNI.ORDERED] })));
+      kids.filter(p => M.uniformItems(p).length && M.uniToOrder(p)).map(p => row(p, M.uniformItems(p).join(', ') + (p[UNI.SIZE_VERIFIED] ? ', size ' + p[UNI.SIZE_VERIFIED] : ', no size recorded yet') + '.', { fields: [UNI.SIZE_VERIFIED, UNI.ORDERED] })));
 
     // 5. details missing
     const parentPhone = p => M.parentPhone(p);      // the registration's "primary phone number for a parent" when it holds a real number (7 digits or more)

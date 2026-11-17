@@ -16,16 +16,16 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 120000).unref()
   await page.evaluate(() => App.showTab('reports')); await page.waitForTimeout(300);
   const shown = () => page.evaluate(() => [...document.querySelectorAll('#rSel option')].filter(o => !o.hidden).map(o => o.value));
   const on = () => page.evaluate(() => document.querySelector('#rSubs button.on').dataset.rsub);
-  await test('four groups: Attendance, Binders, Progress Sheets, Other', async () => {
-    assert.deepStrictEqual(await page.$$eval('#rSubs button', b => b.map(x => x.textContent)), ['Attendance', 'Binders', 'Progress Sheets', 'Other']);
+  await test('five groups: Attendance, Color teams, Binders, Progress & awards, Other', async () => {
+    assert.deepStrictEqual(await page.$$eval('#rSubs button', b => b.map(x => x.textContent)), ['Attendance', 'Color teams', 'Binders', 'Progress & awards', 'Other']);
   });
   await test('each group lists only its own reports, and every report is in exactly one group', async () => {
     const all = await page.evaluate(() => [...document.querySelectorAll('#rSel option')].map(o => o.value).filter(v => !/^bundle:/.test(v))), seen = [];
-    for (const g of ['attend', 'binders', 'progress', 'other']) { await page.click('#rSubs button[data-rsub="' + g + '"]'); await page.waitForTimeout(150); const s = (await shown()).filter(v => !/^bundle:/.test(v)); assert(s.length, g + ' has reports'); assert.strictEqual(await on(), g); seen.push(...s); }
+    for (const g of ['attend', 'teams', 'binders', 'progress', 'other']) { await page.click('#rSubs button[data-rsub="' + g + '"]'); await page.waitForTimeout(150); const s = (await shown()).filter(v => !/^bundle:/.test(v)); assert(s.length, g + ' has reports'); assert.strictEqual(await on(), g); seen.push(...s); }
     assert.deepStrictEqual(seen.slice().sort(), all.slice().sort(), 'a report is missing or in two groups');
   });
   await test('Print is visible on every group; the Binders button only on Binders', async () => {
-    for (const g of ['attend', 'binders', 'progress', 'other']) { await page.click('#rSubs button[data-rsub="' + g + '"]'); await page.waitForTimeout(100); assert(await page.isVisible('#btnPrint'), g + ' print'); assert.strictEqual(await page.isVisible('#btnBinders'), g === 'binders', g + ' binders button'); }
+    for (const g of ['attend', 'teams', 'binders', 'progress', 'other']) { await page.click('#rSubs button[data-rsub="' + g + '"]'); await page.waitForTimeout(100); assert(await page.isVisible('#btnPrint'), g + ' print'); assert.strictEqual(await page.isVisible('#btnBinders'), g === 'binders', g + ' binders button'); }
   });
   await test('showReport opens a report in its own group (Planning Center changes is in Other)', async () => {
     await page.evaluate(() => App.showReport('pcChanges')); await page.waitForTimeout(200); assert.strictEqual(await on(), 'other');

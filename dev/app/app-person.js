@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-person.js'] = '1.25.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-person.js'] = '1.25.1';
 // Person tab: pick one person and see or edit everything held about them (Planning Center fields, club record, uniform,
 // attendance, awards, progress summary, change history). Reuses the edits the other tabs make; nothing here has its own storage.
 (function () {
@@ -101,7 +101,7 @@
   }
   function secUniform(p) {
     const U = Model.UNI, items = Model.uniformItems(p);
-    return '<section class="pcard"><h3>Uniform</h3><p>' + (items.length ? items.map(i => '<span class="chip">' + esc(i) + '</span>').join('') + (App.master.pcCols.includes(C.SHIRT) ? ' parent size ' + esc(Model.eff(p, C.SHIRT) || '?') : '') + ' <span class="status">ordered and paid in Planning Center</span>' : '<span class="status">No uniform ordered in Planning Center.</span>') + '</p>' +
+    return '<section class="pcard"><h3>Uniform</h3><p>' + (items.length ? items.map(i => '<span class="chip">' + esc(i) + '</span>').join('') + ' <span class="status">ordered and paid in Planning Center</span>' : '<span class="status">No uniform ordered in Planning Center.</span>') + '</p>' +
       '<div class="pgrid">' + UNI_FIELDS.filter(x => !x[2] || p[U[x[0]]]).map(([k, l]) => '<div class="pf"><span>' + l + '</span>' + fieldFlag(p, 'Uniform · ' + l, l) + (['ORDERED', 'RECEIVED', 'GIVEN'].includes(k) ? App.uniDateHtml(U[k], p[U[k]]) : '<input type="text" data-u="' + U[k] + '" value="' + esc(p[U[k]]) + '">') + '</div>').join('') + '</div>' +
       '<label class="pf chk" title="Handed over, but I do not have the date. Counts as given out, like a date."><input type="checkbox" data-flag="' + U.GIVEN_FLAG + '"' + (p[U.GIVEN_FLAG] ? ' checked' : '') + '> Given out, but I do not have the date' + fieldFlag(p, 'Uniform · Given out, no date', 'Given out, no date') + '</label></section>';
   }
@@ -169,16 +169,12 @@
     $('peStatus').textContent = q ? (n ? n + (n === 1 ? ' person matches' : ' people match') + ' "' + q + '". Choose one in Person.' : 'No one matches "' + q + '" in this view. Clear the search to see everyone.') : n + (n === 1 ? ' person' : ' people') + ' in this view.';
     if (!p) { $('peSub').hidden = true; $('progressWrap').hidden = true; el.hidden = false; el.innerHTML = '<p class="status">Nobody matches those pickers.</p>'; return; }
     const g = Model.groupOf(Model.room(p)), kid = Model.isClubber(p), full = !!season && kid && ['Puggles', 'Cubbies', 'Sparks', 'T&T'].includes(g), PR = ['Cubbies', 'Sparks', 'T&T'];
-    if (ui.peFor !== idOf(p)) { ui.peFor = idOf(p); ui.peExtra = []; }
-    // Progress sheets: the books of this child's group, plus any other book they have a sheet for; + Add sheet offers the rest (kept in the file).
-    const order = season ? PR.flatMap(x => Season.bookOrder(season, x)) : [];
-    const sheets = full && PR.includes(g) ? order.filter(c => Season.sheetsOf(season, idOf(p), g).includes(c) || ui.peExtra.includes(c)) : [];
-    const bname = c => (season.config.books[c] || {}).name || c, spare = season && PR.includes(g) ? order.filter(c => !sheets.includes(c)) : [];
+    if (ui.peFor !== idOf(p)) ui.peFor = idOf(p);
+    // Progress sheets: the book tabs and the + Add sheet menu beside them are drawn by the progress renderer (app-season.js).
     if (!['progress', 'attendance', 'awards', 'registration'].includes(ui.sub)) ui.sub = 'progress';
     const subs = [['progress', 'Progress'], ['attendance', 'Attendance'], ['awards', 'Awards'], ['registration', 'Registration']];
     const head = '<h2 style="margin:0 0 8px">' + esc(Model.fullName(p)) + ' <span class="status">' + esc(Model.room(p)) + ' · ' + (kid ? 'Clubber' : 'Volunteer') + (Model.isActive(p) ? '' : ' · inactive') + '</span></h2>';
-    const subNav = '<nav class="awsubs" role="tablist" aria-label="Part of this person\'s record">' + subs.map(([k, l]) => '<button type="button" role="tab" data-sub="' + k + '" aria-selected="' + (ui.sub === k) + '" class="' + (ui.sub === k ? 'on' : '') + '">' + l + '</button>').join('') +
-      (ui.sub === 'progress' && spare.length ? '<select id="peAddSheet" aria-label="Add a progress sheet for another book"><option value="">+ Add sheet</option>' + spare.map(c => '<option value="' + esc(c) + '">' + esc(bname(c)) + ' (' + esc(Season.bookGroup(season, c) || season.config.books[c].group || '') + ')</option>').join('') + '</select>' : '') + '</nav>';
+    const subNav = '<nav class="awsubs" role="tablist" aria-label="Part of this person\'s record">' + subs.map(([k, l]) => '<button type="button" role="tab" data-sub="' + k + '" aria-selected="' + (ui.sub === k) + '" class="' + (ui.sub === k ? 'on' : '') + '">' + l + '</button>').join('') + '</nav>';
     $('peSub').hidden = false; $('peSub').innerHTML = head + subNav;
     if (ui.sub === 'progress') {
       // The sheet is drawn by the progress renderer (book tabs, pace, the sheet); it reads the child from ui.prKid, which is set here.
@@ -201,12 +197,8 @@
     }
     applyAttention(p);
   }
-  // Sub-tab and "Add sheet" choices sit above both panes.
+  // The sub-tab choices sit above both panes (the Add sheet menu is beside the book tabs: app-season.js).
   $('peSub').addEventListener('click', e => { const b = e.target.closest('button[data-sub]'); if (b) { ui.sub = b.dataset.sub; render(); } });
-  $('peSub').addEventListener('change', e => {
-    const t = e.target; if (t.id !== 'peAddSheet' || !t.value || !App.season || !ui.id) return;
-    Season.addExtraSheet(App.season, ui.peFor, t.value); ui.peExtra.push(t.value); App.touch(); App.sheets.setBook(t.value); render();      // kept in the file, so the sheet also shows on the Progress sub-tab
-  });
 
   // ---------- from the To do tab: what still needs attention for this person ----------
   // The list is worked out again on every draw from the To do rules, so a field stops being highlighted as soon as what was wrong with it is fixed.

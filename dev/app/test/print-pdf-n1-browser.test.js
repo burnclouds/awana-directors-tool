@@ -30,9 +30,10 @@ function textPages(buf) {
   await page.goto('http://localhost:' + server.address().port + '/index.html'); await page.setInputFiles('#splashFiles', [DATA]); await page.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent));
   const toReports = async () => { await page.evaluate(() => document.querySelector('.tabs button[data-tab="reports"]').click()); await page.waitForTimeout(200); };
   const show = async (id, opts) => { await toReports(); await page.evaluate(([r, o]) => { App.reportOptions(o || {}); App.showReport(r); }, [id, opts]); await page.waitForFunction(() => document.querySelectorAll('#report .sheet').length > 0); await page.waitForTimeout(300); };
-  const openBinders = async ticks => {
+  const openBinders = async (quick, classes = []) => {
     await toReports(); await page.click('#rSubs button[data-rsub="binders"]'); await page.click('#btnBinders'); await page.waitForTimeout(200);
-    for (const t of ticks) await page.check('#dlg input[data-bind="' + t + '"]');
+    await page.selectOption('#bindQuick', { label: quick }); await page.click('#bindNone');
+    for (const t of classes) await page.check('#dlg input[data-bind="' + t + '"]');
     await page.click('#bindGo'); await page.waitForTimeout(500);
   };
   const toPdf = async () => { await page.evaluate(() => window.dispatchEvent(new Event('beforeprint'))); await page.emulateMedia({ media: 'print' }); await page.waitForTimeout(250); const buf = await page.pdf({ preferCSSPageSize: true, printBackground: true }); await page.emulateMedia({ media: 'screen' }); await page.evaluate(() => window.dispatchEvent(new Event('afterprint'))); return buf; };
@@ -72,14 +73,14 @@ function textPages(buf) {
 
   // ---- Binders button ----
   await test('Binders: a class binder opens on landscape paper for the attendance sheet, the rest are portrait', async () => {
-    await show('teams'); await openBinders(['2']);      // Sparks A; the last report was portrait
+    await show('teams'); await openBinders('Class binder', ['2']);      // Sparks A; the last report was portrait
     const first = await page.$eval('#report .sheet', s => s.classList.contains('landscape') ? 'landscape' : 'portrait'); assert.strictEqual(first, 'landscape');
     const buf = await toPdf(), b = boxes(buf); assert(b.length >= 4, 'attendance, emergency, volunteers and progress sheets: ' + b.length + ' pages');
     assert.deepStrictEqual(b[0], [792, 612], 'first page is ' + b[0]); b.slice(1).forEach((x, i) => assert.deepStrictEqual(x, [612, 792], 'page ' + (i + 2) + ' is ' + x));
     const sheets = await page.$$eval('#report .sheet:not(.skip)', es => es.length); assert(b.length >= sheets && b.length <= sheets + 1, sheets + ' sheets but ' + b.length + ' pages');      // the volunteer list is a table and runs onto a second page (header repeated); every other sheet is one page
   });
   await test('Binders: the coaches binder opens portrait, even right after a landscape report', async () => {
-    await show('attendance'); await openBinders(['coaches']);
+    await show('attendance'); await openBinders('Coaches binder');
     const buf = await toPdf(), b = boxes(buf); assert(b.length >= 3, b.length + ' pages'); b.forEach((x, i) => assert.deepStrictEqual(x, [612, 792], 'page ' + (i + 1) + ' is ' + x));
   });
 

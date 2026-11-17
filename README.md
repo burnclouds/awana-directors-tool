@@ -125,8 +125,11 @@ NODE_PATH=<dir with playwright> node test/pinned-person-bar-browser.test.js   # 
 NODE_PATH=<dir with playwright> node test/clear-nodate-browser.test.js   # taking back no date unmarks the sign-offs and the completion
 node test/datamerge.test.js   # merging another data file: what merges, what is flagged Review, what is a conflict, the summary
 NODE_PATH=<dir with playwright> node test/merge-files-browser.test.js   # File menu > Merge a data file: the three-step screen
-NODE_PATH=<dir with playwright> node test/reports-subtabs-browser.test.js    # the four report groups, the progress-sheet tick for class binders, the sticky header
-NODE_PATH=<dir with playwright> node test/reports-cleanup-browser.test.js    # RP1 to RP4: one (i) in the Reports bar; many pages chosen in a Choose pages pop-up; no Puggles progress sheets; the progress-sheet tick in the Print class binders pop-up
+NODE_PATH=<dir with playwright> node test/reports-subtabs-browser.test.js    # the five report groups, the progress-sheet tick for class binders, the sticky header
+NODE_PATH=<dir with playwright> node test/reports-cleanup-browser.test.js    # print clean-up: one (i) in the Reports bar; Pages to print in a Choose pages pop-up; no Puggles progress sheets; the Print class binders quick-pick pop-up; report groups; bundle bar; as-of lines; Color teams on one page per group; Print ... button labels
+NODE_PATH=<dir with playwright> node test/field-reports-browser.test.js    # field reports: + Add sheet beside the book tabs, the Color teams report group, the Uniforms tab fits and has no parent size, the year grid legend (no pin), progress sheets drawn lazily
+NODE_PATH=<dir with playwright> node test/uniforms-cards-browser.test.js    # Uniforms as one card per child at 390 and 430 wide, a table at 1280
+NODE_PATH=<dir with playwright> node test/award-strips-browser.test.js    # Awards to hand out: a 4.5in strip per child, all groups, agrees with the Awards tab, one PDF page per sheet
 NODE_PATH=<dir with playwright> node test/games-both-browser.test.js         # Sparks and T&T scored on one screen (side by side; stacked with 44px boxes on a phone; a whole night saves in the same shape)
 node test/todo-emergency-note.test.js          # To do: a child with no emergency phone is ONE action item in its own group (counted once), not repeated under Details missing; N/A and a name alone are not a phone
 NODE_PATH=<dir with playwright> node test/todo-emergency-note-browser.test.js   # the missing emergency phone on the To do page: header, card, by-task group, badge
