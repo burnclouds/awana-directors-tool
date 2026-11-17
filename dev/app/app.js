@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.67.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.67.1';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -1349,12 +1349,15 @@
   const COACHES = [{ report: 'binderClass' }, { report: 'binderAll' }, { report: 'volunteers' }, { report: 'binderTeams' }];
   $('btnBinders').addEventListener('click', () => {
     const dl = $('dlg');
-    dl.innerHTML = '<h3 style="margin-top:0">Class binders</h3><p class="status">Tick the class binders to print and the coaches binder if wanted. Each class binder has its attendance, roster with medical and contact, the volunteer list, and (if ticked below) a progress sheet for each child. Puggles have no progress sheets.</p>' +
+    dl.innerHTML = '<h3 style="margin-top:0">Class binders</h3><p class="status">Each class binder has its attendance, roster with medical and contact, the volunteer list and, if you choose below, a progress sheet for each child. Puggles have no progress sheets.</p>' +
+      '<fieldset class="addgrp bindpick"><legend>Binders to print</legend><p class="bar" style="margin:0 0 4px"><button type="button" id="bindAll">Select all</button><button type="button" id="bindNone">Select none</button><span class="status" id="bindCount"></span></p>' +
       BINDER_CLASSES.map((c, i) => '<label class="pf chk"><input type="checkbox" data-bind="' + i + '"> ' + esc(c) + ' binder</label>').join('') +
-      '<label class="pf chk"><input type="checkbox" data-bind="coaches"> Coaches binder</label>' +
-      '<label class="pf chk"><input type="checkbox" id="bindSheets"' + (bindSheets ? ' checked' : '') + '> Include a progress sheet for each child in the class binders</label>' +
+      '<label class="pf chk"><input type="checkbox" data-bind="coaches"> Coaches binder</label></fieldset>' +
+      '<fieldset class="addgrp bindopt"><legend>Option for the class binders (not a binder to print)</legend><label class="pf chk"><input type="checkbox" id="bindSheets"' + (bindSheets ? ' checked' : '') + '> Include a progress sheet for each child</label></fieldset>' +
       '<div class="dlgbtns"><button id="bindCancel">Cancel</button><button id="bindGo" class="primary">Show binders</button></div>';
     dl.showModal();
+    const picks = () => [...dl.querySelectorAll('input[data-bind]')], count = () => { $('bindCount').textContent = picks().filter(i => i.checked).length + ' of ' + picks().length + ' selected'; };
+    $('bindAll').onclick = () => { picks().forEach(i => { i.checked = true; }); count(); }; $('bindNone').onclick = () => { picks().forEach(i => { i.checked = false; }); count(); }; dl.onchange = e => { if (e.target.closest && e.target.closest('input[data-bind]')) count(); }; count();
     $('bindCancel').onclick = () => dl.close();
     $('bindGo').onclick = () => {
       const picked = [...dl.querySelectorAll('input[data-bind]:checked')].map(i => i.dataset.bind);

@@ -55,6 +55,15 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 150000).unref()
     await page.click('#btnBinders'); await page.waitForTimeout(200); await page.locator('#bindSheets').uncheck(); await page.locator('#dlg input[data-bind="1"]').check(); await page.click('#bindGo'); await page.waitForTimeout(500); assert.strictEqual(await page.locator('#report .onepage').count(), 0, 'none without it');
     await page.click('#btnBinders'); await page.waitForTimeout(200); assert(!(await page.locator('#bindSheets').isChecked()), 'the choice is remembered for the visit'); await page.keyboard.press('Escape');
   });
+  await test('Print class binders pop-up: Select all and Select none act on the binders only; the progress-sheet option is a separate, labelled box and is not changed by them', async () => {
+    await page.click('#btnBinders'); await page.waitForTimeout(200); const n = await page.locator('#dlg input[data-bind]').count(); assert(n >= 10, 'binders listed: ' + n);
+    assert.strictEqual(await page.locator('#dlg fieldset.bindpick #bindSheets').count(), 0, 'the option is not inside the binder list'); assert.strictEqual(await page.locator('#dlg fieldset.bindopt #bindSheets').count(), 1);
+    assert(/Binders to print/.test(await page.textContent('#dlg fieldset.bindpick legend')) && /Option/.test(await page.textContent('#dlg fieldset.bindopt legend')) && /not a binder/.test(await page.textContent('#dlg fieldset.bindopt legend')), 'legends say which is which');
+    const sheets = await page.locator('#bindSheets').isChecked(); assert.strictEqual((await page.textContent('#bindCount')).trim(), '0 of ' + n + ' selected');
+    await page.click('#bindAll'); assert.strictEqual(await page.locator('#dlg input[data-bind]:checked').count(), n, 'all, the coaches binder too'); assert.strictEqual((await page.textContent('#bindCount')).trim(), n + ' of ' + n + ' selected'); assert.strictEqual(await page.locator('#bindSheets').isChecked(), sheets, 'the option is untouched');
+    await page.click('#bindNone'); assert.strictEqual(await page.locator('#dlg input[data-bind]:checked').count(), 0); assert.strictEqual(await page.locator('#bindSheets').isChecked(), sheets, 'still untouched');
+    await page.locator('#dlg input[data-bind="0"]').check(); assert.strictEqual((await page.textContent('#bindCount')).trim(), '1 of ' + n + ' selected'); await page.keyboard.press('Escape');
+  });
   await test('no script errors', () => assert.deepStrictEqual(errs, []));
   await browser.close(); server.close(); console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);
 })();

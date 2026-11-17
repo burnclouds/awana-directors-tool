@@ -736,3 +736,5 @@ dialog.helpsheet { max-width:min(92vw,640px); max-height:86vh; overflow:auto; bo
 .bugfilter button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); font-weight:600; }
 /* Reports: "Choose pages" pop-up (a long run of pages): the names in columns, scrolling inside the pop-up. */
 .pglist { max-height:55vh; overflow:auto; columns:2 16em; column-gap:18px; padding:6px 2px; } .pglist label { display:block; break-inside:avoid; padding:3px 0; } #dlg .bar button + button { margin-left:6px; }
+/* Print class binders pop-up: the binders to pick and the option are two separate boxes. */
+fieldset.bindopt { background:color-mix(in srgb, var(--accent) 8%, transparent); border-style:dashed; margin-top:12px; } fieldset.bindpick .bar button + button { margin-left:6px; }
