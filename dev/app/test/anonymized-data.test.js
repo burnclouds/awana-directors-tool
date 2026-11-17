@@ -58,8 +58,8 @@ test('every phone is an invented 555-01xx number and every email is example.com 
 test('the same people, families and records: counts, teams, handbooks, attendance, awards and games all carry over', () => {
   const cnt = (s, k) => Object.values(s[k]).reduce((n, x) => n + (typeof x === 'object' ? Object.keys(x).length : 1), 0);
   ['attendance', 'awards', 'games', 'handbooks', 'progress', 'teamMoves', 'adults'].forEach(k => assert.strictEqual(cnt(anon, k), cnt(realData, k), k));
-  // History: the tool leaves out the lines about notes and flags (free text about children) and about Google Drive folders, and nothing else.
-  const keep = e => !(e.changes || []).some(c => c.p[0] === 'flags'), dropped = c => c.p[0] === 'config' && c.p[1] === 'driveDirs', kept = realData.history.filter(keep);
+  // History: the tool leaves out the lines about notes and flags and about volunteer absences (free text about people), Google Drive folders and the team plan, and an entry left with no lines at all; nothing else.
+  const dropped = c => c.p[0] === 'flags' || c.p[0] === 'absences' || (c.p[0] === 'config' && (c.p[1] === 'driveDirs' || c.p[1] === 'teamPlan')), keep = e => (e.changes || []).some(c => !dropped(c)), kept = realData.history.filter(keep);
   assert.strictEqual(anon.history.length, kept.length, 'history entries'); assert.strictEqual(anon.history.reduce((n, e) => n + e.changes.length, 0), kept.reduce((n, e) => n + e.changes.filter(c => !dropped(c)).length, 0), 'history changes');
   const teams = s => Object.values(s.roster.people).map(e => ['Q1', 'Q2', 'Q3', 'Q4'].map(q => e.v['team:' + q] || '-').join('')).sort().join();
   assert.strictEqual(teams(anon), teams(realData));
@@ -137,7 +137,7 @@ test('notes and flags, holds, received dates and Given entries (all keyed by rea
   ['progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops'].forEach(k => assert(Object.keys(a[k] || {}).length === 1, k + ' is kept, renamed'));
   assert(Object.keys(a.held || {}).length === 1 && Object.keys(a.received || {}).length === 1, 'the holds and received dates are kept, renamed');
   const bad = path.join(tmp, 'bad.json'); fs.writeFileSync(bad, JSON.stringify(Object.assign({}, real, { surprise: { [id]: 'x' } })));
-  assert.throws(() => cp.execFileSync('node', [tool, bad, exportPath, path.join(tmp, 'out2')], { stdio: 'pipe' }), /does not know the data section/, 'an unknown section stops the run');
+  assert.throws(() => cp.execFileSync('node', [tool, bad, exportPath, path.join(tmp, 'out2')], { stdio: 'pipe' }), /does not know the data key/, 'an unknown section stops the run');
 });
 test('the committed test-data folder holds no real name, phone, email, registration ID or street either', () => {
   if (!fs.existsSync(testData)) return;

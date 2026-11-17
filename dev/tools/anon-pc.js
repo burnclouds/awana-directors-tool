@@ -75,9 +75,9 @@ function fakeShortPhone(core) {
   for (let i = 0; i < 40; i++) { f = (SHORT_AREAS[h % SHORT_AREAS.length] + '55501' + String(Math.floor(h / 8) % 100).padStart(2, '0')).slice(10 - n); if (f !== String(core)) break; h = hashOf(String(h) + i); }
   return f;
 }
-// Every run of 7 or more digits in the text (separators ignored), as bare digits. Dates (2026-11-16, with a time) and ZIP+4 are not phone numbers.
+// Every run of 7 or more digits in the text (separators ignored), as bare digits. Dates (2026-11-16, with a time), ZIP+4 and the date at the start of a saved export's file name (20261117 -- sc-awana-club…, which History records) are not phone numbers.
 function phoneRuns(text) {
-  const t = String(text == null ? '' : text).replace(/\d{4}-\d{2}-\d{2}(?:[T ][\d:.Z+\-]*)?/g, ' ').replace(/\b\d{5}-\d{4}\b/g, ' '), out = [];
+  const t = String(text == null ? '' : text).replace(/\d{4}-\d{2}-\d{2}(?:[T ][\d:.Z+\-]*)?/g, ' ').replace(/\b\d{5}-\d{4}\b/g, ' ').replace(/\b20\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])(?:-\d{1,2})? -- /g, ' '), out = [];
   t.replace(/\d[\d\s().\-]{5,}\d|\d{7,}/g, m => { const d = m.replace(/\D/g, ''); if (d.length >= 7) out.push(d); return m; });
   return out;
 }

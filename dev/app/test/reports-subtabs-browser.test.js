@@ -24,17 +24,17 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 120000).unref()
     for (const g of ['attend', 'binders', 'progress', 'other']) { await page.click('#rSubs button[data-rsub="' + g + '"]'); await page.waitForTimeout(150); const s = (await shown()).filter(v => !/^bundle:/.test(v)); assert(s.length, g + ' has reports'); assert.strictEqual(await on(), g); seen.push(...s); }
     assert.deepStrictEqual(seen.slice().sort(), all.slice().sort(), 'a report is missing or in two groups');
   });
-  await test('Print is visible on every group; the Binders button and the progress-sheet tick only on Binders', async () => {
-    for (const g of ['attend', 'binders', 'progress', 'other']) { await page.click('#rSubs button[data-rsub="' + g + '"]'); await page.waitForTimeout(100); assert(await page.isVisible('#btnPrint'), g + ' print'); assert.strictEqual(await page.isVisible('#btnBinders'), g === 'binders', g + ' binders button'); assert.strictEqual(await page.isVisible('#bSheetsWrap'), g === 'binders', g + ' tick'); }
+  await test('Print is visible on every group; the Binders button only on Binders', async () => {
+    for (const g of ['attend', 'binders', 'progress', 'other']) { await page.click('#rSubs button[data-rsub="' + g + '"]'); await page.waitForTimeout(100); assert(await page.isVisible('#btnPrint'), g + ' print'); assert.strictEqual(await page.isVisible('#btnBinders'), g === 'binders', g + ' binders button'); }
   });
   await test('showReport opens a report in its own group (Planning Center changes is in Other)', async () => {
     await page.evaluate(() => App.showReport('pcChanges')); await page.waitForTimeout(200); assert.strictEqual(await on(), 'other');
     await page.evaluate(() => App.showReport('attendance')); await page.waitForTimeout(200); assert.strictEqual(await on(), 'attend');
   });
-  await test('the progress-sheet tick leaves the progress sheets out of a class binder, and ticking puts them back', async () => {
+  await test('the progress-sheet tick in the Print class binders pop-up leaves the progress sheets out of a class binder, and ticking puts them back', async () => {
     await page.click('#rSubs button[data-rsub="binders"]');
     const run = async tick => {
-      await page.evaluate(t => { document.getElementById('bSheets').checked = t; }, tick); await page.click('#btnBinders'); await page.waitForTimeout(200);
+      await page.click('#btnBinders'); await page.waitForTimeout(200); await page.locator('#bindSheets').setChecked(tick);
       await page.locator('input[data-bind="1"]').check(); await page.click('#bindGo'); await page.waitForTimeout(500);
       return page.locator('#report .onepage').count();
     };

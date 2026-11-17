@@ -32,7 +32,8 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
     assert(new RegExp('@page \\{ size: ' + first + ';').test(await pageCss()), 'first sheet is ' + first + ' but #pageStyle says: ' + (await pageCss()).slice(0, 60));
     const sheets = await page.locator('#report .sheet').count(); assert(sheets >= 2, 'coaches binder should be several sheets');
     assert(await page.locator('#pagePick').isVisible(), 'the page-pick row is hidden');
-    assert.strictEqual(await page.locator('#pagePick input[type=checkbox]').count(), sheets, 'one tick per sheet');
+    if (sheets > 12) { await page.click('#btnChoosePages'); assert.strictEqual(await page.locator('#dlg input[data-pg]').count(), sheets, 'one tick per sheet in the Choose pages pop-up'); await page.click('#pgDone'); }
+    else assert.strictEqual(await page.locator('#pagePick input[type=checkbox]').count(), sheets, 'one tick per sheet');
   });
   await test('coming from a portrait report, a class binder (landscape attendance first) says landscape', async () => {
     await showReport('teams');

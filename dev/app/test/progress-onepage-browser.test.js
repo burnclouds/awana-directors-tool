@@ -10,6 +10,8 @@ const MIME = { '.html': 'text/html', '.js': 'application/javascript', '.css': 't
 const server = http.createServer((req, res) => { const f = path.join(app, decodeURIComponent(req.url.split('?')[0]).replace(/^\//, '') || 'index.html'); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end(); } res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' }); res.end(fs.readFileSync(f)); });
 setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref();
 const pages = buf => (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
+// Many pages are chosen in the Choose pages pop-up (more than 12); a few are ticked under the report.
+async function untick(page, which) { if (await page.locator('#btnChoosePages').count()) { await page.click('#btnChoosePages'); await page.locator('#dlg input[data-pg]')[which]().uncheck(); await page.click('#pgDone'); } else await page.locator('#pagePick input')[which]().uncheck(); }
 (async () => {
   await new Promise(r => server.listen(0, r));
   const browser = await chromium.launch(), url = 'http://localhost:' + server.address().port + '/index.html';
@@ -41,11 +43,11 @@ const pages = buf => (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []
   });
   await test('an unticked child leaves no blank page', async () => {
     await page.emulateMedia({ media: 'screen' }); await page.setViewportSize({ width: 1366, height: 900 });
-    await page.locator('#pagePick input').first().uncheck(); await page.emulateMedia({ media: 'print' });
+    await untick(page, 'first'); await page.emulateMedia({ media: 'print' });
     const buf = await page.pdf({ format: 'Letter', preferCSSPageSize: true }); assert.strictEqual(pages(buf), n - 1, pages(buf) + ' pages for ' + (n - 1));
   });
   await test('unticking the last child too leaves no trailing blank page', async () => {
-    await page.emulateMedia({ media: 'screen' }); await page.locator('#pagePick input').last().uncheck(); await page.emulateMedia({ media: 'print' });
+    await page.emulateMedia({ media: 'screen' }); await untick(page, 'last'); await page.emulateMedia({ media: 'print' });
     const buf = await page.pdf({ format: 'Letter', preferCSSPageSize: true }); assert.strictEqual(pages(buf), n - 2, pages(buf) + ' pages for ' + (n - 2));
   });
   await test('no script errors', () => assert.deepStrictEqual(errs, []));

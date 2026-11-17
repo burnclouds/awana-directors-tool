@@ -665,7 +665,7 @@ table.tg select.tgsel.tgproj { background-color:var(--panel); color:var(--ink); 
 
 /* ---------- UX-10, UX-09, UX-19: the top bar ---------- */
 .overflowbtn { display:none; } .topsearch .srsp { display:none; } .filetxt { font-weight:600; }
-.overflowbtn.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.overflowbtn.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
 #overflowMenu .tick { display:inline-block; width:1.2em; }
 @media (max-width: 760px) {
   /* Undo and Download stay in the bar; Redo, Flag, Bug and Search live behind the "..." button, so nothing is clipped at the right edge and the bar never scrolls sideways */
@@ -695,7 +695,7 @@ table.tg select.tgsel.tgproj { background-color:var(--panel); color:var(--ink); 
 .tonightstrip button { min-height:32px; }
 @media (max-width: 760px) { .tonightstrip button { min-height:44px; min-width:44px; } }
 /* UX-11: Place and Spirit are tap buttons (a tap sets it, a second tap clears it) */
-.tapgrp { display:inline-flex; gap:4px; } .tapgrp button { min-width:36px; min-height:36px; padding:2px 8px; font-weight:600; } .tapgrp button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.tapgrp { display:inline-flex; gap:4px; } .tapgrp button { min-width:36px; min-height:36px; padding:2px 8px; font-weight:600; } .tapgrp button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
 @media (max-width: 760px) { .tapgrp button { min-width:44px; min-height:44px; } #gamesWrap td button[data-clearrow] { min-height:44px; } .tapgrp { gap:2px; } .tapgrp button { padding:2px 4px; min-width:44px; font-size:16px; } }
 @media (max-width: 760px) {
   /* UX-11: on a phone each team is a card: the team and Clear on the first line, Place and Spirit buttons on their own lines under a small caption */
@@ -724,3 +724,15 @@ fieldset.addgrp { border:1px solid var(--line); border-radius:6px; margin:0 0 10
 /* UX-08 (trial): the Help sheet reached from the "..." menu on a phone */
 dialog.helpsheet { max-width:min(92vw,640px); max-height:86vh; overflow:auto; border:1px solid var(--line); border-radius:10px; background:var(--panel); color:var(--ink); padding:14px 16px; } dialog.helpsheet::backdrop { background:rgba(0,0,0,.4); } .helpnote { border-top:1px solid var(--rowline); padding:8px 0; }
 @media (max-width: 760px) { dialog.helpsheet { width:calc(100vw - 16px); margin:auto 8px 8px; } dialog.helpsheet .dlgbtns button { min-height:44px; width:100%; } }
+/* UX-17: on a computer the Roster filters are the header row's dropdowns (the bar's Class, Role and Status are kept hidden as the state they share); a phone gets one Filter line */
+@media (min-width: 761px) { .rfilter { display:none; } }
+@media (max-width: 760px) {
+  .rfilter { flex:1 1 100%; } .rfilter > summary { min-height:44px; display:flex; align-items:center; padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:var(--panel); font-size:15px; cursor:pointer; }
+  .rfilterbody { display:flex; flex-wrap:wrap; gap:8px; padding:8px 0; } .rfilterbody select { flex:1 1 140px; min-height:44px; font-size:16px; }
+}
+.rshowing { margin:4px 16px 6px; } select.cfset { background:var(--chgbg); border-color:var(--chgline); font-weight:700; }
+/* Bug reports (Debug): the reply editor stacks its labels above the fields; the chosen filter is coloured like the Roster sub-tabs. */
+.bugedit { display:flex; flex-direction:column; align-items:stretch; gap:4px; min-width:14em; } .bugedit label { display:flex; flex-direction:column; gap:2px; font-weight:600; } .bugedit select, .bugedit textarea { font-weight:400; width:100%; box-sizing:border-box; } .bugedit button { align-self:flex-start; }
+.bugfilter button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); font-weight:600; }
+/* Reports: "Choose pages" pop-up (a long run of pages): the names in columns, scrolling inside the pop-up. */
+.pglist { max-height:55vh; overflow:auto; columns:2 16em; column-gap:18px; padding:6px 2px; } .pglist label { display:block; break-inside:avoid; padding:3px 0; } #dlg .bar button + button { margin-left:6px; }

@@ -25,6 +25,7 @@ test('a short number becomes the last digits of a 555-01xx fake: same length, ne
 test('phoneRuns finds runs of 7+ digits through separators and leaves dates and ZIP+4 alone', () => {
   assert.deepStrictEqual(A.phoneRuns('Call 555-0142 or (937) 555-0147 on 2026-11-03 zip 45433-1234'), ['5550142', '9375550147']);
   assert.deepStrictEqual(A.phoneRuns('2026-11-03T14:00:00Z and 12'), []);
+  assert.deepStrictEqual(A.phoneRuns('20261117 -- sc-awana-club-2026-27.csv'), []); assert.deepStrictEqual(A.phoneRuns('20261104-3 -- sc-awana-club-2026-27.csv'), []); assert.deepStrictEqual(A.phoneRuns('call 20261117'), ['20261117'], 'a bare 8-digit number is still checked');
 });
 test('leakingPhones counts a surviving number without printing it; numbers in the exception text are not leaks', () => {
   assert.strictEqual(A.leakingPhones('Call 555-0142', 'x 555-0142 y'), 1); assert.strictEqual(A.leakingPhones('Call 555-0142', 'x 555-9999 y'), 0);

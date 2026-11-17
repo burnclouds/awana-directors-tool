@@ -52,12 +52,22 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
   await test('the Debug tab lists the report; a reply with a status is saved and shown; filters work', async () => {
     await tab(page, 'debug'); await page.waitForTimeout(250);
     assert(/Bug reports and feature requests \(1 open\)/.test(await page.textContent('#debugWrap')), 'heading with the open count');
+    assert.deepStrictEqual(await page.$$eval('#debugWrap .bugfilter button.on', b => b.map(x => x.textContent)), ['Open'], 'the list opens on Open'); assert(await page.isVisible('#debugWrap button[data-bugreply]'), 'and the open report is listed');
     await page.click('#debugWrap button[data-bugreply]'); await page.selectOption('#debugWrap [data-bugstatus]', 'answered'); await page.fill('#debugWrap [data-bugtext]', 'Thanks, looking at it'); await page.click('#debugWrap button[data-bugsave]'); await page.waitForTimeout(200);
     const b = await bugs(); assert.strictEqual(b[0].status, 'answered'); assert.strictEqual(b[0].reply, 'Thanks, looking at it');
     assert(/Thanks, looking at it/.test(await page.textContent('#debugWrap')), 'the reply is on screen');
     await page.click('#debugWrap button[data-bugfilter="open"]'); await page.waitForTimeout(100); assert(/None with that status/.test(await page.textContent('#debugWrap')), 'the open filter is empty');
     await page.click('#debugWrap button[data-bugfilter="answered"]'); await page.waitForTimeout(100); assert(/headings are hard to read/.test(await page.textContent('#debugWrap')), 'the answered filter shows it');
     assert(/Bug reports/.test(await page.evaluate(() => App.season.history[App.season.history.length - 1].label)), 'History names the area');
+  });
+  await test('Debug opens on the Open filter, the chosen filter is coloured, and the reply editor stacks Status and Reply above their fields', async () => {
+    await tab(page, 'debug'); await page.waitForTimeout(250);
+    const on = () => page.$$eval('#debugWrap .bugfilter button.on', b => b.map(x => x.textContent));
+    await page.click('#debugWrap button[data-bugfilter="all"]'); assert.deepStrictEqual(await on(), ['All']);
+    const bg = await page.$eval('#debugWrap .bugfilter button.on', b => getComputedStyle(b).backgroundColor), off = await page.$eval('#debugWrap .bugfilter button:not(.on)', b => getComputedStyle(b).backgroundColor); assert.notStrictEqual(bg, off, 'the chosen filter has its own colour');
+    await page.click('#debugWrap button[data-bugreply]'); const box = await page.evaluate(() => { const r = e => document.querySelector(e).getBoundingClientRect(), cell = r('#debugWrap .bugedit'); return { sel: r('#debugWrap [data-bugstatus]'), ta: r('#debugWrap [data-bugtext]'), cell }; });
+    assert(box.ta.top >= box.sel.bottom - 1, 'Reply sits below Status'); assert(box.ta.width >= box.cell.width - 4, 'the text box fills the cell'); assert(box.ta.left >= box.cell.left - 1 && box.ta.right <= box.cell.right + 1, 'and stays inside it');
+    await page.click('#debugWrap button[data-bugcancel]'); await page.click('#debugWrap button[data-bugfilter="all"]');
   });
   await test('Go on a report whose tab no longer exists shows a message and does not break the page', async () => {
     await page.evaluate(() => { const f = Season.bugList(App.season)[0]; App.season.flags[f.id].tab = 'nosuchtab'; App.renderDebug(); });

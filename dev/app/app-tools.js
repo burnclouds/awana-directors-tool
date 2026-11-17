@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.6.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.6.1';
 // Debug and Validate tabs. Debug: which version of every file is running, what is open, and the dates of the CSV/JSON files.
 // Validate: check a data file, Planning Center export or older CSV for problems without opening it into the app.
 (function () {
@@ -46,7 +46,7 @@
       '<p><button type="button" id="dbgAssumedClear" class="primary">Clear these ' + assumed.n + ' Given dates</button> <button type="button" id="dbgAssumedCount">Count again</button></p>';
   }
   // ---- Bug reports and feature requests (flag level "bug"): listed here, never on To do. Each has a status and a reply, kept in the data file so every leader sees the same list. ----
-  let bugFilter = 'all', bugEditing = '';
+  let bugFilter = 'open', bugEditing = '';
   const STATUS_WORD = { open: 'Open', answered: 'Answered', fixed: 'Fixed' };
   function bugsHtml() {
     const s = App.season; if (!s) return '<h3>Bug reports and feature requests</h3><p class="status">Open a data file: bug reports are kept in it.</p>';
@@ -58,9 +58,9 @@
       return '<tr data-bug="' + esc(f.id) + '"><td>' + esc(STATUS_WORD[f.status || 'open']) + '</td><td>' + where + '</td><td>' + (f.kid ? esc(name(f.kid)) : '<span class="status">&mdash;</span>') + '</td><td>' + esc(f.note) + '</td>' +
         '<td>' + esc(Model.md(f.at)) + (f.ver ? ' <span class="status">v' + esc(f.ver) + '</span>' : '') + '</td>' +
         '<td>' + (edit
-          ? '<label>Status <select data-bugstatus>' + Season.BUG_STATUS.map(x => '<option value="' + x + '"' + ((f.status || 'open') === x ? ' selected' : '') + '>' + STATUS_WORD[x] + '</option>').join('') + '</select></label><br><label>Reply <textarea data-bugtext rows="3" style="width:100%">' + esc(f.reply || '') + '</textarea></label>'
+          ? '<div class="bugedit"><label>Status <select data-bugstatus>' + Season.BUG_STATUS.map(x => '<option value="' + x + '"' + ((f.status || 'open') === x ? ' selected' : '') + '>' + STATUS_WORD[x] + '</option>').join('') + '</select></label><label>Reply <textarea data-bugtext rows="3">' + esc(f.reply || '') + '</textarea></label></div>'
           : (f.reply ? esc(f.reply) + ' <span class="status">' + esc(Model.md(f.replyAt)) + '</span>' : '<span class="status">&mdash;</span>')) + '</td>' +
-        '<td>' + (edit ? '<button type="button" data-bugsave="' + esc(f.id) + '" class="primary">Save reply</button> <button type="button" data-bugcancel>Cancel</button>'
+        '<td>' + (edit ? '<div class="bugedit"><button type="button" data-bugsave="' + esc(f.id) + '" class="primary">Save reply</button><button type="button" data-bugcancel>Cancel</button></div>'
           : (f.tab ? '<button type="button" data-buggo="' + esc(f.id) + '">Go</button> ' : '') + '<button type="button" data-bugreply="' + esc(f.id) + '">Reply</button> <button type="button" data-bugdel="' + esc(f.id) + '">Delete</button>') + '</td></tr>';
     }).join('');
     return '<h3 id="dbgBugs">Bug reports and feature requests (' + openN + ' open)</h3><p class="status">Added with the Bug button (turn it on under Options). They are kept in the data file, so every leader sees the same list and the same replies. They never appear on To do.</p>' +
@@ -98,6 +98,7 @@
     if (t.dataset.bugsave) {
       const row = t.closest('tr'), status = row.querySelector('[data-bugstatus]').value, reply = row.querySelector('[data-bugtext]').value;
       try { App.setBugReply(t.dataset.bugsave, { status, reply }); } catch (err) { App.flash(err.message, 'error'); return; }
+      if (bugFilter !== 'all' && bugFilter !== status) bugFilter = status;      /* the saved report stays in view: the list follows its new status */
       bugEditing = ''; renderDebug(); return;
     }
     if (t.dataset.bugdel) { App.clearFlag(t.dataset.bugdel); renderDebug(); App.done('Bug report deleted.'); return; }      /* one Undo step: done at once, with an Undo message (UX-20) */

@@ -10,9 +10,13 @@ if (process.env.AWANA_DIALOG_COMPAT !== 'off') {
     const path = require('path'), { makeDialog } = require('./app-dialogs');
     const fs = require('fs'); let mainText = null;      /* read when first needed: require.main is not set yet while this file is preloaded */
     const ownTest = () => { if (mainText === null) { try { mainText = process.argv[1] ? fs.readFileSync(process.argv[1], 'utf8') : ''; } catch (e) { mainText = ''; } } return /lib\/app-dialogs/.test(mainText); };      /* the test file itself loads the helper: it answers the app's dialogs, leave it alone */
+    /* TRIPWIRE (UX-20 is complete): the app opens no native alert, confirm or prompt. If a page ever does, the test run fails at exit, whatever the test's own checks said.
+       Set AWANA_NATIVE_DIALOGS=allow to switch it off. A test that loads test/lib/app-dialogs.js is not watched (it manages its own dialogs). */
+    const nativeSeen = []; process.on('exit', code => { if (nativeSeen.length && process.env.AWANA_NATIVE_DIALOGS !== 'allow') { console.log('\nTRIPWIRE: ' + nativeSeen.length + ' native browser dialog(s) opened (' + [...new Set(nativeSeen)].join(', ') + '). The app must use its own dialog (app-ask.js).'); if (!code) process.exitCode = 1; } });
     const wrapPage = page => {
       if (!page || page.__awanaCompat || ownTest()) return page; page.__awanaCompat = true;
       const handlers = [], on = page.on.bind(page), off = page.removeAllListeners.bind(page);
+      page.on('dialog', d => { if (['alert', 'confirm', 'prompt'].includes(d.type())) { nativeSeen.push(d.type()); if (!handlers.length) d.dismiss().catch(() => {}); } });      /* counted; dismissed when the test has no handler of its own (what Playwright does with no listener). The app's own dialogs are DOM, never a Playwright dialog event */
       page.on = (ev, fn) => { if (ev === 'dialog') handlers.push(fn); return on(ev, fn); };
       page.removeAllListeners = ev => { if (ev === 'dialog' || ev === undefined) handlers.length = 0; return off(ev); };
       page.exposeBinding('__appAsk', async (source, detail) => { const d = makeDialog(page, detail); if (!handlers.length) { await d.dismiss(); return; } for (const h of handlers.slice()) await h(d); });

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['info.js'] = '1.22.2';
+(this.AwanaVersions = this.AwanaVersions || {})['info.js'] = '1.23.0';
 // The (i) notes: a small "i" next to a control that shows a one-line tip on hover and, when clicked, a popup over the page saying which option to use under what conditions.
 // One list of notes feeds both: the (i) buttons across the app and the "Which option when" part of the How it works page, so the two can never disagree.
 // Desktop only: on a phone the buttons and blocks are hidden (style.css), to keep the small screen uncluttered; the How it works page has all of it.
@@ -74,12 +74,11 @@
     'store.programs': { area: 'store', title: 'Programs in the store', tip: 'Untick a program to leave it out of every number',
       html: '<p>Tick the programs that take part. Puggles and Cubbies do not at our club, so only Sparks and T&amp;T start ticked. Children in an unticked program are left out of every total, table and the CSV.</p>' },
     // ---------- reports ----------
-    'reports.quarter': { area: 'reports', title: 'Quarter, nights and title', tip: 'The quarter comes from the calendar; the title is the club’s',
-      html: '<p>The <b>quarter</b> picks which color team column and game standings a report uses; it starts from the calendar (the latest club night up to today) and a quarter you type expires. The <b>title</b> prints on the reports and is the same setting as on Options.</p>' },
-    'reports.print': { area: 'reports', title: 'Printing', tip: 'Print or Save as PDF; reports always print light on white',
-      html: '<p>Pick a report, then the room, group, night or child it needs, and <b>Print / Save as PDF</b>. Reports are always shown on white paper and print light whatever your dark-mode setting. Color team sheets follow the team a child had <i>on the night</i> (a move mid-quarter is marked with *).</p>' },
-    'reports.emergency': { area: 'reports', title: 'Emergency contacts, medical and photos', tip: 'Where the emergency and medical information comes from',
-      html: '<p>Emergency contact and medical / allergy notes are parent-reported in Planning Center and not validated. <b>No photos</b> comes from the parents’ notes and the Roster tab.</p>' },
+    'reports.print': { area: 'reports', title: 'Printing, quarter and where the information comes from', tip: 'Printing, the quarter, pages to print, where contact data comes from',
+      html: '<p><b>Printing.</b> Pick a report, then the room, group, night or child it needs, and <b>Print / Save as PDF</b>. Reports are always shown on white paper and print light whatever your dark-mode setting. Color team sheets follow the team a child had <i>on the night</i> (a move mid-quarter is marked with *).</p>' +
+        '<p><b>Quarter and title.</b> The quarter picks which color team column and game standings a report uses; it starts from the calendar (the latest club night up to today) and a quarter you type expires. The title prints on the reports and is the same setting as on Options.</p>' +
+        '<p><b>Pages to print.</b> A report with one page per class or child lists them under the report. Untick a page to leave it out of the PDF; with many pages, <b>Choose pages</b> opens a list with Select all and Select none.</p>' +
+        '<p><b>Emergency contacts, medical and photos.</b> These are parent-reported in Planning Center and not validated. <b>No photos</b> comes from the parents’ notes and the Roster tab.</p>' },
     // ---------- history ----------
     'history.restore': { area: 'history', title: 'Compare, name and restore', tip: 'Every change is logged; any version can be compared or restored',
       html: '<p>Every change is kept as old and new values, so any version can be rebuilt. Pick two versions to see exactly what changed between them. <b>Name&hellip;</b> gives a version a name (and it is never merged into).</p><p><b>Restore</b> goes back to that version and drops every later entry; it first saves a <i>before-restore</i> copy of how things stood, so it can be undone by opening that file.</p>' },

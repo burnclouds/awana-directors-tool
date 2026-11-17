@@ -4,8 +4,14 @@
 const fs = require('fs'), path = require('path'), assert = require('assert'), os = require('os');
 const { chromium } = require('playwright');
 if (process.argv.length < 5) { console.log('SKIP: needs real files (roster, calendar, old season JSON; see Usage above)'); process.exit(0); }
-const [roster, calendar, seasonFile, masterFile] = process.argv.slice(2).map(p => path.resolve(p));
+const [rosterArg, calendar, seasonFile, masterFile] = process.argv.slice(2).map(p => path.resolve(p));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'awana-e2e-'));   // holds the data file (children's names); removed at the end
+// The export is used under a Planning Center style name (YYYYMMDD -- ...csv), the way a real export arrives: the app reads the export's date from the name. The real-data folder keeps its own name for the file (awana-master-2026-10-29.csv), which has no date the app can read; this test's checks expect the 2026-10-28 export.
+const roster = /^\d{8}( |-)/.test(path.basename(rosterArg)) ? rosterArg : path.join(tmp, '20261028 -- sc-awana-club-2026-27.csv');
+if (roster !== rosterArg) fs.copyFileSync(rosterArg, roster);
+// The checks below are written against whichever export is given: its date comes from its name and its head-count from its rows (not fixed numbers from one particular export).
+const EXPORT_NAME = path.basename(roster), EXPORT_TAG = (/^(\d{8})/.exec(EXPORT_NAME) || ['', '20261028'])[1], EXPORT_DATE = EXPORT_TAG.slice(0, 4) + '-' + EXPORT_TAG.slice(4, 6) + '-' + EXPORT_TAG.slice(6, 8);
+const ACTIVE_COUNT = (() => { const M = require('../model.js'); return M.loadMaster(fs.readFileSync(roster, 'utf8'), EXPORT_DATE).people.filter(M.isActive).length; })();
 const Season = require('../season.js'), { build } = require('../../tools/make-database.js');
 const dataFile = path.join(tmp, 'awana-2026-27-20261029-123000.json');
 fs.writeFileSync(dataFile, Season.toJson(build({ exportName: path.basename(roster), exportText: fs.readFileSync(roster, 'utf8'), calendarText: fs.readFileSync(calendar, 'utf8'), seasonText: fs.readFileSync(seasonFile, 'utf8'), today: '2026-10-29' }).season));
@@ -50,7 +56,7 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  ok
     await page.locator('#attendWrap input[data-m="h"]').first().check();
     assert(/\d+ of \d+ present/.test(await page.textContent('#attCount'))); assert(/unsaved edit/.test(await page.textContent('#seasonStatus')));
     await tab('games'); const row = page.locator('#gamesWrap section[data-group="Sparks"] tr[data-team="Red"]');
-    await row.locator('select[data-f="place"]').selectOption('1'); await page.locator('#gamesWrap section[data-group="Sparks"] tr[data-team="Red"] select[data-f="spirit"]').selectOption('3');
+    await row.locator('button[data-f="place"][data-v="1"]').click(); await page.locator('#gamesWrap section[data-group="Sparks"] tr[data-team="Red"] button[data-f="spirit"][data-v="3"]').click();      /* tap buttons since 1.51.14 (UX-11) */
     await tab('awards'); await page.waitForTimeout(300); await page.click('#awSubs button[data-awsub="announce"]');   // awards are not entered by hand any more (the Announce page records them)
     await tab('person'); await page.selectOption('#peGroup', 'Sparks'); await page.selectOption('#peClass', { index: 1 }); await page.click('#peSub button[data-sub="progress"]'); await page.waitForTimeout(200);
     if (await page.locator('#progressWrap .booktabs button[data-book="HG"]').count()) await page.click('#progressWrap .booktabs button[data-book="HG"]');
@@ -69,7 +75,7 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  ok
     const text = fs.readFileSync(saved, 'utf8'), j = JSON.parse(text);
     assert.strictEqual(j.version, Season.VERSION);
     assert(Object.keys(j.roster.people).length >= 130 && j.calendar.length > 20, 'people ' + Object.keys(j.roster.people).length + ', calendar ' + j.calendar.length);
-    assert.strictEqual(j.roster.pcAsOf, '2026-10-28'); assert(/^20261028 -- /.test(j.roster.pcSource), j.roster.pcSource);
+    assert.strictEqual(j.roster.pcAsOf, EXPORT_DATE); assert(new RegExp('^' + EXPORT_TAG + '(-\\d+)? -- ').test(j.roster.pcSource), j.roster.pcSource);
     const rows = require('../csv.js').toRecords(require('../csv.js').parse(fs.readFileSync(roster, 'utf8'))).records;
     const details = rows.flatMap(r => [r['Medical Notes'], r['Mobile Phone Number'], r['Home Email Address']]).filter(s => s && s.length > 6);
     assert(details.length > 20); details.forEach(s => assert(text.includes(JSON.stringify(s).slice(1, -1)), 'missing from file: ' + s.slice(0, 20)));
@@ -108,8 +114,8 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  ok
     assert.strictEqual(await page.evaluate(() => window.App.season.history.length), n, 'viewing history must not add entries');
   });
   await test('History tab: name a version, then Restore backs up the file, drops later versions and leaves it unsaved', async () => {
-    // Restore asks the phrase through prompt() three times: answer those with the phrase, and the version name with 'before games'.
-    await page.evaluate(p => { window.prompt = m => /Restore confirmation/.test(m) ? p : 'before games'; }, RESTORE_PHRASE);
+    // Restore asks the phrase in the app's own dialog three times (a typed-phrase dialog): answer those with the phrase, and the version name with 'before games'.
+    page.removeAllListeners('dialog'); page.on('dialog', d => { if (d.type() === 'prompt') d.accept(d.title && /Restore confirmation/.test(d.title()) ? RESTORE_PHRASE : 'before games'); else d.accept(); });      /* the app's own typed-phrase and name dialogs, answered through the same handler (test/lib/pw-dialog-compat.js) */
     // Log an edit first, so there is a later version to restore past (the history starts with the two versions from the test file).
     await page.evaluate(() => { const M = window.Model, S = window.Season, id = window.App.master.people.find(x => M.isActive(x))[M.X.ID]; S.setMark(window.App.season, '2026-10-21', id, 'x', 1); window.App.commitScope(() => window.App.changed()); S.setMark(window.App.season, '2026-10-21', id, 'x', 0); window.App.commitScope(() => window.App.changed()); });
     await page.check('#hLatest');
@@ -121,7 +127,7 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  ok
     assert(!(await page.isDisabled('#hRestore')), 'Restore is enabled (history length ' + n + ', from ' + (await page.inputValue('#hFrom')) + ')');
     // The backup is downloaded through the Planning Center warning when there are pending changes (that step is answered here, as a person would).
     const [dl] = await Promise.all([page.waitForEvent('download'), (async () => { await page.click('#hRestore'); await page.waitForTimeout(200); if (await page.isVisible('#warnGo')) await page.click('#warnGo'); })()]);
-    assert(/^awana-2026-27-before-restore-TEST-\d{8}-\d{6}\.json$/.test(dl.suggestedFilename()), dl.suggestedFilename());      // test data: the name carries TEST
+    assert(/^awana-2026-27-before-restore-(TEST-)?\d{8}-\d{6}\.json$/.test(dl.suggestedFilename()), dl.suggestedFilename());      // test data carries TEST in the name; the real data does not
     const bk = path.join(tmp, 'backup.json'); await dl.saveAs(bk);
     assert.strictEqual(JSON.parse(fs.readFileSync(bk, 'utf8')).history.length, n, 'the backup is the file as it was before the restore');
     assert.strictEqual(await page.evaluate(() => window.App.season.history.length), 2);
@@ -160,10 +166,10 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  ok
     assert(await p5.getAttribute('#splashFiles', 'class').then(c => /\bvh\b/.test(c || '')), 'the real file input is visually hidden behind its "Choose files" button'); assert(await p5.isVisible('#splash label.btn'), 'the button is shown');
     await p5.setInputFiles('#splashFiles', [dataFile]); await p5.waitForTimeout(400);      // the data file alone is enough: no export needed
     assert(!(await p5.isVisible('#splash')), 'splash goes away once the data file is open');
-    assert(/140 active/.test(await p5.textContent('#status')) && /PC data 2026-10-28/.test(await p5.textContent('#status')), await p5.textContent('#status'));
+    assert(new RegExp(ACTIVE_COUNT + ' active').test(await p5.textContent('#status')) && new RegExp('PC data ' + EXPORT_DATE).test(await p5.textContent('#status')), await p5.textContent('#status'));
     assert(!(await p5.isVisible('#review')), 'no review prompt without an export');
     await p5.evaluate(() => document.querySelector('.tabs button[data-tab="reports"]').click()); await p5.selectOption('#rSel', 'binderAll');
-    assert(/Planning Center data as of 2026-10-28/.test(await p5.textContent('#report')), 'reports run from the data file alone');
+    assert(new RegExp('Planning Center data as of ' + EXPORT_DATE).test(await p5.textContent('#report')), 'reports run from the data file alone');
     await p5.close();
     const p6 = await browser.newPage(); await p6.goto(app); await p6.click('#splashSkip');
     assert(!(await p6.isVisible('#splash')), 'skip closes the splash'); assert(await p6.isVisible('.tabs')); await p6.close();
@@ -296,7 +302,7 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  ok
   });
   await test('Person: a volunteer gets the record sections only, and markup in a note cannot run', async () => {
     await tab('person'); await page.click('#peSub button[data-sub="registration"]'); await page.selectOption('#peGroup', 'All'); await page.selectOption('#peRole', 'adult');
-    assert.deepStrictEqual(await page.$$eval('#personWrap h3', e => e.map(x => x.textContent)), ['Planning Center record', 'Club record']);
+    assert.deepStrictEqual(await page.$$eval('#personWrap h3', e => e.map(x => x.textContent)), ['Planning Center record', 'Emergency phone', 'Club record']);      /* the emergency phone has its own section on every person's page */
     await page.fill('textarea[data-u="x_Notes"]', '<img src=x onerror="window.__pwn=1">'); await page.press('textarea[data-u="x_Notes"]', 'Tab');
     await page.selectOption('#peRole', 'kid'); await page.selectOption('#peRole', 'adult'); await page.waitForTimeout(100);
     assert.strictEqual(await page.evaluate(() => window.__pwn), undefined);
@@ -322,6 +328,7 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  ok
   });
   await test('Handbook, date received and note are separate boxes on Person, stored as one string, and Progress follows them', async () => {
     await tab('person'); await page.selectOption('#peRole', 'kid'); await page.selectOption('#peGroup', 'Sparks'); await page.selectOption('#peClass', { index: 1 }); await page.click('#peSub button[data-sub="registration"]');
+    await page.evaluate(() => { const sel = document.getElementById('pePerson'), o = [...sel.options].find(x => !App.season.handbooks[x.value]); if (o) { sel.value = o.value; sel.dispatchEvent(new Event('change', { bubbles: true })); } }); await page.waitForTimeout(200);      /* a child with no handbook on record yet (the real data has some) */
     const id = await page.inputValue('#pePerson'), stored = () => page.evaluate(i => App.season.handbooks[i] || '', id);
     await page.fill('#personWrap input[data-hb="code"]', 'WR'); await page.press('#personWrap input[data-hb="code"]', 'Tab');
     assert.strictEqual(await stored(), 'WR', 'stored: ' + await stored());

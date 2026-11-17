@@ -602,8 +602,8 @@ const server = http.createServer((req, res) => {
     const { page } = await open(); await page.waitForTimeout(200); const total = await page.evaluate(() => App.master.people.length), act = await page.evaluate(() => App.master.people.filter(Model.isActive).length);
     assert.strictEqual(await page.$('#fInactive').then(e => e.evaluate(x => x.tagName)), 'SELECT'); assert.strictEqual((await rowsOf(page, 0)).length, act, 'default: active only');
     await page.evaluate(() => { const p = App.master.people.find(x => Model.isClubber(x)); Model.setActive(p, false); App.commitScope(() => App.changed()); App.refresh(); });
-    await page.selectOption('#fInactive', 'inactive'); await page.waitForTimeout(200); assert.strictEqual((await rowsOf(page, 0)).length, 1, 'inactive only: the one inactive person');
-    await page.selectOption('#fInactive', 'all'); await page.waitForTimeout(200); assert.strictEqual((await rowsOf(page, 0)).length, total, 'all'); assert.strictEqual(await page.inputValue('select[data-cf="active"]'), 'all', 'the column filter shows the same choice');
+    await page.selectOption('select[data-cf="active"]', 'inactive'); await page.waitForTimeout(200); assert.strictEqual((await rowsOf(page, 0)).length, 1, 'inactive only: the one inactive person');
+    await page.selectOption('select[data-cf="active"]', 'all'); await page.waitForTimeout(200); assert.strictEqual((await rowsOf(page, 0)).length, total, 'all'); assert.strictEqual(await page.inputValue('select[data-cf="active"]'), 'all', 'the column filter shows the same choice');
     await page.selectOption('select[data-cf="active"]', 'active'); await page.waitForTimeout(200); assert.strictEqual(await page.inputValue('#fInactive'), 'active'); assert.strictEqual((await rowsOf(page, 0)).length, total - 1);
     await page.close();
   });

@@ -15,6 +15,8 @@ function build(o) {
   const master = M.loadMaster(o.masterText || o.exportText, today);
   if (!o.masterText && o.colorsText) Teams.importList(master, null, o.colorsText);
   master.pcAsOf = M.exportDate(o.exportName, today); master.pcSource = o.exportName || '';
+  // The kept export (R17): a data file the app makes holds the full export it was built from, so opening that file with the same export changes nothing. Dated by `today` so the output is the same every time.
+  if (o.exportText && !o.masterText) { const rx = M.readExport(o.exportText); M.captureExport(master, rx, { ids: master.people.map(p => p[M.X.ID]), loose: [] }, { text: o.exportText, at: today + 'T00:00:00.000Z' }); }
   const season = o.seasonText ? Season.fromJson(o.seasonText) : Season.blank(o.year || '');
   season.roster = M.toRoster(master);
   if (o.calendarText) season.calendar = Calendar.load(o.calendarText);

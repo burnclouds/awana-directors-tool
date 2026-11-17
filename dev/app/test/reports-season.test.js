@@ -46,9 +46,11 @@ test('the hand-out report lists earned-and-not-given awards by class, with no le
   assert(!/Flight 3:16/.test(html), 'Flight 3:16 is on the exclusion list for Sparks');
   assert(!/Start Zone/.test(run('handOut', { group: 'T&T' })), 'Start Zone is on the exclusion list for T&T');
 });
-test('one awards page per Sparks child', () => {
-  const html = run('awardsByChild', { group: 'Sparks' });
-  assert.strictEqual(count(html, /<section class="sheet/g), master.people.filter(p => M.isActive(p) && M.isClubber(p) && M.groupOf(M.room(p)) === 'Sparks').length);
+test('every Sparks child has an awards block (children share pages; a block is never split)', () => {
+  const html = run('awardsByChild', { group: 'Sparks' }), kids = master.people.filter(p => M.isActive(p) && M.isClubber(p) && M.groupOf(M.room(p)) === 'Sparks');
+  const esc = x => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), missing = kids.filter(p => !html.includes(esc(M.fullName(p)))).length;
+  assert.strictEqual(missing, 0, missing + ' of ' + kids.length + ' Sparks children have no block');      /* counts only: no names in the message */
+  assert(count(html, /<section class="sheet/g) >= 1 && count(html, /<section class="sheet/g) <= kids.length, 'pages hold several children each');
 });
 const textOf = html => html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
 test('achievement records: Sparks pages carry the jewels, T&T pages the emblems and units', () => {
@@ -94,9 +96,9 @@ test('current layout: Sparks achievement page text has Flight 3:16 Booklet, Red 
   ['Flight 3:16 Booklet', 'Red Jewel 1', 'Pilot Wing'].forEach(s => assert(t.includes(s), 'missing "' + s + '"'));
   assert(!/[{}]/.test(t), 'placeholder left in the page');
 });
-test('current layout: each Sparks achievement page has a Handbook line', () => {
-  const html = run('achievement', { group: 'Sparks' });
-  assert.strictEqual(count(html, /Handbook:/g), count(html, /Sparks Achievement Record/g), 'one Handbook line per page');
+test('current layout: one Sparks achievement page per child, and no Handbook line (the row was removed from the sheet; the date received is kept per book)', () => {
+  const html = run('achievement', { group: 'Sparks' }), kids = master.people.filter(p => M.isActive(p) && M.isClubber(p) && M.groupOf(M.room(p)) === 'Sparks').length;
+  assert.strictEqual(count(html, /Sparks Achievement Record/g), kids, 'one page per Sparks child'); assert.strictEqual(count(html, /Handbook:/g), 0, 'no Handbook line');
 });
 console.log(passed + ' passed, ' + failed + ' failed, ' + known + ' known failing (see KNOWN_LIST)');
 process.exit(failed ? 1 : 0);

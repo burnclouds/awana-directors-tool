@@ -47,13 +47,13 @@ const server = http.createServer((req, res) => {
     assert(!s.keys.includes('awana.settings'), 'no settings key in the browser');
     await ctx.close();
   });
-  await test('the Quarter chooser, its note and its (i) show only on reports that depend on the quarter', async () => {
+  await test('the Quarter chooser, and its note show only on reports that depend on the quarter', async () => {
     const { page, ctx } = await open('2027-01-15');
     await page.click('button[data-tab="reports"]');
     const shown = async id => page.evaluate(i => { const e = document.getElementById(i); return !!e && !e.hidden && e.offsetParent !== null; }, id);
     for (const [report, want] of [['attendance', true], ['teams', true], ['binderClass', false], ['uniforms', false], ['binderAll', false], ['handbooks', false]]) {
       await page.selectOption('#rSel', report); await page.waitForTimeout(150);
-      for (const id of ['qWrap', 'qInfo']) assert.strictEqual(await shown(id), want, report + ': ' + id + ' should be ' + (want ? 'shown' : 'hidden'));
+      for (const id of ['qWrap']) assert.strictEqual(await shown(id), want, report + ': ' + id + ' should be ' + (want ? 'shown' : 'hidden'));
       if (!want) assert.strictEqual(await shown('calNote'), false, report + ': the nights note should be hidden');
     }
     await ctx.close();

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.65.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.67.0';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -567,10 +567,10 @@
     const sortBtn = c => '<button type="button" class="sortbtn" data-sort="' + c.k + '" title="Sort by ' + esc(c.label) + '">' + esc(c.label) + '<span class="arrow">' + (rs.sort === c.k ? (rs.dir > 0 ? ' \u25B2' : ' \u25BC') : '') + '</span></button>';
     const filt = c => {
       const k = c.k, v = rs.f[k] || '';
-      if (k === 'room') return '<select data-cf="room" aria-label="Filter Class"><option value="">All</option>' + rooms.map(r => opt(r, r === $('fRoom').value)).join('') + '</select>';
-      if (k === 'role') return '<select data-cf="role" aria-label="Filter Role">' + opt('', $('fRole').value === '', 'All') + opt('kid', $('fRole').value === 'kid', 'Clubber') + opt('vol', $('fRole').value === 'vol', 'Volunteer') + '</select>';
+      if (k === 'room') return '<select data-cf="room" aria-label="Filter Class"' + ($('fRoom').value ? ' class="cfset"' : '') + '><option value="">All</option>' + rooms.map(r => opt(r, r === $('fRoom').value)).join('') + '</select>';
+      if (k === 'role') return '<select data-cf="role" aria-label="Filter Role"' + ($('fRole').value ? ' class="cfset"' : '') + '>' + opt('', $('fRole').value === '', 'All') + opt('kid', $('fRole').value === 'kid', 'Clubber') + opt('vol', $('fRole').value === 'vol', 'Volunteer') + '</select>';
       if (k === 'team') return '<select data-cf="team" aria-label="Filter team"><option value="">All</option>' + App.teamColors().map(t => opt(t, v === t)).join('') + opt('none', v === 'none', 'No team') + '</select>';
-      if (k === 'active') return '<select data-cf="active" aria-label="Filter Active">' + opt('active', $('fInactive').value === 'active', 'Active') + opt('inactive', $('fInactive').value === 'inactive', 'Inactive') + opt('all', $('fInactive').value === 'all', 'Everyone') + '</select>';
+      if (k === 'active') return '<select data-cf="active" aria-label="Filter Active"' + ($('fInactive').value !== 'active' ? ' class="cfset"' : '') + '>' + opt('active', $('fInactive').value === 'active', 'Active') + opt('inactive', $('fInactive').value === 'inactive', 'Inactive') + opt('all', $('fInactive').value === 'all', 'Everyone') + '</select>';
       if (k === 'nophotos') return '<select data-cf="' + k + '" aria-label="Filter ' + esc(c.label) + '">' + opt('', !v, 'All') + opt('Yes', v === 'Yes') + opt('No', v === 'No') + '</select>';
       return '<input type="search" data-cf="' + k + '" value="' + esc(v) + '" placeholder="contains" aria-label="Filter ' + esc(c.label) + '" size="8">';
     };
@@ -597,7 +597,13 @@
   function rosterCount(list) {
     const on = !!rs.sort || Object.values(rs.f).some(Boolean) || $('fInactive').value !== 'active';
     $('count').textContent = list.length + ' shown' + (on ? ' (sorted or filtered by column)' : '');
-    const b = $('btnRosterClear'); if (b) b.disabled = !on;
+    const b = $('btnRosterClear'); if (b) b.disabled = !(on || $('fRoom').value || $('fRole').value || $('fSearch').value.trim());      /* Clear is live for any filter, including the Class and Role ones */
+    /* UX-17: one line saying what is filtered (and the count), and the phone's Filter line; the filters themselves are the header row's dropdowns (the bar's three selects are the state they share) */
+    const lab = (id, d) => { const e = $(id); return e.value === d ? '' : (e.options[e.selectedIndex] || {}).text || ''; };
+    const bits = [lab('fRoom', ''), lab('fRole', ''), lab('fInactive', 'active')].filter(Boolean), q = $('fSearch').value.trim(), cols = Object.keys(rs.f).filter(k => rs.f[k] && !['room', 'role', 'active'].includes(k)).length;
+    if (q) bits.push('matching \u201c' + q + '\u201d'); if (cols) bits.push(cols + ' column filter' + (cols === 1 ? '' : 's'));
+    const sh = $('rosterShowing'); if (sh) { sh.hidden = !bits.length; sh.textContent = bits.length ? 'Showing: ' + bits.join(' \u00b7 ') + ' \u2014 ' + list.length + ' of ' + (master ? master.people.length : 0) + ' people' : ''; }
+    const fs = $('rosterFilterSum'); if (fs) { const t = 'Filter: ' + (bits.filter(x => !/^matching|column filter/.test(x)).join(', ') || 'everyone active'); if (fs.textContent !== t) fs.textContent = t; }
   }
   function renderRoster() {
     const wrap = $('rosterWrap');
@@ -626,6 +632,7 @@
   $('rosterWrap').addEventListener('change', e => {
     const k = e.target.dataset && e.target.dataset.cf; if (!k || e.target.tagName !== 'SELECT') return;
     if (roomRoleSync[k]) $(roomRoleSync[k]).value = e.target.value; else rs.f[k] = e.target.value;
+    e.target.classList.toggle('cfset', e.target.value !== (k === 'active' ? 'active' : ''));      /* a set filter is highlighted */
     renderRosterRows();
   });
   $('rosterWrap').addEventListener('change', e => {
@@ -777,7 +784,7 @@
     [...sel.options].forEach(o => { o.hidden = subOf(o.value) !== rsub; });
     sel.querySelectorAll('optgroup').forEach(g => { g.hidden = rsub !== 'binders'; });
     document.querySelectorAll('#rSubs button[data-rsub]').forEach(b => { const on = b.dataset.rsub === rsub; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
-    $('btnBinders').hidden = $('bSheetsWrap').hidden = rsub !== 'binders';      // the Binders button and its progress-sheet tick belong to the Binders group
+    $('btnBinders').hidden = rsub !== 'binders';      // the Binders button belongs to the Binders group (its progress-sheet tick is in its pop-up)
   }
   // Reports, then the club's report bundles (several reports printed as one job; defined on Options). Rebuilt when the data changes because the bundles live in the data file.
   function fillReportSel() {
@@ -791,7 +798,7 @@
   $('sQuarter').value = settings.quarter;
   const bundleOf = () => /^bundle:\d+$/.test(sel.value) ? Reports.bundlesOf(App.season)[+sel.value.slice(7)] || null : null;
   function renderBundle(b) {
-    ['oRoom', 'oGroup', 'oDate', 'oKid', 'qWrap', 'qInfo', 'calNote', 'oNoBook'].forEach(id => { $(id).hidden = true; });
+    ['oRoom', 'oGroup', 'oDate', 'oKid', 'qWrap', 'calNote', 'oNoBook'].forEach(id => { $(id).hidden = true; });
     // One quarter control in bundle mode: the top "Quarter to print" (bundleQ). The lower bar stays, but only for what a bundle really uses: List order and Title (MC-01, UX-01).
     $('dateBar').hidden = false; $('oOrder').hidden = false; $('tWrap').hidden = false;
     $('bWrap').hidden = false;
@@ -814,11 +821,27 @@
   let bundleKey = '';
   // Reports made of one page per class (or child) get a row of boxes: untick a page and it is left out of the printed PDF. Ticks last until the report is redrawn.
   function renderReport() { renderReportCore(); pagePick(); }
+  const PAGE_TICKS_MAX = 12;
+  // More than PAGE_TICKS_MAX pages: one line ("Pages to print: all 143") and a Choose pages button; the pop-up lists the names with Select all and Select none. The ticks act on the sheets at once, as the inline ones do.
+  function pagePickPopup(box, lead, sheets) {
+    const name = (s, i) => { const h = s.querySelector('h2'); return h ? h.textContent : 'Page ' + (i + 1); }, on = () => sheets.filter(s => !s.classList.contains('skip')).length;
+    const sum = () => { lead.id = 'pageSum'; lead.textContent = 'Pages to print: ' + (on() === sheets.length ? 'all ' + sheets.length : on() + ' of ' + sheets.length); };
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'btnChoosePages'; btn.textContent = 'Choose pages…'; box.appendChild(btn); sum();
+    btn.addEventListener('click', () => {
+      const dl = $('dlg'); dl.innerHTML = '<h3 style="margin-top:0">Pages to print</h3><p class="bar" style="margin:0 0 6px"><button type="button" id="pgAll">Select all</button><button type="button" id="pgNone">Select none</button><span class="status" id="pgCount"></span></p>' +
+        '<div class="pglist">' + sheets.map((s, i) => '<label><input type="checkbox" data-pg="' + i + '"' + (s.classList.contains('skip') ? '' : ' checked') + '> ' + esc(name(s, i)) + '</label>').join('') + '</div><div class="dlgbtns"><button id="pgDone" class="primary">Done</button></div>';
+      const boxes = () => [...dl.querySelectorAll('input[data-pg]')], count = () => { $('pgCount').textContent = on() + ' of ' + sheets.length + ' selected'; sum(); };
+      const set = v => boxes().forEach(c => { c.checked = v; sheets[+c.dataset.pg].classList.toggle('skip', !v); }), apply = () => { count(); };
+      dl.onchange = e => { const c = e.target.closest && e.target.closest('input[data-pg]'); if (c) { sheets[+c.dataset.pg].classList.toggle('skip', !c.checked); apply(); } };
+      $('pgAll').onclick = () => { set(true); apply(); }; $('pgNone').onclick = () => { set(false); apply(); }; $('pgDone').onclick = () => dl.close(); count(); dl.showModal();
+    });
+  }
   function pagePick() {
     const box = $('pagePick'), sheets = [...document.querySelectorAll('#report .sheet')];
     box.textContent = ''; box.hidden = sheets.length < 2;
     if (sheets.length < 2) return;
     const lead = document.createElement('span'); lead.className = 'status'; lead.textContent = 'Pages to print:'; box.appendChild(lead);
+    if (sheets.length > PAGE_TICKS_MAX) return pagePickPopup(box, lead, sheets);      // a long run of pages (a whole club) is chosen in a pop-up, not as a wall of ticks
     sheets.forEach((s, i) => {
       const lab = document.createElement('label'), cb = document.createElement('input'), h = s.querySelector('h2');
       cb.type = 'checkbox'; cb.checked = true; cb.setAttribute('aria-label', 'Print ' + (h ? h.textContent : 'page ' + (i + 1)));
@@ -835,13 +858,13 @@
     const def = Reports.LIST.find(r => r.id === sel.value) || Reports.LIST[0], o = def.opts || [];
     $('oRoom').hidden = !o.includes('room');
     $('oGroup').hidden = !o.includes('group'); $('oDate').hidden = !o.includes('date'); $('oKid').hidden = !o.includes('kid');    $('dateBar').hidden = !(o.includes('quarter') || o.includes('order') || o.includes('title') || o.includes('noBook')); $('oNoBook').hidden = !o.includes('noBook');
-    $('qWrap').hidden = $('qInfo').hidden = $('calNote').hidden = !o.includes('quarter'); $('oOrder').hidden = !o.includes('order'); $('tWrap').hidden = !o.includes('title');
+    $('qWrap').hidden = $('calNote').hidden = !o.includes('quarter'); $('oOrder').hidden = !o.includes('order'); $('tWrap').hidden = !o.includes('title');
     const nights = Calendar.nights(calendar, settings.quarter).length;
     $('calNote').textContent = calendar.length ? nights + ' club nights in ' + settings.quarter + ' from the calendar' : '';
     if (!master) { $('report').innerHTML = '<p class="status">Load a roster first.</p>'; return; }
     const rs = $('oRoomSel'), cur = rs.value;
     // A report with a Group picker lists only that group's rooms in the Room picker (an old choice from another group is dropped).
-    const gsel = $('oGroupSel').value, rl = Reports.roomsOf(Reports.kids(master)).filter(r => !o.includes('group') || Model.groupOf(r) === gsel);
+    const gsel = $('oGroupSel').value, rl = Reports.roomsOf(Reports.kids(master)).filter(r => (!o.includes('group') || Model.groupOf(r) === gsel) && !(def.id === 'progressSheets' && Model.groupOf(r) === 'Puggles'));      // Puggles have no progress sheets
     rs.innerHTML = '<option value="">All ' + (o.includes('group') ? 'classes' : 'rooms') + '</option>' + rl.map(r => '<option>' + esc(r) + '</option>').join(''); rs.value = rl.includes(cur) ? cur : '';
     const ds = $('oDateSel'), dcur = ds.value, nl = new Set(calendar.filter(Calendar.isNight).map(r => r.Date));
     if (App.season) [App.season.attendance, App.season.awards, App.season.games].forEach(m => Object.keys(m).forEach(d => nl.add(d)));
@@ -1321,20 +1344,23 @@
   window.addEventListener('afterprint', () => blankDates(false));
   // Binders: tick the classes and the coaches binder; "Show binders" builds one document for them on the Reports tab (print it from there).
   const BINDER_CLASSES = ['Puggles', 'Cubbies', 'Sparks A', 'Sparks B', 'Sparks C', 'Sparks D', 'T&T Boys (Group A)', 'T&T Boys (Group B)', 'T&T Girls (Group A)', 'T&T Girls (Group B)'];
-  const classBinder = room => [{ report: 'attendance', room }, { report: 'binderClass', room }, { report: 'volunteers' }].concat($('bSheets').checked ? [{ report: 'progressSheets', room }] : []);      // the tick on the Binders group leaves the progress sheets out
+  let bindSheets = true;      // the pop-up's "progress sheets" tick, remembered for the visit
+  const classBinder = (room, withSheets) => [{ report: 'attendance', room }, { report: 'binderClass', room }, { report: 'volunteers' }].concat(withSheets && Model.groupOf(room) !== 'Puggles' ? [{ report: 'progressSheets', room }] : []);      // Puggles have no progress sheets; the tick leaves them out for the other classes
   const COACHES = [{ report: 'binderClass' }, { report: 'binderAll' }, { report: 'volunteers' }, { report: 'binderTeams' }];
   $('btnBinders').addEventListener('click', () => {
     const dl = $('dlg');
-    dl.innerHTML = '<h3 style="margin-top:0">Class binders</h3><p class="status">Tick the class binders to print and the coaches binder if wanted. Each class binder has its attendance, roster with medical and contact, the volunteer list, and a progress sheet for each child.</p>' +
+    dl.innerHTML = '<h3 style="margin-top:0">Class binders</h3><p class="status">Tick the class binders to print and the coaches binder if wanted. Each class binder has its attendance, roster with medical and contact, the volunteer list, and (if ticked below) a progress sheet for each child. Puggles have no progress sheets.</p>' +
       BINDER_CLASSES.map((c, i) => '<label class="pf chk"><input type="checkbox" data-bind="' + i + '"> ' + esc(c) + ' binder</label>').join('') +
       '<label class="pf chk"><input type="checkbox" data-bind="coaches"> Coaches binder</label>' +
+      '<label class="pf chk"><input type="checkbox" id="bindSheets"' + (bindSheets ? ' checked' : '') + '> Include a progress sheet for each child in the class binders</label>' +
       '<div class="dlgbtns"><button id="bindCancel">Cancel</button><button id="bindGo" class="primary">Show binders</button></div>';
     dl.showModal();
     $('bindCancel').onclick = () => dl.close();
     $('bindGo').onclick = () => {
       const picked = [...dl.querySelectorAll('input[data-bind]:checked')].map(i => i.dataset.bind);
       if (!picked.length) return App.ask.alert('Tick at least one binder.');
-      const items = picked.flatMap(k => k === 'coaches' ? COACHES : classBinder(BINDER_CLASSES[+k]));
+      bindSheets = $('bindSheets').checked;
+      const items = picked.flatMap(k => k === 'coaches' ? COACHES : classBinder(BINDER_CLASSES[+k], bindSheets));
       const quarter = App.quarterNow();
       dl.close(); App.showTab('reports');
       $('report').innerHTML = Reports.runBundle({ master, settings, calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, b) => App.sheets.html(p, b), opts: {} }, { name: 'Binders', items }, quarter);
