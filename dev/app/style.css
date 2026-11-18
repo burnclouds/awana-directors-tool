@@ -61,6 +61,8 @@ code { background:var(--head); padding:0 4px; border-radius:3px; }
 .chg.minor { color:var(--mute); }
 dialog { background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:16px 20px; width:min(720px,94vw); max-height:90vh; overflow:auto; }
 dialog::backdrop { background:rgba(0,0,0,.4); }
+@media (max-width: 760px) { #oRoomSel { min-height:44px; } }      /* N4: the Class picker is the phone's main control for the Progress sheets */
+#busy { width:min(360px, calc(100vw - 32px)); text-align:center; } #busy p { margin:0; font-size:16px; }      /* N4: the "Drawing N progress sheets" pop-up */
 .fields { display:grid; grid-template-columns:230px 1fr auto; gap:4px 8px; align-items:center; }
 .fields label { color:var(--mute); font-size:12px; overflow-wrap:anywhere; }
 .fields input, .fields textarea { width:100%; font:inherit; color:var(--ink); background:var(--panel); padding:3px 6px; border:1px solid var(--line); border-radius:4px; }
@@ -133,7 +135,7 @@ table.rotgrid textarea, #rotWrap textarea { width:100%; min-width:120px; font:in
 @media print {
   :root { color-scheme:light; --grid:#333; --ink:#1b1f24; --mute:#667; --line:#d5d9de; --bg:#fff; --panel:#fff; --head:#eef1f5; --soft:#f5f6f8; --rowline:#cfd5dc; --bad:#a00; --okfg:#176b2c; --link:#1f5fbf; --warn:#b45309; }
   body { background:#fff; color:#1b1f24; }
-  .colsbar, .exbtns, .helpsearch, #helpResults, i.info, .infobox, .flagpop, #flagLayer, #infoTip, .top, .tabs, .trailbar, .noprint, #tab-roster, #tab-help, .modal-wrap, #splash, dialog { display:none !important; }
+  .colsbar, .exbtns, .helpsearch, #helpResults, i.info, .infobox, .flagpop, #flagLayer, #infoTip, .top, .tabs, .tabmenu, .trailbar, .noprint, #tab-roster, #tab-help, .modal-wrap, #splash, dialog { display:none !important; }
   main { padding:0; }
   html, body { height:auto; overflow:visible; display:block; }
   main { overflow:visible; }
@@ -149,6 +151,8 @@ table.rotgrid textarea, #rotWrap textarea { width:100%; min-width:120px; font:in
   #report:has(> .onepage:first-child) .onepage > .sheet.portrait { page:auto; }      /* a report that opens with progress sheets is all portrait, which setPageStyle() already sets for the paper; a named page on its first (or first ticked) sheet prints a blank page before it */
   #report .onepage:has(> .sheet.skip) { display:none; }
   #report .sheet.rec { padding:0; }
+  #report .sheet.notes .nblock { break-inside:avoid; }
+  #report .sheet.notes > h2, #report .sheet.notes > p.sub { display:none; }      /* the notes pages print only the blocks; the title stays on screen and in Choose pages */
   #report .sheet.rec h2 { margin:0; }
   .rec .rv, .rec .tag, .rec .band { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .team, .team-Red, .team-Blue, .team-Green, .team-Yellow, table.att td[class*="team-"] { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
@@ -777,3 +781,16 @@ table.tg select.tgsel.tgset.team-Red { background-color:#ea9999; border-color:#c
   .sheet.strips .strip { width:100%; max-width:4.5in; flex:none; }
 }
 @media screen { .sheet.strips .stripname { flex-wrap:wrap; } .sheet.strips .stripname span { margin-left:auto; white-space:nowrap; } }
+/* N1: coaches binder notes sheet: a whole quarter in one table. Three framed major columns (date and workers, supply orders, notes) with a 3px gap between them (.gp cells have no border). */
+.sheet.notes .nsheet { width:100%; border-collapse:collapse; table-layout:fixed; }
+.sheet.notes .nsheet th, .sheet.notes .nsheet td { border:1px solid #000; font-size:10px; padding:0 3px; text-align:left; font-weight:400; overflow:hidden; }
+.sheet.notes .nsheet .gp { border:0; padding:0; }
+.sheet.notes .nsheet thead th { font-weight:700; font-size:11px; border-top:2px solid #000; border-bottom:2px solid #000; } .sheet.notes .nsheet thead th.gp { border:0; }
+.sheet.notes .nsheet thead th:first-child, .sheet.notes .nsheet th.nhead { border-left:2px solid #000; }
+.sheet.notes .nsheet th.nhead { vertical-align:top; line-height:1.15; padding:2px 2px 0; border-bottom:2px solid #000; } .sheet.notes .nsheet th.nhead b { display:block; font-size:11px; } .sheet.notes .nsheet th.nhead i { font-size:9px; font-weight:700; }
+.sheet.notes .nsheet tbody.nblock { break-inside:avoid; } .sheet.notes .nsheet tbody.nblock tr:last-child td:not(.gp) { border-bottom:2px solid #000; }
+.sheet.notes .nsheet .c3, .sheet.notes .nsheet .c8 { border-left:2px solid #000; } .sheet.notes .nsheet .r1, .sheet.notes .nsheet .r2, .sheet.notes .nsheet .c8 { border-right:2px solid #000; }
+.sheet.notes .nsheet tbody.ngap td { border:0; padding:0; height:5px; line-height:0; font-size:0; }      /* the gap between nights: 5px less the 1px of each 2px frame that collapses into it leaves about 3px of white */
+.sheet.notes .nsheet col.d { width:5.1%; } .sheet.notes .nsheet col.w1, .sheet.notes .nsheet col.w2 { width:9.7%; } .sheet.notes .nsheet col.g { width:5px; } .sheet.notes .nsheet col.s1 { width:12.5%; } .sheet.notes .nsheet col.s2 { width:7%; } .sheet.notes .nsheet col.s3 { width:11.5%; } .sheet.notes .nsheet col.s5 { width:5%; }      /* Notes (col.nt) takes what is left: about 41% */
+.sheet.notes .nsheet th.nhead { padding:2px 1px 0 3px; } .sheet.notes .nsheet th.nhead b { font-size:12px; white-space:nowrap; } .sheet.notes .nsheet th.nhead i { font-size:7.5px; overflow-wrap:anywhere; }
+@media (max-width: 760px) { .sheet.notes .nsheet th, .sheet.notes .nsheet td { font-size:8px; padding:0 1px; } .sheet.notes .nsheet thead th { font-size:8px; } .sheet.notes .nsheet th.nhead b, .sheet.notes .nsheet th.nhead i { font-size:8px; } .sheet.notes .nsheet col.d { width:16%; } }

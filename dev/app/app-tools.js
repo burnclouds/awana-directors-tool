@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.6.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.7.0';
 // Debug and Validate tabs. Debug: which version of every file is running, what is open, and the dates of the CSV/JSON files.
 // Validate: check a data file, Planning Center export or older CSV for problems without opening it into the app.
 (function () {
@@ -76,7 +76,8 @@
     const state = [['This page (index.html)', esc(meta('app-version') + ' · built ' + meta('app-build'))], ['Data file format', S ? esc(S.FORMAT + ' version ' + S.VERSION) : '–']];
     const open = s ? [['Club year', esc(s.year)], ['People on the roster', String(App.master ? App.master.people.length : 0)], ['Nights of attendance', String(Object.keys(s.attendance).length)],
       ['Versions in the history', String(s.history.length)], ['Last edit', last ? esc(new Date(last.t).toLocaleString()) : '–'],
-      ['Planning Center data as of', esc((s.roster && s.roster.pcAsOf) || '–')], ['Unsaved changes', App.dirty() ? 'yes' : 'no']] : null;
+      ['Planning Center data as of', esc((s.roster && s.roster.pcAsOf) || '–')], ['Unsaved changes', App.dirty() ? 'yes' : 'no'],
+      ['Last big draw', App.drawStats ? esc(App.drawStats.n + ' ' + App.drawStats.what + ' in ' + (App.drawStats.ms / 1000).toFixed(2) + ' s') : 'none yet']] : null;
     let storage = '–'; try { storage = Object.keys(localStorage).filter(k => k.startsWith('awana')).join(', ') || 'none'; } catch (e) { storage = 'blocked'; }
     $('debugWrap').innerHTML = bugsHtml() +
       '<h3>Versions</h3>' + table(['What', 'Version'], state) +

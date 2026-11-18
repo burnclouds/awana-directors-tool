@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['info.js'] = '1.24.1';
+(this.AwanaVersions = this.AwanaVersions || {})['info.js'] = '1.24.2';
 // The (i) notes: a small "i" next to a control that shows a one-line tip on hover and, when clicked, a popup over the page saying which option to use under what conditions.
 // One list of notes feeds both: the (i) buttons across the app and the "Which option when" part of the How it works page, so the two can never disagree.
 // Desktop only: on a phone the buttons and blocks are hidden (style.css), to keep the small screen uncluttered; the How it works page has all of it.
@@ -77,7 +77,8 @@
     'reports.print': { area: 'reports', title: 'Printing, quarter and where the information comes from', tip: 'Printing, the quarter, pages to print, where contact data comes from',
       html: '<p><b>Printing.</b> Pick a report, then the group, class or child it needs, and <b>Print / Save as PDF</b>. Reports are always shown on white paper and print light whatever your dark-mode setting. Color team sheets follow the team a child had <i>on the night</i> (a move mid-quarter is marked with *).</p>' +
         '<p><b>Quarter and title.</b> The quarter picks which color team column and game standings a report uses; it starts from the calendar (the latest club night up to today) and a quarter you type expires. The title prints on the reports and is the same setting as on Options.</p>' +
-        '<p><b>Pages to print.</b> A report with one page per class or child says how many pages will print; <b>Choose pages</b> opens a list of them with Select all and Select none. Untick a page to leave it out of the PDF.</p>' +
+        '<p><b>Pages to print.</b> A report with one page per class or child says how many pages will print; <b>Choose pages</b> opens a list of them with Select all and Select none. Untick a page to leave it out of the PDF. <b>Progress sheets</b> open on one class so they appear at once; pick <b>All classes</b> in Class to draw everyone (a message shows while it draws), then Choose pages and Print work as usual.</p>' +
+        '<p><b>Coaches binder notes</b> print a block for each club night of the quarter (date and theme, workers not available, supply orders, notes) to write on during club.</p>' +
         '<p><b>Emergency contacts, medical and photos.</b> These are parent-reported in Planning Center and not validated. <b>No photos</b> comes from the parents’ notes and the Roster tab.</p>' },
     // ---------- history ----------
     'history.restore': { area: 'history', title: 'Compare, name and restore', tip: 'Every change is logged; any version can be compared or restored',

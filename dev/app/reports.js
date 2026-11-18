@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.18.0';
+(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.19.0';
 // Print reports. Each render(ctx) returns HTML; ctx = { master, settings, opts }.
 (function (root) {
   const M = root.Model || (typeof require !== 'undefined' ? require('./model.js') : null);
@@ -196,6 +196,34 @@
   }
 
 
+  // ---------- coaches binder notes (N1): a paper block for each club night, written on during club; stores nothing ----------
+  // Three blocks to a page (letter portrait, about 3in each). Events and No Club nights are not blocks (Calendar.nights is the one filter). The quarter is ctx.settings.quarter (a bundle overrides it), never opts.date.
+  // A whole quarter goes on ONE letter or A4 page: one table with the column titles once at the top, and for each night a group of write-in rows (a <tbody>, kept whole) with its date and theme in the left cell.
+  // Columns, like the club's Excel Notes sheet: date and theme, Workers Not Available (two columns), Supply Orders (Item, Group, Name, Size, Paid), Notes. More than NIGHTS_PER_PAGE nights share the nights evenly over more pages.
+  const NIGHTS_PER_PAGE = 14, ROWS_BUDGET_IN = 9.2;      // 14 nights is a long quarter; 9.2in of rows leaves room for the title row and the gaps between nights on A4 (10.7in inside 0.25in margins) and letter (10.5in)
+  const rowsFor = n => Math.max(2, Math.min(5, Math.floor(ROWS_BUDGET_IN / (n * 0.26))));      // write-in rows for each night: as many as fit at 0.26in or more a row (2 to 5), so a short quarter gets more room
+  const rowHeightIn = n => Math.round(Math.min(0.36, ROWS_BUDGET_IN / (n * rowsFor(n))) * 100) / 100;
+  const longDate = iso => Cal.short(iso);      // M/D, no year: the date column is narrow and the date is printed large (the quarter and the club year are known)
+  function noteNight(r, rows, h) {
+    const cells = '<td></td><td class="r1"></td><td class="gp"></td><td class="c3"></td><td></td><td></td><td class="r2"></td><td class="gp"></td><td class="c8"></td>', tr = '<tr class="nr" style="height:' + h + 'in">';
+    return '<tbody class="nblock">' + tr.replace('nr', 'nr nfirst') + '<th rowspan="' + rows + '" class="nhead"><b>' + esc(longDate(r.Date)) + '</b>' + (r.Theme ? ' <i>' + esc(r.Theme) + '</i>' : '') + '</th>' + cells + '</tr>' + (tr + cells + '</tr>').repeat(rows - 1) + '</tbody>';
+  }
+  function noteTable(list) {
+    const rows = rowsFor(list.length), h = rowHeightIn(list.length);
+    return '<table class="nsheet"><colgroup><col class="d"><col class="w1"><col class="w2"><col class="g"><col class="s1"><col class="s2"><col class="s3"><col class="s5"><col class="g"><col class="nt"></colgroup>' +
+      '<thead><tr><th>Night</th><th colspan="2" class="r1">Workers Not Available</th><th class="gp"></th><th class="c3">Item / Size</th><th>Group</th><th>Name</th><th class="r2">Paid</th><th class="gp"></th><th class="c8">Notes</th></tr></thead>' +
+      list.map(r => noteNight(r, rows, h)).join('<tbody class="ngap"><tr><td colspan="10"></td></tr></tbody>') + '</table>';      // a 3px gap between nights, as between the column groups
+  }
+  function noteSheets(ctx) {
+    const q = ctx.settings.quarter, cal = ctx.calendar || [];
+    if (!cal.length) return '<p class="empty">Load a calendar on the Calendar tab first.</p>';
+    const nights = Cal.nights(cal, q);
+    if (!nights.length) return '<p class="empty">No club nights in ' + esc(q) + ' on the calendar. Add them on the Calendar tab.</p>';
+    const pages = Math.ceil(nights.length / NIGHTS_PER_PAGE), per = Math.ceil(nights.length / pages);
+    return Array.from({ length: pages }, (_, i) => sheet('Coaches notes, ' + q + ', page ' + (i + 1) + ' of ' + pages,
+      noteTable(nights.slice(i * per, (i + 1) * per)), 'portrait notes', esc(printedOn(ctx)))).join('');
+  }
+
   // ---------- volunteers ----------
   function volunteers(ctx) {
     // Volunteers are the people whose Planning Center Selection is a volunteer. Phone and email: the first one filled in, in this order.
@@ -222,6 +250,7 @@
     { id: 'binderClass', title: 'Emergency, medical and photos by class (class binders)', render: binderClass, opts: ['room'] },
     { id: 'binderAll', title: 'Emergency, medical and photos, everyone by name (coaches binder)', render: binderAll },
     { id: 'binderTeams', title: 'Color teams by group and color (coaches binder)', render: binderTeams, opts: ['quarter'] },
+    { id: 'noteSheets', title: 'Coaches binder notes (a block for each club night)', render: noteSheets, opts: ['quarter'] },
     { id: 'progressSheets', title: 'Progress sheets, each child, by class (class binder)', render: progressSheets, opts: ['room'] },
     { id: 'photos', title: 'No photos', render: photos },
     { id: 'uniforms', title: 'Uniform tracking', render: uniforms },
@@ -233,7 +262,7 @@
   // ---------- report bundles: a named list of reports printed together (for example everything needed at the start of a quarter) ----------
   // A bundle is { name, items: [{ report: <id of a report in LIST>, room?: <one class>, group?: <Sparks or T&T> }] }. config.bundles holds the club's own; until one is saved here the standard bundle is used.
   const DEFAULT_BUNDLES = () => [{ name: 'Quarterly Printables', items: [{ report: 'attendance' }, { report: 'binderClass' }, { report: 'teams' }, { report: 'binderAll' }] },
-    { name: 'Coaches binder', items: [{ report: 'binderClass' }, { report: 'binderAll' }, { report: 'volunteers' }, { report: 'binderTeams' }] },
+    { name: 'Coaches binder', items: [{ report: 'binderClass' }, { report: 'binderAll' }, { report: 'volunteers' }, { report: 'binderTeams' }, { report: 'noteSheets' }] },
     { name: 'Class binder', perClass: true, items: [{ report: 'attendance' }, { report: 'binderClass' }, { report: 'volunteers' }, { report: 'progressSheets' }] }];      // perClass: the Class picker applies to each part (Reports tab and the Print class binders pop-up)      // a starting point: the club edits it under Options > Report bundles
   // Reports that were folded into others or dropped (1.50.35): a saved bundle that names one keeps working. The emergency-contact and medical lists became the class binder (by class) and the coaches binder (everyone by name),
   // and the master schedule, nightly rotation, attendance summary and weekly award slips reports are gone, so a bundle simply skips them.
@@ -261,6 +290,6 @@
       const h = def.render(Object.assign({}, ctx, { settings, opts: Object.assign({}, ctx.opts, { room: it.room || '', group: it.group || (def.opts && def.opts.includes('groupAll') ? '' : ctx.opts.group), date, asOfFirst: !!date }) })); out.push(CONTACT.includes(def.id) ? asOf(h) : h); });
     return out.join('');
   }
-  const api = { LIST, DEFAULT_BUNDLES, bundlesOf, runBundle, nextQuarter, firstNightOf, esc, TEAM_COLORS, kids, roomsOf, nightDates, uniformRows, uniformHead, UNI_HEAD, table };
+  const api = { LIST, DEFAULT_BUNDLES, bundlesOf, runBundle, nextQuarter, firstNightOf, esc, NIGHTS_PER_PAGE, rowsFor, TEAM_COLORS, kids, roomsOf, nightDates, uniformRows, uniformHead, UNI_HEAD, table };
   if (typeof module !== 'undefined') module.exports = api; else root.Reports = api;
 })(this);
