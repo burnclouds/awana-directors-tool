@@ -15,9 +15,9 @@ The base export (140 people; in `dev/test-data` this is the anonymized export) p
 | # | Registration ID | Name as typed | What it tests | What should happen |
 |---|---|---|---|---|
 | 1 | 90000101 | Wren Calloway | Puggles toddler, age 2: the plain case for the youngest group. Emoji in the notes. | No action. Imports as a Puggle. |
-| 2 | 90000102 |   Nora   Fenwick | Puggle who is 3 years 11 months, Pre-K, with NO class assigned, and a first name padded with spaces. Sibling of case 3 (same registration ID). | Export check: name has extra spaces; no room. To do: assign a class (Puggles or Cubbies). |
+| 2 | 90000102 |   Ivy   Fenwick | Puggle who is 3 years 11 months, Pre-K, with NO class assigned, and a first name padded with spaces. Sibling of case 3 (same registration ID). | Export check: name has extra spaces; no room. To do: assign a class (Puggles or Cubbies). |
 | 3 | 90000102 | Linus Fenwick | Cubbies Pre-K, age 4, bought a Cubbies vest and still owes $35. Sibling of case 2. | To do: uniform to order (the balance owed is not tracked by the app). A new sibling in a family the file already has a registration ID for. |
-| 4 | 90000104 | olivia mcdonald | Kindergartener, age 5, name typed in all lower case, NO class assigned (this club puts Kindergarten in Sparks). | Export check: names all lower case, no room. To do: assign a class (suggested Sparks). |
+| 4 | 90000104 | jasmine mcdonald | Kindergartener, age 5, name typed in all lower case, NO class assigned (this club puts Kindergarten in Sparks). | Export check: names all lower case, no room. To do: assign a class (suggested Sparks). |
 | 5 | 90000105 | Theo Vandermeer | Sparks 1st grader with a severe allergy in a note that has commas, quotes, a line break and a line starting with =. | CSV quoting survives; medical text shows on the medical report; uniform to order (Sparks vest). |
 | 6 | 90000106 | Zoë O'Brien-Nuñez | Sparks 2nd grader: accented, apostrophe and hyphen in the name, every kind of phone format, a "no photos" note. | Name and phones are kept exactly as typed. "No photos" is recognised from the note. |
 | 7 | 90000107 | Mateo Alejandro Hartwell-Quinn | T&T 3rd grader with a two-part first name, a hyphenated last name, the room spelled TnT, a yyyy-mm-dd birthdate and a T&T shirt. | TnT is treated as T&T. The ISO birthdate is accepted. To do: uniform to order (T&T shirt). |
@@ -26,21 +26,21 @@ The base export (140 people; in `dev/test-data` this is the anonymized export) p
 | 10 | 90000110 | Ruby Castellano | A 4th grader (age 9) put in a Sparks room. | To do: class does not match grade (suggested T&T). |
 | 11 | 90000111 | Dmitri Volkov | Age, birthdate and grade disagree: the Age column says 5, the birthdate makes them 9, the grade is 2nd. | Export check: the Age column says 5 but the birthdate makes them 9. |
 | 12 | 90000112 | Sam Okafor | A registration with almost nothing filled in: no birthdate, grade, age, phone, email, address or emergency contact. | Export check: no birthdate, grade, contact or emergency contact. To do: details missing. |
-| 13 | 90000113 | Jordan Whitfield | A child registered twice (same registration ID and name). This is the first, Active copy. | Export check: the name appears twice. Both rows are added with their own ID. |
-| 14 | 90000113 | Jordan Whitfield | The second registration for case 13: Status Cancelled, a different phone, submitted later. | Export check: not Active, duplicate name. To do: cancelled registration to review. |
+| 13 | 90000113 | Melody Whitfield | A child registered twice (same registration ID and name). This is the first, Active copy. | Export check: the name appears twice. Both rows are added with their own ID. |
+| 14 | 90000113 | Melody Whitfield | The second registration for case 13: Status Cancelled, a different phone, submitted later. | Export check: not Active, duplicate name. To do: cancelled registration to review. |
 | 15 | 90000115 | Marguerite Delacroix-Boyd | An adult volunteer assigned to a class room, with only a work email and no grade. | Counts as an adult, not a clubber, even though the room is Sparks C. No grade or emergency contact needed. |
 
 ## What the To do page lists for the 15 new people (pinned by `test/import-test-file.test.js`)
 
-- **Assign a class:** Nora Fenwick (suggested Puggles), olivia mcdonald (suggested Sparks), Caleb Whitaker (no class: past 6th grade).
+- **Assign a class:** Ivy Fenwick (suggested Puggles), jasmine mcdonald (suggested Sparks), Caleb Whitaker (no class: past 6th grade).
 - **Class does not match the grade:** Ruby Castellano (4th grade in Sparks D; T&T is usual).
-- **Needs a Q2 color team:** the Sparks and T&T children: Dmitri Volkov, both Jordan Whitfield registrations, Mateo Alejandro Hartwell-Quinn, Priya Raghunathan, Ruby Castellano, Theo Vandermeer, Zoë O'Brien-Nuñez. Not the Puggles, Cubbies or the adult.
+- **Needs a Q2 color team:** the Sparks and T&T children: Dmitri Volkov, both Melody Whitfield registrations, Mateo Alejandro Hartwell-Quinn, Priya Raghunathan, Ruby Castellano, Theo Vandermeer, Zoë O'Brien-Nuñez. Not the Puggles, Cubbies or the adult.
 - **Uniform to order:** Linus Fenwick, Mateo Alejandro Hartwell-Quinn, Theo Vandermeer, Zoë O'Brien-Nuñez. **Balance due:** Linus Fenwick.
-- **Details missing:** Sam Okafor. **Registration not Active:** the Cancelled Jordan Whitfield. **Possible duplicates:** both Jordan Whitfields.
+- **Details missing:** Sam Okafor. **Registration not Active:** the Cancelled Melody Whitfield. **Possible duplicates:** both Melody Whitfields.
 - **Medical or allergy notes to read:** Theo Vandermeer, Wren Calloway.
 - **Nothing:** Marguerite Delacroix-Boyd (an adult in a class room needs no grade, emergency contact or color).
 
-The file check (errors and warnings about the file itself) should find no errors and warn about: the unknown room "Trek/Journey", one person not Active, "Jordan Whitfield" appearing twice, and per person the problems in the table above (padded and lower-case names, the invalid email, past T&T, class that does not fit the grade, Age against birthdate, a nearly empty registration). `TnT` in a room name is read as `T&T` and raises nothing.
+The file check (errors and warnings about the file itself) should find no errors and warn about: the unknown room "Trek/Journey", one person not Active, "Melody Whitfield" appearing twice, and per person the problems in the table above (padded and lower-case names, the invalid email, past T&T, class that does not fit the grade, Age against birthdate, a nearly empty registration). `TnT` in a room name is read as `T&T` and raises nothing.
 
 ## What it does not cover
 
