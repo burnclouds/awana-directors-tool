@@ -20,13 +20,13 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   });
   await test('choosing it shows a quarter picker (the next quarter) and builds one document: attendance, class binders, color teams, the coaches binder', async () => {
     await page.selectOption('#rSel', 'bundle:0'); await page.waitForTimeout(500);
-    assert(await page.isVisible('#bQuarter'), 'quarter picker'); assert(!(await page.isVisible('#oRoom')), 'no room picker');
-    const q = await page.inputValue('#bQuarter'), next = await page.evaluate(() => Reports.nextQuarter(App.calendar || [], App.today(), 'Q1')); assert.strictEqual(q, next, 'the default is the next quarter: ' + q);
+    assert(await page.isVisible('#qWrap'), 'quarter pills'); assert.strictEqual(await page.locator('#bQuarter').count(), 0, 'no separate Quarter to print select'); assert(!(await page.isVisible('#oRoom')), 'no room picker');
+    const q = await page.$eval('#qWrap button.on', b => b.dataset.q), next = await page.evaluate(() => Reports.nextQuarter(App.calendar || [], App.today(), 'Q1')); assert.strictEqual(q, next, 'the default is the next quarter: ' + q);
     const t = await page.textContent('#report'); assert(/Emergency, Medical and Photos/.test(t) && /everyone by name/.test(t), 'binder pages'); assert(new RegExp(q + ' Color Team').test(t), 'attendance sheets for ' + q);
     assert(/Color Teams|Color teams/i.test(t), 'color teams');
   });
   await test('changing the quarter rebuilds it for that quarter', async () => {
-    await page.selectOption('#bQuarter', 'Q3'); await page.waitForTimeout(400); assert(/Q3 Color Team/.test(await page.textContent('#report')));
+    const wideBefore = await page.evaluate(() => document.getElementById('sQuarter').value); await page.click('#qWrap button[data-q="Q3"]'); await page.waitForTimeout(400); assert.strictEqual(await page.$eval('#qWrap button.on', b => b.dataset.q), 'Q3', 'the pill follows'); assert.strictEqual(await page.evaluate(() => document.getElementById('sQuarter').value), wideBefore, 'the app-wide quarter is unchanged'); assert(/Q3 Color Team/.test(await page.textContent('#report')));
   });
   await test('printing a bundle with an unlocked quarter asks once to lock it, and prints after the answer', async () => {
     await page.evaluate(() => { window.__printed = 0; }); await page.click('#btnPrint'); await page.waitForTimeout(300);

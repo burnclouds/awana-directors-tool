@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-teamgrid.js'] = '1.14.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-teamgrid.js'] = '1.14.1';
 // Color teams: the year grid. One row per child, one column per quarter. A quarter reads as locked (played or locked by hand), ready to lock
 // (the next one, printed shortly before it starts) or projected (a guess that can still change). A color set by hand is drawn solid (it is never moved); a suggested one has a dashed outline.
 // Under the grid: team sizes and expected turnout for the whole group (the group plays together, so a class shows only its part of each team).
@@ -135,7 +135,7 @@
     if (w.length) A.flash(Model.fullName(p) + ', ' + q + ' ' + color + ': ' + w.join(' '));
     return w;
   };
-  // A hand-set color: written to team:Qn exactly as the Person tab does. If it is not the projected color it reads as a pin (teamplan.js decides).
+  // A hand-set color: written to team:Qn exactly as the Person tab does. If it is not the projected color it is drawn solid, as set by hand (teamplan.js decides).
   function setColor(el) {
     const p = byId(el.dataset.kid); if (!p) return false;
     A.checkTeamPick(p, el.dataset.tgcell, el.value);
@@ -236,7 +236,7 @@
   // Fill: the year plan's projection for every open quarter, shown first. allScope() is that plan as one choice in the Fill blanks dialog (app.js adds "This quarter" beside it).
   const planCtx = () => ({ master: A.master, season: A.season, calendar: A.calendar, today: A.today(), history: A.teamHistory() });
   function allScope() {
-    return { id: 'all', label: 'Every open quarter', intro: 'This is the year plan for every open quarter. Locked quarters, pins and No team children are not touched.',
+    return { id: 'all', label: 'Every open quarter', intro: 'This is the year plan for every open quarter. Locked quarters, colors set by hand and No team children are not touched.',
       draw: rng => { const plan = TeamPlan.project(planCtx(), { rng }); return { plan, rows: plan.changes.map(c => ({ p: byId(c.id), q: c.q, color: c.to })).filter(r => r.p) }; },
       apply: res => { TeamPlan.applyPlan(planCtx(), res.plan); A.touch(); A.refresh(); focusAfter.sel = '.tgwhy'; restoreFocus(document.getElementById('teamsWrap') || document); } };
   }

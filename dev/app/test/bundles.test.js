@@ -46,4 +46,9 @@ if (master) {
   });
   test('an unknown report in a bundle is skipped, not an error', () => { assert.doesNotThrow(() => R.runBundle(ctx, { name: 'x', items: [{ report: 'nope' }, { report: 'binderAll' }] }, 'Q1')); });
 }
+test('a Class binder bundle saved before 1.51.15c (no perClass) is still a class binder; one that names a class, or is another kind of bundle, is not', () => {
+  const old = R.bundlesOf({ config: { bundles: [{ name: 'Class binder', items: [{ report: 'attendance' }, { report: 'binderClass' }, { report: 'volunteers' }, { report: 'progressSheets' }] }, { name: 'One class', items: [{ report: 'binderClass', room: 'Sparks A' }, { report: 'progressSheets', room: 'Sparks A' }] }, { name: 'Teams', items: [{ report: 'teams' }] }, { name: 'Kept', perClass: false, items: [{ report: 'binderClass' }, { report: 'progressSheets' }] }] } });
+  assert.deepStrictEqual(old.map(b => b.perClass), [true, false, false, false]);
+  assert.strictEqual(R.bundlesOf(null).find(b => b.name === 'Class binder').perClass, true, 'the standard Class binder');
+});
 console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

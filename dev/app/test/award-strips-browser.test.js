@@ -22,7 +22,9 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
     const strips = await page.$$eval('#report .strip', s => s.map(x => ({ name: x.querySelector('.stripname b').textContent, cls: x.querySelector('.stripname span').textContent, n: x.querySelectorAll('.stripaward').length })));
     const want = await page.evaluate(() => { const rows = App.master.people.filter(p => Model.isActive(p) && Model.isClubber(p)).map(p => ({ p, n: Season.toHandOut(App.season, p[Model.X.ID], Model.groupOf(Model.room(p)), App.calendar).length })).filter(x => x.n); return { kids: rows.length, awards: rows.reduce((a, x) => a + x.n, 0) }; });
     assert(strips.length >= want.kids && want.kids >= 9, 'strips ' + strips.length + ' for ' + want.kids + ' children'); assert.strictEqual(strips.reduce((a, s) => a + s.n, 0), want.awards, 'every award line is there once');
-    const rank = await page.evaluate(() => Model.ROOM_ORDER || null); const classes = strips.map(s => s.cls); assert(classes.length > 1 && new Set(classes).size > 2, 'several classes: ' + [...new Set(classes)].join(','));
+    const classes = strips.map(s => s.cls); assert(classes.length > 1 && new Set(classes).size > 2, 'several classes: ' + [...new Set(classes)].join(','));
+    const bad = await page.evaluate(st => { const people = new Map(App.master.people.map(p => [Model.fullName(p) + '|' + Model.room(p), p])), out = []; for (let i = 1; i < st.length; i++) { const a = people.get(st[i - 1].name.replace(' (continued)', '') + '|' + st[i - 1].cls), b = people.get(st[i].name.replace(' (continued)', '') + '|' + st[i].cls); if (a && b && Model.byRoomThenName(a, b) > 0) out.push(i); } return out; }, strips);
+    assert.deepStrictEqual(bad, [], 'class then name order is broken at strips ' + bad.join(','));
   });
   await test('it agrees with the Awards tab: the same children and the same count as To hand out and its badge', async () => {
     const strips = await page.$$eval('#report .stripaward', a => a.length) ; await page.evaluate(() => App.showTab('awards')); await page.waitForTimeout(300);
@@ -47,6 +49,18 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
     await toReport('Cubbies'); const only = await page.$$eval('#report .stripname span', s => [...new Set(s.map(x => x.textContent))]); assert(only.every(c => /Cubbies/i.test(c)), only.join(','));
     await toReport('Puggles'); assert(/Nothing earned is waiting/.test(await page.textContent('#report')), 'empty message');
     await page.evaluate(() => App.showReport('attendDates')); await page.waitForTimeout(250); assert(!(await page.$$eval('#oGroupSel option', o => o.some(x => x.textContent === 'All groups'))), 'no All groups on other reports');
+  });
+  await test('the Awards tab button carries the Class picker: only that class prints (and the report says so)', async () => {
+    const room = await page.evaluate(() => { const s = App.season, c = App.master.people.filter(p => Model.isActive(p) && Model.isClubber(p) && Model.groupOf(Model.room(p)) === 'Sparks'); const rooms = [...new Set(c.map(Model.room))]; return rooms.find(r => c.some(p => Model.room(p) === r && Season.toHandOut(s, p[Model.X.ID], 'Sparks', App.calendar).length)) || rooms[0]; });
+    await page.evaluate(() => App.showTab('awards')); await page.waitForTimeout(250); await page.selectOption('#awGroup', 'Sparks').catch(() => {}); await page.selectOption('#awRoom', room); await page.waitForTimeout(250);
+    await page.evaluate(() => document.getElementById('btnAwHandPrint').click()); await page.waitForTimeout(600);
+    assert.strictEqual(await page.inputValue('#oRoomSel'), room, 'the Class picker shows the class'); const cls = await page.$$eval('#report .stripname span', s => [...new Set(s.map(x => x.textContent))]); assert(cls.length >= 1 && cls.every(c => c === room), 'only ' + room + ': ' + cls.join(','));
+  });
+  await test('long award names: strips still never overflow a page (one PDF page per sheet)', async () => {
+    await page.evaluate(() => { const s = App.season, tt = App.master.people.filter(p => Model.isActive(p) && Model.isClubber(p) && Model.groupOf(Model.room(p)) === 'T&T').slice(0, 4); tt.forEach(p => { for (let k = 1; k <= 20; k++) Season.addAward(s, '2026-10-21', p[Model.X.ID], 'Honor Roll Medal of Distinguished Service ' + k); }); App.touch(); });
+    await toReport(''); const sheets = await page.locator('#report .sheet').count(); await page.emulateMedia({ media: 'print' }); const buf = await page.pdf({ format: 'Letter', preferCSSPageSize: true }); await page.emulateMedia({ media: 'screen' });
+    const pages = (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length; assert.strictEqual(pages, sheets, pages + ' pages for ' + sheets + ' sheets');
+    assert(await page.evaluate(() => [...document.querySelectorAll('#report .strip')].every(s => s.getBoundingClientRect().height < 6.3 * 96)), 'no strip is taller than the page allows');
   });
   await test('no script errors', () => assert.deepStrictEqual(errs, []));
   await browser.close(); console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

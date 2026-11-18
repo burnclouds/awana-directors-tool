@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.17.2';
+(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.17.3';
 // Print reports. Each render(ctx) returns HTML; ctx = { master, settings, opts }.
 (function (root) {
   const M = root.Model || (typeof require !== 'undefined' ? require('./model.js') : null);
@@ -238,7 +238,10 @@
   // Reports that were folded into others or dropped (1.50.35): a saved bundle that names one keeps working. The emergency-contact and medical lists became the class binder (by class) and the coaches binder (everyone by name),
   // and the master schedule, nightly rotation and attendance summary reports are gone, so a bundle simply skips them.
   const REPORT_ALIAS = { ecClass: 'binderClass', medical: 'binderClass', medicalClass: 'binderClass', ecName: 'binderAll', medicalAll: 'binderAll' }, REPORT_GONE = ['schedule', 'rotation', 'attendanceSummary'];
-  const tidyBundle = b => { const seen = new Set(); return Object.assign({}, b, { items: (b.items || []).map(it => REPORT_ALIAS[it.report] ? Object.assign({}, it, { report: REPORT_ALIAS[it.report] }) : it).filter(it => !REPORT_GONE.includes(it.report)).filter(it => { const k = it.report + '|' + (it.room || '') + '|' + (it.group || ''); if (seen.has(k)) return false; seen.add(k); return true; }) }); };
+  const tidyBundle = b => { const seen = new Set(); const out = Object.assign({}, b, { items: (b.items || []).map(it => REPORT_ALIAS[it.report] ? Object.assign({}, it, { report: REPORT_ALIAS[it.report] }) : it).filter(it => !REPORT_GONE.includes(it.report)).filter(it => { const k = it.report + '|' + (it.room || '') + '|' + (it.group || ''); if (seen.has(k)) return false; seen.add(k); return true; }) });
+    // A bundle saved before 1.51.15c has no perClass: one that holds the per-class pages (attendance, roster, progress sheets) and names no class is a class binder, so the Class picker applies to it.
+    if (out.perClass === undefined) out.perClass = out.items.some(it => it.report === 'progressSheets') && out.items.some(it => it.report === 'binderClass') && !out.items.some(it => it.room);
+    return out; };
   const bundlesOf = season => season && Array.isArray(season.config && season.config.bundles) && season.config.bundles.length ? season.config.bundles.map(tidyBundle) : DEFAULT_BUNDLES();
   // The night the quarter's sheets are "as of": its first club night on the calendar (a team move or one-night exception later in the quarter does not change a binder page printed before it starts).
   const firstNightOf = (calendar, q) => ((calendar || []).filter(r => Cal.isNight(r) && r.Quarter === q).map(r => r.Date).sort()[0]) || '';

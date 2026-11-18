@@ -29,8 +29,9 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
     const { page, ctx } = await open(1366); await page.evaluate(() => App.showTab('reports')); await page.waitForTimeout(250);
     assert.deepStrictEqual(await page.$$eval('#rSubs button', b => b.map(x => x.textContent)), ['Attendance', 'Color teams', 'Binders', 'Progress & awards', 'Other']);
     const where = async id => { await page.evaluate(x => App.showReport(x), id); await page.waitForTimeout(150); return page.evaluate(() => document.querySelector('#rSubs button.on').dataset.rsub); };
+    const errs7 = []; page.on('pageerror', e => errs7.push(e.message));
     for (const [id, g] of [['standings', 'teams'], ['teams', 'teams'], ['binderTeams', 'teams'], ['paceWatch', 'progress'], ['attendance', 'attend'], ['attendDates', 'attend'], ['weeklySlips', 'attend'], ['binderClass', 'binders'], ['uniforms', 'other']]) assert.strictEqual(await where(id), g, id);
-    await ctx.close();
+    assert.deepStrictEqual(errs7, [], 'no page errors'); await ctx.close();
   });
   await test('#10: the Uniforms tab fits at 1280 and 1366 wide with no sideways scroll, has no Parent size column, and lists the sizes before the dates', async () => {
     for (const w of [1280, 1366]) {
@@ -43,12 +44,12 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
   await test('#6: the year grid has a legend (Solid = set by hand, Dashed = suggested), no pin icon, and a solid hand-set color is named "set by hand"', async () => {
     const { page, ctx } = await open(1366); await page.evaluate(() => App.showTab('teams')); await page.waitForSelector('#teamsWrap table.tg select.tgsel'); await page.waitForTimeout(300);
     const t = await page.textContent('#teamsWrap .tglegend'); assert(/Solid/.test(t) && /Dashed/.test(t) && /set by hand/.test(t) && /suggested/.test(t), t); assert.strictEqual(await page.locator('#teamsWrap .tgpin').count(), 0, 'no pin icon'); assert(!/\u{1F4CC}/u.test(await page.textContent('#teamsWrap')), 'no pin character on the tab');
-    const sel = '#teamsWrap select.tgproj'; if (await page.locator(sel).count()) { const now = await page.$eval(sel, s => s.value); await page.selectOption(sel, now === 'Yellow' ? 'Red' : 'Yellow'); await page.waitForTimeout(300); assert(await page.locator('#teamsWrap select.tgset[aria-label*="set by hand"]').count() >= 1, 'a hand-set color is solid and named'); }
+    const sel = '#teamsWrap select.tgproj'; assert(await page.locator(sel).count() >= 1, 'the test club has a suggested (projected) cell to change'); { const now = await page.$eval(sel, s => s.value); await page.selectOption(sel, now === 'Yellow' ? 'Red' : 'Yellow'); await page.waitForTimeout(300); assert(await page.locator('#teamsWrap select.tgset[aria-label*="set by hand"]').count() >= 1, 'a hand-set color is solid and named'); }
     await ctx.close();
   });
   await test('#8: progress sheets say "Drawing ..." while they are made, are lazily laid out on screen, and the sheets all arrive', async () => {
-    const { page, ctx } = await open(1366); await page.evaluate(() => App.showTab('reports')); await page.evaluate(() => App.showReport('progressSheets'));
-    assert(/Drawing \d+ progress sheets/.test(await page.textContent('#report')) || (await page.locator('#report .onepage').count()) > 0, 'the drawing line, or already drawn'); await page.waitForSelector('#report .onepage'); await page.waitForFunction(() => document.getElementById('pageSum'));
+    const { page, ctx } = await open(1366); await page.evaluate(() => App.showTab('reports'));
+    const at = await page.evaluate(() => { App.showReport('progressSheets'); return document.getElementById('report').textContent; }); assert(/Drawing \d+ progress sheets/.test(at), 'the drawing line shows first: ' + at.slice(0, 60)); await page.waitForSelector('#report .onepage'); await page.waitForFunction(() => document.getElementById('pageSum'));
     assert.strictEqual(await page.$eval('#report .onepage', e => getComputedStyle(e).contentVisibility), 'auto', 'sheets off screen are skipped until near'); assert((await page.locator('#report .onepage').count()) >= 30, 'many sheets');
     await page.evaluate(() => App.showReport('progressSheets')); await ctx.close();
   });

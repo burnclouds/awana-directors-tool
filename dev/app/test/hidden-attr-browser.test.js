@@ -35,16 +35,15 @@ const drawnHidden = () => [...document.querySelectorAll('[hidden]')].filter(e =>
       await ctx.close(); assert.deepStrictEqual(bad, []);
     });
   }
-  await test('bundle mode shows one quarter control (Quarter to print); List order and Title are still there; leaving bundle mode brings the pills back', async () => {
+  await test('bundle mode uses the same Quarter pills (for the quarter to print); List order stays and Title goes; there is no separate Quarter to print select', async () => {
     const { page, ctx } = await open(1280); await tab(page, 'reports'); await page.waitForTimeout(200);
     const bundle = await page.$$eval('#rSel option', o => (o.find(x => /^bundle:/.test(x.value)) || {}).value);
-    if (!bundle) { await ctx.close(); return; }      // the TEST club has no bundle defined: nothing to check
+    if (!bundle) { assert.strictEqual((await page.textContent('#qLabel')).trim(), 'Quarter', 'the pills read Quarter again outside a bundle'); await ctx.close(); return; }      // the TEST club has no bundle defined: nothing to check
     await page.evaluate(x => { const s = document.getElementById('rSel'); s.value = x; s.dispatchEvent(new Event('change', { bubbles: true })); }, bundle); await page.waitForTimeout(150);
     const vis = id => page.evaluate(i => { const e = document.getElementById(i); return !!e && getComputedStyle(e).display !== 'none' && e.getClientRects().length > 0; }, id);
-    assert(await vis('bWrap'), 'Quarter to print is shown'); assert(!(await vis('qWrap')), 'the lower Q1-Q4 pills are hidden'); assert(await vis('oOrder'), 'List order stays'); assert(!(await vis('tWrap')), 'Title is hidden: the standard bundle has no pace watch list');
-    assert(/Quarter to print/.test(await page.$eval('#bWrap', e => e.textContent)), 'labelled');
+    assert(await vis('qWrap'), 'the Quarter pills are shown'); assert.strictEqual((await page.textContent('#qLabel')).trim(), 'Quarter to print', 'and say they choose the quarter to print'); assert(!(await page.$('#bWrap')), 'no separate Quarter to print'); assert(await vis('oOrder'), 'List order stays'); assert(!(await vis('tWrap')), 'Title is hidden: the standard bundle has no pace watch list');
     await page.evaluate(() => { const s = document.getElementById('rSel'); const o = [...s.options].find(x => !/^bundle:/.test(x.value) && /quarter/.test((window.Reports && Reports.LIST.find(r => r.id === x.value) || { opts: [] }).opts.join())); if (o) { s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true })); } }); await page.waitForTimeout(150);
-    assert(!(await vis('bWrap')), 'Quarter to print is hidden again'); await ctx.close();
+    await ctx.close();
   });
   await browser.close(); console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);
 })();

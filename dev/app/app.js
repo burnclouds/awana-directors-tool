@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.69.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.70.1';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -799,12 +799,12 @@
   $('sQuarter').value = settings.quarter;
   const bundleOf = () => sel.value === 'bundle:picked' ? binderSel : /^bundle:\d+$/.test(sel.value) ? Reports.bundlesOf(App.season)[+sel.value.slice(7)] || null : null;
   function renderBundle(b) {
-    ['oRoom', 'oGroup', 'oDate', 'oKid', 'qWrap', 'calNote', 'oNoBook'].forEach(id => { $(id).hidden = true; });
-    // One quarter control in bundle mode: the top "Quarter to print" (bundleQ). The lower bar shows only what the bundle's reports use: List order for the color team lists, Title for the pace watch list (MC-01, UX-01).
+    ['oRoom', 'oGroup', 'oDate', 'oKid', 'calNote', 'oNoBook'].forEach(id => { $(id).hidden = true; });
+    // One quarter control in bundle mode: the Quarter pills choose the quarter to print (bundleQ). The lower bar shows only what the bundle's reports use: List order for the color team lists, Title for the pace watch list (MC-01, UX-01).
     const uses = id => (b.items || []).some(i => i.report === id), order = uses('teams'), title = uses('paceWatch'), perClass = !!b.perClass && b !== binderSel;
-    $('dateBar').hidden = !(order || title); $('oOrder').hidden = !order; $('tWrap').hidden = !title; $('bWrap').hidden = false;
+    $('dateBar').hidden = !(order || title); $('oOrder').hidden = !order; $('tWrap').hidden = !title;
     if (!bundleQ) bundleQ = Reports.nextQuarter(calendar, today(), settings.quarter);
-    $('bQuarter').value = bundleQ;
+    $('qWrap').hidden = false; $('qLabel').textContent = 'Quarter to print'; syncQ();      // the one Quarter control: in a bundle the pills choose the quarter to print (the next quarter at first), not the app-wide quarter
     // A bundle marked perClass (the standard Class binder) takes its class from the Class picker, as its comment always said.
     $('oRoom').hidden = !perClass;
     if (perClass && master) { const rs = $('oRoomSel'), cur = rs.value, rl = Reports.roomsOf(Reports.kids(master)); rs.innerHTML = '<option value="">All classes</option>' + rl.map(r => '<option>' + esc(r) + '</option>').join(''); rs.value = rl.includes(cur) ? cur : ''; }
@@ -846,7 +846,8 @@
         '<div class="pglist">' + sheets.map((s, i) => '<label><input type="checkbox" data-pg="' + i + '"' + (s.classList.contains('skip') ? '' : ' checked') + '> ' + esc(name(s, i)) + '</label>').join('') + '</div><div class="dlgbtns"><button id="pgDone" class="primary">Done</button></div>';
       const boxes = () => [...dl.querySelectorAll('input[data-pg]')], count = () => { $('pgCount').textContent = on() + ' of ' + sheets.length + ' selected'; sum(); };
       const set = v => boxes().forEach(c => { c.checked = v; sheets[+c.dataset.pg].classList.toggle('skip', !v); }), apply = () => { count(); };
-      dl.onchange = e => { const c = e.target.closest && e.target.closest('input[data-pg]'); if (c) { sheets[+c.dataset.pg].classList.toggle('skip', !c.checked); apply(); } };
+      const onChange = e => { const c = e.target.closest && e.target.closest('input[data-pg]'); if (c) { sheets[+c.dataset.pg].classList.toggle('skip', !c.checked); apply(); } };
+      dl.addEventListener('change', onChange); dl.addEventListener('close', () => dl.removeEventListener('change', onChange), { once: true });
       $('pgAll').onclick = () => { set(true); apply(); }; $('pgNone').onclick = () => { set(false); apply(); }; $('pgDone').onclick = () => dl.close(); count(); dl.showModal();
     });
   }
@@ -861,7 +862,7 @@
     syncQ();
     rsub = subOf(sel.value); lastIn[rsub] = sel.value; applySub();      // the group follows the report (a report chosen from elsewhere, such as the To do page, opens in its own group)
     const bk = Reports.bundlesOf(App.season).map(b => b.name).join('|') + '|' + (binderSel ? binderSel.name : ''); if (bk !== bundleKey) { bundleKey = bk; fillReportSel(); }      // another file, or the bundles were edited on Options
-    $('bWrap').hidden = true; $('bNote').textContent = ''; const bundle = bundleOf();
+    $('bNote').textContent = ''; $('qLabel').textContent = 'Quarter'; const bundle = bundleOf();
     if (bundle) return renderBundle(bundle);
     const def = Reports.LIST.find(r => r.id === sel.value) || Reports.LIST[0], o = def.opts || [];
     $('oRoom').hidden = !o.includes('room');
@@ -876,7 +877,7 @@
     const rs = $('oRoomSel'), cur = rs.value;
     // A report with a Group picker lists only that group's rooms in the Room picker (an old choice from another group is dropped).
     const gsel = $('oGroupSel').value, rl = Reports.roomsOf(Reports.kids(master)).filter(r => (!(o.includes('group') || (o.includes('groupAll') && gsel !== '')) || Model.groupOf(r) === gsel) && !(def.id === 'progressSheets' && Model.groupOf(r) === 'Puggles'));      // Puggles have no progress sheets
-    rs.innerHTML = '<option value="">All ' + (o.includes('group') ? 'classes' : 'rooms') + '</option>' + rl.map(r => '<option>' + esc(r) + '</option>').join(''); rs.value = rl.includes(cur) ? cur : '';
+    rs.innerHTML = '<option value="">All classes</option>' + rl.map(r => '<option>' + esc(r) + '</option>').join(''); rs.value = rl.includes(cur) ? cur : '';
     const ds = $('oDateSel'), dcur = ds.value, nl = new Set(calendar.filter(Calendar.isNight).map(r => r.Date));
     if (App.season) [App.season.attendance, App.season.awards, App.season.games].forEach(m => Object.keys(m).forEach(d => nl.add(d)));
     ds.innerHTML = [...nl].sort().map(d => '<option value="' + esc(d) + '">' + esc(App.nightLabel ? App.nightLabel(d) : d) + '</option>').join('');      /* the same text as Attendance and Awards (UX-16); the value stays the ISO date */ ds.value = dcur || [...nl].sort().filter(d => d <= today()).pop() || '';
@@ -926,7 +927,16 @@
     else if (e.key === 'Tab' && !e.shiftKey && !e.target.value && finishDateBox(e.target)) { e.preventDefault(); if (document.activeElement === e.target) focusAfter(e.target); }      // month and day typed, no year: this year is filled in, then on to the next box
   }, true);
   document.addEventListener('focusout', e => { if (isDateBox(e.target)) finishDateBox(e.target); }, true);
-  App.reportOptions = o => { if ('group' in o) $('oGroupSel').value = o.group; renderReport(); $('oRoomSel').value = o.room || ''; if (o.date) $('oDateSel').value = o.date; $('oKidSel').value = ''; if (o.kid) { renderReport(); $('oKidSel').value = o.kid; } };
+  App.reportOptions = o => {      // set the pickers, then draw once more if the class, night or child changed (they are set after the first draw, which fills their lists)
+    const g = $('oGroupSel'); if ('group' in o && [...g.options].some(x => x.value === o.group)) g.value = o.group;
+    renderReport();
+    const rs = $('oRoomSel'), ds = $('oDateSel'), ks = $('oKidSel'); let again = false;
+    if (rs.value !== (o.room || '')) { rs.value = o.room || ''; again = true; }
+    if (o.date && ds.value !== o.date) { ds.value = o.date; again = true; }
+    if (ks.value !== '') { ks.value = ''; again = true; }
+    if (again) renderReport();
+    if (o.kid) { ks.value = o.kid; renderReport(); }
+  };
   App.showReport = id => { sel.value = id; showTab('reports'); };
   [sel, $('oNoBookChk'), $('oRoomSel'), $('oOrderSel'), $('oGroupSel'), $('oDateSel'), $('oKidSel')].forEach(el => el.addEventListener('change', renderReport));
   // A group button shows that group's reports: the one used last in it, or its first.
@@ -937,8 +947,8 @@
   });
   $('oGroupSel').addEventListener('change', () => { $('oKidSel').value = ''; $('oRoomSel').value = ''; renderReport(); });
   document.addEventListener('click', e => { const b = e.target.closest('.optsubs button[data-optsub]'); if (b) showTab(b.dataset.optsub); });
-  function syncQ() { document.querySelectorAll('#qWrap button[data-q]').forEach(b => { const on = b.dataset.q === $('sQuarter').value; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
-  $('qWrap').addEventListener('click', e => { const b = e.target.closest('button[data-q]'); if (!b) return; const q = $('sQuarter'); q.value = b.dataset.q; q.dispatchEvent(new Event('input', { bubbles: true })); syncQ(); });
+  function syncQ() { const cur = bundleOf() ? bundleQ : $('sQuarter').value; document.querySelectorAll('#qWrap button[data-q]').forEach(b => { const on = b.dataset.q === cur; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
+  $('qWrap').addEventListener('click', e => { const b = e.target.closest('button[data-q]'); if (!b) return; if (bundleOf()) { bundleQ = b.dataset.q; renderReport(); return; } const q = $('sQuarter'); q.value = b.dataset.q; q.dispatchEvent(new Event('input', { bubbles: true })); syncQ(); });
   $('sQuarter').addEventListener('input', e => { const q = e.target.value.trim().toUpperCase(); if (/^Q[1-4]$/.test(q)) { setQuarter(q); renderReport(); renderRoster(); } });
   // The Roster tab's own quarter picker (flag 10) sets the same app-wide quarter as the Reports pills and the Color teams box, and they follow it.
   $('fQuarter').addEventListener('change', e => { setQuarter(e.target.value); $('sQuarter').value = settings.quarter; $('tQuarter').value = settings.quarter; syncQ(); renderRoster(); });
@@ -947,11 +957,10 @@
   $('sClub').addEventListener('input', e => { const v = e.target.value.trim(); setClubTitle(v && v !== autoClub() ? e.target.value : ''); renderReport(); });
   $('sClub').addEventListener('change', e => { if (!settings.clubCustom) e.target.value = autoClub(); });
   // The binder pages (attendance sheets, team lists) are printed shortly before a quarter starts, which is when it should lock. Printing one for a quarter that is not locked asks first; it never locks silently.
-  $('bQuarter').addEventListener('change', e => { bundleQ = e.target.value; renderReport(); });
   let lockQ = '';
   $('btnPrint').addEventListener('click', () => {
     const b = bundleOf(), q = b ? bundleQ : settings.quarter; lockQ = q;
-    const binder = b ? (b.items || []).some(i => ['attendance', 'teams'].includes(i.report)) : ['attendance', 'teams'].includes(sel.value);
+    const TEAM_PAGES = ['attendance', 'teams', 'binderTeams'], binder = b ? (b.items || []).some(i => TEAM_PAGES.includes(i.report)) : TEAM_PAGES.includes(sel.value);      // pages that depend on a quarter's colors, the coaches' team list too
     if (App.season && binder && Teams.QUARTERS.includes(q) && TeamPlan.stateOf(App.season, calendar, q, App.today()) !== 'locked') {
       $('lockAskBody').innerHTML = '<h3>Lock ' + esc(q) + ' now?</h3><p>' + esc(q) + ' is not locked yet. Locking makes its team colors final, so the pages you print now match what is played. You can unlock it again on the Color teams tab.</p>' +
         '<div class="dlgbtns"><button type="button" id="lockAskCancel">Cancel</button><button type="button" id="lockAskPrint">Print without locking</button><button type="button" id="lockAskLock" class="primary">Lock and print</button></div>';
@@ -1369,6 +1378,7 @@
   const partsOfBundle = b => BINDER_PARTS.map(x => x[0]).filter(k => (b.items || []).some(i => i.report === k));
   const fixedBundle = b => !!b && (b.items || []).some(i => i.room || i.group);      // a club's own bundle that names classes prints exactly as saved
   $('btnBinders').addEventListener('click', () => {
+    if (!master) return App.ask.alert('Open a data file first: the binders are made from its people.');
     const dl = $('dlg'), bundles = Reports.bundlesOf(App.season), rooms = Reports.roomsOf(Reports.kids(master));
     if (!binderPrefs) { const q = Math.max(0, bundles.findIndex(b => b.perClass)); binderPrefs = { quick: String(q), parts: partsOfBundle(bundles[q] || { items: [] }), classes: [] }; }
     const pr = binderPrefs; if (pr.quick !== '' && !bundles[+pr.quick]) pr.quick = '';
@@ -1383,7 +1393,8 @@
     const count = () => { $('bindCount').textContent = picks().filter(i => i.checked).length + ' of ' + picks().length + ' selected'; const b = quick() === '' ? null : bundles[+quick()]; $('bindQuickNote').textContent = fixedBundle(b) ? 'This one prints its saved classes as they are.' : b && b.perClass ? 'Tick the classes below.' : ''; };
     $('bindQuick').onchange = () => { const b = bundles[+quick()]; if (b) { const keep = partsOfBundle(b); partBoxes().forEach(c => { c.checked = keep.includes(c.dataset.part); }); } count(); };
     $('bindAll').onclick = () => { picks().forEach(i => { i.checked = true; }); count(); }; $('bindNone').onclick = () => { picks().forEach(i => { i.checked = false; }); count(); };
-    dl.onchange = e => { const t = e.target.closest && e.target.closest('input'); if (!t) return; if (t.dataset.part) $('bindQuick').value = ''; count(); };      // changing a page makes it a custom choice
+    const onChange = e => { const t = e.target.closest && e.target.closest('input'); if (!t) return; if (t.dataset.part) $('bindQuick').value = ''; count(); };      // the shared #dlg keeps no handler of this pop-up once it closes
+    dl.addEventListener('change', onChange); dl.addEventListener('close', () => dl.removeEventListener('change', onChange), { once: true });      // changing a page makes it a custom choice
     count(); $('bindCancel').onclick = () => dl.close();
     $('bindGo').onclick = () => {
       const q = quick(), b = q === '' ? null : bundles[+q], parts = partBoxes().filter(c => c.checked).map(c => c.dataset.part), classes = picks().filter(i => i.checked).map(i => i.dataset.room);

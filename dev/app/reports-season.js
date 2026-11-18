@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports-season.js'] = '1.33.0';
+(this.AwanaVersions = this.AwanaVersions || {})['reports-season.js'] = '1.33.1';
 // Print reports built from the season file. Added to Reports.LIST; ctx = { master, settings, calendar, season, opts }.
 // opts: group ('Sparks' | 'T&T' | 'Cubbies' | 'Puggles'), date ('YYYY-MM-DD'), kid (Unique ID or ''), room.
 (function (root) {
@@ -194,21 +194,23 @@
   // ---------- hand-out strips: one narrow strip per child (about 4.5 inches wide, for the distribution box), cut apart; two columns on landscape Letter ----------
   // A strip: the child's name and class, then each award earned and not yet given (Season.toHandOut, the same rule as the Awards tab) with a tick box and a box for the leader's initials. Children with nothing to give get no strip.
   // Pages are built here, not by CSS columns: a row of two strips is as tall as the taller one, rows fill a page up to PAGE_IN inches, and each page is one sheet (so one printed page, and "Choose pages" names it).
-  const STRIP_FIRST_IN = 6.5, STRIP_NEXT_IN = 7.0, STRIP_MAX_AWARDS = 20;      // inches of strips that fit under the page 1 heading and the tally, and on the pages after it
-  const stripIn = n => 0.32 + 0.3 * n + 0.1;      // estimated height of a strip with n awards
+  const STRIP_FIRST_IN = 6.5, STRIP_NEXT_IN = 7.0;      // inches of strips that fit under the page 1 heading and the tally, and on the pages after it
+  // Estimated height of a strip: the name line, each award line (a label about 32 characters or more, with its earned date, wraps to a second line), and padding. A strip never splits, so a child with a long list continues on a second strip when this passes STRIP_MAX_IN.
+  const STRIP_MAX_IN = 6.0, awardIn = r => 0.3 + 0.17 * (Math.ceil((r.label.length + (r.earned ? r.earned.length + 1 : 0)) / 32) - 1), stripIn = rows => 0.32 + rows.reduce((h, r) => h + awardIn(r), 0) + 0.1;
   function handOut(ctx) {
     const { master, season, calendar, opts } = ctx; if (!season) return need;
     const groups = opts.group ? [opts.group] : GROUPS, tally = {}, strips = [];
     groups.forEach(g => inGroup(master, g).filter(p => !opts.room || M.room(p) === opts.room).forEach(p => {
       const rows = Season.toHandOut(season, idOf(p), g, calendar).sort((a, b) => Season.awardLabel(season, idOf(p), a.award).localeCompare(Season.awardLabel(season, idOf(p), b.award)));
       rows.forEach(r => { const k = Season.baseAward(season, r.award); tally[k] = (tally[k] || 0) + 1; });
-      for (let i = 0; i < rows.length; i += STRIP_MAX_AWARDS) strips.push({ p, room: M.room(p), more: i > 0, rows: rows.slice(i, i + STRIP_MAX_AWARDS).map(r => ({ label: Season.awardLabel(season, idOf(p), r.award), earned: r.earned || r.earnedNoDate ? earnedText(r, paper) : 'by hand' })) });
+      const lines = rows.map(r => ({ label: Season.awardLabel(season, idOf(p), r.award), earned: r.earned || r.earnedNoDate ? earnedText(r, paper) : 'by hand' }));
+      for (let i = 0; i < lines.length;) { const chunk = []; while (i < lines.length && (!chunk.length || stripIn(chunk.concat([lines[i]])) <= STRIP_MAX_IN)) chunk.push(lines[i++]); strips.push({ p, room: M.room(p), more: strips.length > 0 && strips[strips.length - 1].p === p, rows: chunk }); }
     }));
     if (!strips.length) return '<p class="empty">Nothing earned is waiting to be given' + (opts.room ? ' in ' + esc(opts.room) : opts.group ? ' in ' + esc(opts.group) : '') + '.</p>';
     const html = s => '<div class="strip"><div class="stripname"><b>' + esc(M.fullName(s.p)) + (s.more ? ' (continued)' : '') + '</b><span>' + esc(s.room) + '</span></div>' +
       s.rows.map(r => '<div class="stripaward"><span class="stbox"></span><span class="stlabel">' + esc(r.label) + (r.earned ? ' <small>' + esc(r.earned) + '</small>' : '') + '</span><span class="stinit"></span></div>').join('') + '</div>';
     const pages = []; let page = null, used = 0, row = [];
-    const flush = () => { if (!row.length) return; const h = Math.max(...row.map(s => stripIn(s.rows.length))), cap = pages.length > 1 ? STRIP_NEXT_IN : STRIP_FIRST_IN; if (!page || (used + h > cap && page.rows.length)) { page = { rows: [] }; pages.push(page); used = 0; } page.rows.push(row); used += h; row = []; };
+    const flush = () => { if (!row.length) return; const h = Math.max(...row.map(s => stripIn(s.rows))), cap = pages.length > 1 ? STRIP_NEXT_IN : STRIP_FIRST_IN; if (!page || (used + h > cap && page.rows.length)) { page = { rows: [] }; pages.push(page); used = 0; } page.rows.push(row); used += h; row = []; };
     strips.forEach(s => { row.push(s); if (row.length === 2) flush(); }); flush();
     const note = 'To have ready: ' + Object.keys(tally).sort().map(a => tally[a] + ' × ' + esc(a)).join(', ') + '. Cut the strips apart. Mark each award Given on the child’s Person record (Progress sub-tab) when it is handed over.';
     return pages.map((pg, i) => { const all = [].concat(...pg.rows), a = all[0].room, b = all[all.length - 1].room;

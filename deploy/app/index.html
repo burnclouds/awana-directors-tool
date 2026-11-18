@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="1.51.15c">
+<meta name="app-version" content="1.51.15d">
 <meta name="app-build" content="2026-11-17">
 <title>AWANA Roster &amp; Reports</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1f4e79">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="style.css?v=1.51.15c">
-<link rel="stylesheet" href="fonts.css?v=1.51.15c">
+<link rel="stylesheet" href="style.css?v=1.51.15d">
+<link rel="stylesheet" href="fonts.css?v=1.51.15d">
 </head>
 <body>
 <a href="#main" class="skiplink" id="skipLink">Skip to content</a>
@@ -94,7 +94,7 @@
       <button id="btnAddCol">Add column</button>
       <span id="count" class="status"></span><i class="info" data-info="roster.filters"></i><i class="info" data-info="roster.owned"></i>
     </div>
-    <p id="rosterShowing" class="status rshowing" role="status" aria-live="polite" hidden></p>
+    <p id="rosterShowing" class="status rshowing" hidden></p>
     <div id="rosterWrap" class="scroll"></div>
   </section>
 
@@ -226,24 +226,24 @@
   <section id="tab-reports" hidden>
     <div class="rhead noprint">
     <nav class="rsubs" id="rSubs" role="tablist" aria-label="Report groups"><button data-rsub="attend" role="tab">Attendance</button><button data-rsub="teams" role="tab">Color teams</button><button data-rsub="binders" role="tab">Binders</button><button data-rsub="progress" role="tab">Progress &amp; awards</button><button data-rsub="other" role="tab">Other</button></nav>
-    <div class="bar noprint">
+    <div class="bar noprint" id="rBar">
       <select id="rSel" aria-label="Report"></select>
-      <label id="oRoom">Class <select id="oRoomSel"></select></label>
+      <span id="qWrap" class="qpills" role="group" aria-label="Quarter"><span id="qLabel">Quarter</span> <button type="button" data-q="Q1">Q1</button><button type="button" data-q="Q2">Q2</button><button type="button" data-q="Q3">Q3</button><button type="button" data-q="Q4">Q4</button><input id="sQuarter" type="hidden"></span>
       <label id="oGroup">Group <select id="oGroupSel"><option>Sparks</option><option>T&amp;T</option><option>Cubbies</option><option>Puggles</option></select></label>
+      <label id="oRoom">Class <select id="oRoomSel"></select></label>
       <label id="oDate">Night <select id="oDateSel"></select></label>
       <label id="oKid">Child <select id="oKidSel"></select></label>
-      <label id="bWrap" hidden>Quarter to print <select id="bQuarter"><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></label> <span id="bNote" class="status"></span>
-      <button id="btnPrint" class="primary">Print / Save as PDF</button> <button id="btnBinders">Print class binders&hellip;</button> <i class="info" data-info="reports.print"></i>
-    </div>
-    </div>
-    <div class="bar noprint" id="dateBar">
-      <span id="qWrap" class="qpills" role="group" aria-label="Quarter">Quarter <button type="button" data-q="Q1">Q1</button><button type="button" data-q="Q2">Q2</button><button type="button" data-q="Q3">Q3</button><button type="button" data-q="Q4">Q4</button><input id="sQuarter" type="hidden"></span>
-      <span id="calNote" class="status"></span>
+      <span id="dateBar" class="barset">
       <label id="oNoBook" hidden><input type="checkbox" id="oNoBookChk"> Also list children who have not received a book</label>
       <label id="oOrder">List order <select id="oOrderSel"><option value="color">Color, then first name</option><option value="colorLast">Color, then last name</option><option value="name">First name, then color</option><option value="nameLast">Last name, then color</option></select></label>
       <label id="tWrap">Title <input id="sClub" size="26"></label>
+      </span>
+      <span id="calNote" class="status"></span> <span id="bNote" class="status"></span>
+      <span id="pagePick" class="pagepick" hidden></span>
+      <button id="btnBinders">Print class binders&hellip;</button>
+      <button id="btnPrint" class="primary">Print / Save as PDF</button> <i class="info" data-info="reports.print"></i>
     </div>
-    <div id="pagePick" class="bar" hidden></div>
+    </div>
     <div id="report"></div>
   </section>
 
@@ -499,7 +499,7 @@
         <li><b>To hand out (Hand out page).</b> Everything earned and not given, whether or not it has been announced or held, with the count of each to have ready. <b>Print award strips&hellip;</b> prints one narrow strip per child (about 4.5 inches wide, two across a landscape page) to cut apart for the distribution box: the child&rsquo;s name and class, and each award to give with a tick box and a box for initials. A child with nothing waiting gets no strip, and the Group picker on the report has an <i>All groups</i> choice. A child who was away stays on the list until the award is given. Leaders mark an award <b>Given</b> on the child&rsquo;s <b>Progress</b> sheet (there is no Given tick on the Awards tab); <i>no date</i> there counts as given with no day shown or printed.</li>
         <li><b>End-of-year awards.</b> The awards given at the end-of-year awards (the book awards and the certificates). They are earned and announced like any other, but they are kept off <i>To hand out</i> and wait here, with the count to have ready and a <i>Print end-of-year list&hellip;</i> button; they are marked Given on Progress.</li>
         <li><b>Fixing an announcement.</b> Each earned award on a child&rsquo;s Progress sheet shows an <b>Announced</b> date and a <b>Hold</b> box next to its Given date. Clear the date to take an award back to <i>To tell the group</i>, or type another night to move it. Hold is the same flag as on the Awards tab. Announced and Given never change each other. <b>Undo</b> and <b>History</b> cover every change.</li>
-        <li><b>Reports</b> keeps two awards reports: <i>Awards to hand out (one page per class)</i> and <i>End-of-year awards (list)</i>. <b>Statistics</b> and the <b>Awana store points</b> count awards earned.</li>
+        <li><b>Reports</b> keeps two awards reports: <i>Awards to hand out (a strip per child)</i> and <i>End-of-year awards (list)</i>. <b>Statistics</b> and the <b>Awana store points</b> count awards earned.</li>
         <li><b>Slide images&hellip;</b> draws each group&rsquo;s slide (Cubbies, Sparks in three columns by handbook, T&amp;T, Adult Memorization) as a PNG, or all in a ZIP.</li>
       </ul>
 
@@ -581,8 +581,8 @@
 
       <h3 id="m-t-reports">Reports</h3>
       <p>Pick a report, set its options, and press <b>Print / Save as PDF</b>. See <a href="#m-reports">section 7</a> for the full list.</p>
-      <p><b>Five groups.</b> The buttons at the top (<i>Attendance</i>, <i>Color teams</i>, <i>Binders</i>, <i>Progress &amp; awards</i>, <i>Other</i>) show one group of reports each in the report list; they and the Print button stay at the top while a long report scrolls. The <b>Binders</b> group also has <i>Print class binders&hellip;</i>: pick a <b>quick pick</b> (Class binder, Coaches binder, Quarterly Printables or one of the club&rsquo;s own bundles), change the pages that go in if you want (including whether each class gets a progress sheet; Puggles have none), and tick the classes (<i>Select all</i> and <i>Select none</i> are there; leave them all unticked for the whole club in one set). <i>Show binders</i> puts the choice in the report list as <i>Your binders</i>, so the quarter and the lock question work the same as for any bundle; press the button again to change it. A report with one page per class or child says how many pages will print; <i>Choose pages&hellip;</i> opens a list of the names with <i>Select all</i> and <i>Select none</i>. One <b>(i)</b> next to Print covers printing, the quarter and title, pages to print, and where contact data comes from. Progress sheets print one child per page: a box for every section to write initials and a date in (dates already in the app are printed in; a section signed off with no date shows a check mark), a box beside each award for the date given and the leader&rsquo;s initials, and a thick box marked <b>EARNED</b> for an award that is earned and not yet handed out. The <b>Achievement Record</b> report prints the same sheet for every book a child has started.</p>
-      <p><b>Print several at once.</b> The bottom of the report list holds <i>bundles</i>: named groups of reports that print as one job. The standard one, <b>Quarterly Printables</b>, is the attendance sheets (one page per class), the medical / allergy notes by class (every child, for the class binders), the color teams for the games leaders, and the medical notes for everyone by name (the coaches binder). Choose a bundle, pick the <b>Quarter to print</b> at the top beside it (the next one is offered; this is the only quarter control for a bundle, and it does not change the quarter used on other tabs), set <i>List order</i> and <i>Title</i> if you want them, and press Print: the sheets are made as of that quarter&rsquo;s first club night, and if the quarter is not locked yet you are asked once whether to lock it. Add, rename, reorder or delete bundles on the Options tab under <i>Report bundles</i>; any report can go in one. Until you change them nothing is stored.</p>
+      <p><b>One bar.</b> Under the group buttons, one bar runs left to right in the order you decide: the <i>report</i>, the <i>quarter</i> (Q1 to Q4), who it is for (<i>Group</i>, <i>Class</i>, <i>Night</i>, <i>Child</i>, only the ones that report uses), how many pages, and <i>Print / Save as PDF</i> last. A bundle uses the same Quarter buttons for the quarter to print. <b>Five groups.</b> The buttons at the top (<i>Attendance</i>, <i>Color teams</i>, <i>Binders</i>, <i>Progress &amp; awards</i>, <i>Other</i>) show one group of reports each in the report list; they and the bar below them stay at the top while a long report scrolls on a computer (on a phone they scroll away with the page). The <b>Binders</b> group also has <i>Print class binders&hellip;</i>: pick a <b>quick pick</b> (Class binder, Coaches binder, Quarterly Printables or one of the club&rsquo;s own bundles), change the pages that go in if you want (including whether each class gets a progress sheet; Puggles have none), and tick the classes (<i>Select all</i> and <i>Select none</i> are there; leave them all unticked for the whole club in one set). <i>Show binders</i> puts the choice in the report list as <i>Your binders</i>, so the quarter and the lock question work the same as for any bundle; press the button again to change it. A report with one page per class or child says how many pages will print; <i>Choose pages&hellip;</i> opens a list of the names with <i>Select all</i> and <i>Select none</i>. One <b>(i)</b> next to Print covers printing, the quarter and title, pages to print, and where contact data comes from. Progress sheets print one child per page: a box for every section to write initials and a date in (dates already in the app are printed in; a section signed off with no date shows a check mark), a box beside each award for the date given and the leader&rsquo;s initials, and a thick box marked <b>EARNED</b> for an award that is earned and not yet handed out. The <b>Achievement Record</b> report prints the same sheet for every book a child has started.</p>
+      <p><b>Print several at once.</b> The bottom of the report list holds <i>bundles</i>: named groups of reports that print as one job. The standard one, <b>Quarterly Printables</b>, is the attendance sheets (one page per class), the medical / allergy notes by class (every child, for the class binders), the color teams for the games leaders, and the medical notes for everyone by name (the coaches binder). Choose a bundle, pick the quarter to print with the <b>Quarter</b> buttons in the bar (they read <i>Quarter to print</i> for a bundle; the next quarter is offered, and the choice does not change the quarter used on other tabs), set <i>List order</i> and <i>Title</i> if you want them, and press Print: the sheets are made as of that quarter&rsquo;s first club night, and if the quarter is not locked yet you are asked once whether to lock it. Add, rename, reorder or delete bundles on the Options tab under <i>Report bundles</i>; any report can go in one. Until you change them nothing is stored.</p>
 
       <p class="tabgroup"><b>Admin</b></p>
       <h3 id="m-t-history">History</h3>
@@ -761,50 +761,50 @@
 <dialog id="ask" class="askdlg"></dialog>
 <datalist id="hbCodes"></datalist>
 
-<script src="csv.js?v=1.51.15c"></script>
-<script src="info.js?v=1.51.15c"></script>
-<script src="model.js?v=1.51.15c"></script>
-<script src="calendar.js?v=1.51.15c"></script>
-<script src="rotation.js?v=1.51.15c"></script>
-<script src="teams.js?v=1.51.15c"></script>
-<script src="catalog.js?v=1.51.15c"></script>
-<script src="season.js?v=1.51.15c"></script>
-<script src="datamerge.js?v=1.51.15c"></script>
-<script src="flagtrail.js?v=1.51.15c"></script>
-<script src="teamplan.js?v=1.51.15c"></script>
-<script src="pace.js?v=1.51.15c"></script>
-<script src="intake.js?v=1.51.15c"></script>
-<script src="check.js?v=1.51.15c"></script>
-<script src="validate.js?v=1.51.15c"></script>
-<script src="todo.js?v=1.51.15c"></script>
-<script src="reports.js?v=1.51.15c"></script>
-<script src="reports-season.js?v=1.51.15c"></script>
-<script src="slides.js?v=1.51.15c"></script>
-<script src="stats.js?v=1.51.15c"></script>
-<script src="store.js?v=1.51.15c"></script>
-<script src="app.js?v=1.51.15c"></script>
-<script src="app-ask.js?v=1.51.15c"></script>
-<script src="app-season.js?v=1.51.15c"></script>
-<script src="app-person.js?v=1.51.15c"></script>
-<script src="app-todo.js?v=1.51.15c"></script>
-<script src="app-teamgrid.js?v=1.51.15c"></script>
-<script src="app-stats.js?v=1.51.15c"></script>
-<script src="app-store.js?v=1.51.15c"></script>
-<script src="app-options.js?v=1.51.15c"></script>
-<script src="app-update.js?v=1.51.15c"></script>
-<script src="app-sw.js?v=1.51.15c"></script>
-<script src="app-info.js?v=1.51.15c"></script>
-<script src="app-flagpop.js?v=1.51.15c"></script>
-<script src="app-help.js?v=1.51.15c"></script>
-<script src="app-trail.js?v=1.51.15c"></script>
-<script src="app-merge.js?v=1.51.15c"></script>
-<script src="app-flagmode.js?v=1.51.15c"></script>
-<script src="app-flagmarks.js?v=1.51.15c"></script>
-<script src="app-tools.js?v=1.51.15c"></script>
-<script src="app-search.js?v=1.51.15c"></script>
-<script src="app-topbar.js?v=1.51.15c"></script>
-<script src="drive-config.js?v=1.51.15c"></script>
-<script src="drive.js?v=1.51.15c"></script>
-<script src="app-drive.js?v=1.51.15c"></script>
+<script src="csv.js?v=1.51.15d"></script>
+<script src="info.js?v=1.51.15d"></script>
+<script src="model.js?v=1.51.15d"></script>
+<script src="calendar.js?v=1.51.15d"></script>
+<script src="rotation.js?v=1.51.15d"></script>
+<script src="teams.js?v=1.51.15d"></script>
+<script src="catalog.js?v=1.51.15d"></script>
+<script src="season.js?v=1.51.15d"></script>
+<script src="datamerge.js?v=1.51.15d"></script>
+<script src="flagtrail.js?v=1.51.15d"></script>
+<script src="teamplan.js?v=1.51.15d"></script>
+<script src="pace.js?v=1.51.15d"></script>
+<script src="intake.js?v=1.51.15d"></script>
+<script src="check.js?v=1.51.15d"></script>
+<script src="validate.js?v=1.51.15d"></script>
+<script src="todo.js?v=1.51.15d"></script>
+<script src="reports.js?v=1.51.15d"></script>
+<script src="reports-season.js?v=1.51.15d"></script>
+<script src="slides.js?v=1.51.15d"></script>
+<script src="stats.js?v=1.51.15d"></script>
+<script src="store.js?v=1.51.15d"></script>
+<script src="app.js?v=1.51.15d"></script>
+<script src="app-ask.js?v=1.51.15d"></script>
+<script src="app-season.js?v=1.51.15d"></script>
+<script src="app-person.js?v=1.51.15d"></script>
+<script src="app-todo.js?v=1.51.15d"></script>
+<script src="app-teamgrid.js?v=1.51.15d"></script>
+<script src="app-stats.js?v=1.51.15d"></script>
+<script src="app-store.js?v=1.51.15d"></script>
+<script src="app-options.js?v=1.51.15d"></script>
+<script src="app-update.js?v=1.51.15d"></script>
+<script src="app-sw.js?v=1.51.15d"></script>
+<script src="app-info.js?v=1.51.15d"></script>
+<script src="app-flagpop.js?v=1.51.15d"></script>
+<script src="app-help.js?v=1.51.15d"></script>
+<script src="app-trail.js?v=1.51.15d"></script>
+<script src="app-merge.js?v=1.51.15d"></script>
+<script src="app-flagmode.js?v=1.51.15d"></script>
+<script src="app-flagmarks.js?v=1.51.15d"></script>
+<script src="app-tools.js?v=1.51.15d"></script>
+<script src="app-search.js?v=1.51.15d"></script>
+<script src="app-topbar.js?v=1.51.15d"></script>
+<script src="drive-config.js?v=1.51.15d"></script>
+<script src="drive.js?v=1.51.15d"></script>
+<script src="app-drive.js?v=1.51.15d"></script>
 </body>
 </html>

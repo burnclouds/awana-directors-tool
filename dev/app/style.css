@@ -766,3 +766,7 @@ table.tg select.tgsel.tgset.team-Red { background-color:#ea9999; border-color:#c
 .stripname { display:flex; justify-content:space-between; gap:8px; font-size:12pt; line-height:1.25; border-bottom:1px solid #999; margin-bottom:2px; } .stripname span { font-size:10pt; }
 .stripaward { display:flex; align-items:center; gap:8px; min-height:0.28in; font-size:11pt; } .stlabel { flex:1; min-width:0; overflow-wrap:anywhere; } .stlabel small { color:#555; font-size:9pt; }
 .stbox { width:0.18in; height:0.18in; border:1px solid #000; flex:none; } .stinit { width:0.45in; height:0.22in; border:1px solid #000; flex:none; }
+/* Reports (1.51.15d): one bar in the order what > when > who > how many > go; Print is last. The old second bar and the separate "Quarter to print" select are gone (bundles use the Quarter pills). On a phone the bar scrolls away with the page instead of taking a third of the screen. */
+.barset { display:contents; } #dateBar[hidden] { display:none !important; } #rBar { align-items:center; row-gap:6px; } #rBar #btnPrint { margin-left:auto; }
+#pagePick { display:inline-flex; flex-wrap:wrap; gap:6px 12px; align-items:center; padding:0; }
+@media (max-width:760px) { #tab-reports > .rhead { position:static; } #rBar #btnPrint { margin-left:0; } }

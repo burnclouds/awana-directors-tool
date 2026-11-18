@@ -94,6 +94,23 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 150000).unref()
     await page.emulateMedia({ media: 'print' }); const buf = await page.pdf({ format: 'Letter', preferCSSPageSize: true }); await page.emulateMedia({ media: 'screen' });
     const pages = (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length; assert.strictEqual(pages, sheets, pages + ' pages for ' + sheets + ' sheets');
   });
+  await test('RP5: one bar in the order what, when, who, how many, go: Report, Quarter, Group, Class, ..., Pages to print, Print last; everything is inside it and the header (no second bar)', async () => {
+    await page.evaluate(() => App.showReport('attendance')); await page.selectOption('#oRoomSel', ''); await page.waitForTimeout(300);      // all classes (an earlier test left one chosen)
+    const m = await page.evaluate(() => { const bar = document.getElementById('rBar'), order = ['rSel', 'qWrap', 'oGroup', 'oRoom', 'oDate', 'oKid', 'dateBar', 'calNote', 'pagePick', 'btnBinders', 'btnPrint'].map(id => document.getElementById(id)),
+        inside = order.every(e => e && bar.contains(e)), pos = order.map(e => [...bar.querySelectorAll('*')].indexOf(e)), visible = e => e.getClientRects().length > 0, vis = order.filter(visible).map(e => e.id);
+      return { inside, sorted: pos.every((x, i) => !i || x > pos[i - 1]), vis, oneRow: !document.querySelector('#tab-reports > #dateBar, #tab-reports > #pagePick'), headerHasBar: !!document.querySelector('#tab-reports > .rhead > #rBar'), printLast: [...bar.querySelectorAll('button')].filter(visible).pop().id }; });
+    assert(m.inside && m.sorted, 'inside the one bar, in order: ' + JSON.stringify(m)); assert(m.oneRow && m.headerHasBar, 'no second bar below the header'); assert.strictEqual(m.printLast, 'btnPrint', 'Print is the last button'); assert(m.vis.includes('qWrap') && m.vis.includes('pagePick'), m.vis.join());
+  });
+  await test('RP5: on a phone the Reports bar is not sticky (it scrolls away) and the page does not scroll sideways', async () => {
+    await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(250);
+    const m = await page.evaluate(() => ({ pos: getComputedStyle(document.querySelector('#tab-reports > .rhead')).position, side: document.documentElement.scrollWidth <= innerWidth }));
+    await page.setViewportSize({ width: 1366, height: 900 }); await page.waitForTimeout(250); assert.strictEqual(m.pos, 'static'); assert(m.side, 'no sideways scroll');
+    assert.strictEqual(await page.evaluate(() => getComputedStyle(document.querySelector('#tab-reports > .rhead')).position), 'sticky', 'and sticky again on a computer');
+  });
+  await test('Print class binders with no file open does not throw: it says to open a file first', async () => {
+    const ctx2 = await browser.newContext({ viewport: { width: 1366, height: 800 } }), p2 = await ctx2.newPage(), e2 = []; p2.on('pageerror', e => e2.push(e.message)); p2.on('dialog', d => d.accept());
+    await p2.goto(url); await p2.evaluate(() => App.showTab('reports')); await p2.evaluate(() => document.getElementById('btnBinders').click()); await p2.waitForTimeout(300); assert.deepStrictEqual(e2, []); await ctx2.close();
+  });
   await test('no script errors', () => assert.deepStrictEqual(errs, []));
   await browser.close(); server.close(); console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);
 })();
