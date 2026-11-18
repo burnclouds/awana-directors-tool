@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.73.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.74.0';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -861,9 +861,11 @@
   }
   $('busy').addEventListener('cancel', e => e.preventDefault());      // the draw is one synchronous block: it cannot be cancelled
   // Two or more pages: one line ("Pages to print: all 143") and a Choose pages button; the pop-up lists the names with Select all and Select none. The ticks act on the sheets at once, as the inline ones do.
-  function pagePickPopup(box, lead, sheets) {
+  // A bundle or binder (a Binders pick, the Class binder, Print class binders) shows only the count: its pop-up already chooses the page types and the classes, so there is no Choose pages button (N10).
+  function pagePickPopup(box, lead, sheets, noButton) {
     const name = (s, i) => { const h = s.querySelector('h2'); return h ? h.textContent : 'Page ' + (i + 1); }, on = () => sheets.filter(s => !s.classList.contains('skip')).length;
     const sum = () => { lead.id = 'pageSum'; lead.textContent = 'Pages to print: ' + (on() === sheets.length ? 'all ' + sheets.length : on() + ' of ' + sheets.length); };
+    if (noButton) { sum(); return; }
     const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'btnChoosePages'; btn.textContent = 'Choose pages…'; box.appendChild(btn); sum();
     btn.addEventListener('click', () => {
       const dl = $('dlg'); dl.innerHTML = '<h3 style="margin-top:0">Pages to print</h3><p class="bar" style="margin:0 0 6px"><button type="button" id="pgAll">Select all</button><button type="button" id="pgNone">Select none</button><span class="status" id="pgCount"></span></p>' +
@@ -880,7 +882,7 @@
     box.textContent = ''; box.hidden = sheets.length < 2;
     if (sheets.length < 2) return;
     const lead = document.createElement('span'); lead.className = 'status'; lead.textContent = 'Pages to print:'; box.appendChild(lead);
-    pagePickPopup(box, lead, sheets);      // every run of pages (a room each, a child each) is chosen in one pop-up: names, Select all, Select none
+    pagePickPopup(box, lead, sheets, !!bundleOf());      // every run of pages (a room each, a child each) is chosen in one pop-up: names, Select all, Select none
   }
   function renderReportCore() {
     syncQ();
@@ -1391,7 +1393,7 @@
   window.addEventListener('afterprint', () => blankDates(false));
   // Print class binders: a quick pick (a saved bundle: Class binder, Coaches binder, Quarterly Printables, the club's own) sets the pages that go in; the pages can be adjusted; the classes are ticked (none = the whole club in one set).
   // "Show binders" makes the choice a selection of the report list ("Your binders"), drawn like any bundle: the bundle quarter, the lock question and the page choice all work on it.
-  const BINDER_PARTS = [['attendance', 'Attendance sheet'], ['binderClass', 'Roster with medical and contact'], ['volunteers', 'Volunteer contact list (a copy in each class binder)'], ['progressSheets', 'Progress sheet for each child (none for Puggles)'], ['binderAll', 'Everyone by name: emergency, medical, photos'], ['binderTeams', 'Color teams by group and color'], ['teams', 'Color teams list (Sparks, T&T)'], ['noteSheets', 'Coaches notes sheets: a block for each club night (once, for the quarter)']];
+  const BINDER_PARTS = [['attendance', 'Attendance sheet'], ['binderClass', 'Roster with medical and contact'], ['volunteers', 'Volunteer contact list (a copy in each class binder)'], ['progressSheets', 'Progress sheet for each child (none for Puggles)'], ['binderAll', 'Everyone by name: emergency, medical, photos'], ['binderTeams', 'Color teams by group and color'], ['teams', 'Color teams list (Sparks, T&T)'], ['noteSheets', 'Coaches notes sheet: the whole quarter on one page (once)']];
   const BINDER_PER_CLASS = ['attendance', 'binderClass', 'volunteers', 'progressSheets'];      // pages made once per class when classes are ticked
   const binderItems = (parts, classes) => {
     const per = BINDER_PER_CLASS.filter(k => parts.includes(k)), items = [];
