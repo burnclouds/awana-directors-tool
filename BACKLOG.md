@@ -65,6 +65,11 @@ This is the only place open work is tracked. The two review files in `docs/revie
 - [x] **RP3. Progress Sheets: leave Puggles out.** Puggles have no progress sheets, so they should not be in the Progress Sheets page list or the Print all count (the room is in the Class filter and the page list today).
 - [x] **RP4. "Include progress sheets" in the class binder.** Checking it should re-draw the binder preview at once, or the option should move into the **Print class binders** popup so it is chosen with the other binder options and the preview is drawn from them. Decide which when building (the popup is the better fit if the preview is slow).
 
+## P2: hand-out strips merged with the weekly slips (Mike, 2026-11-17; BUILT in 1.51.15e, `handout-rule-browser.test.js`, plan `docs/superpowers/plans/2026-11-17-handout-merge-plan.md`)
+
+- [x] **HM1. Weekly award slips retired; the strips are the one hand-out report** (every award earned or recorded by hand and not Given; ignored and end-of-year awards left off; no-date and told-no-date shown as such; strips fit a phone).
+- [x] **HM2. Mike's phone check of the strips at 390 px** CLOSED 2026-11-17 by Mike (reopen with a screenshot if it looks wrong): (one strip per row, the class under a long name). Tell me if it looks wrong.
+
 ## P3: small build, tests and cleanup
 
 - [x] **S1. To do inline entry** confirmed built 2026-11-14: `todo-book-medical-browser.test.js` (9 passed in the sweep) covers the handbook code box (correct a code, refuse a bad one, save and leave To do; "Needs a handbook" row), the color team Best choice (select, Set saves the color shown) and printing updated medical sheets (a changed note adds the item; Open sheet clears it until the note changes again).

@@ -52,9 +52,7 @@ const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) +
     const { p, ctx } = await open(1280);
     await tab(p, 'attend'); await p.waitForTimeout(300); const att = await p.$eval('#attDate', s => s.options[s.selectedIndex].textContent); assert(/^Wed 11\/11 \(Q\d\) · last/.test(att), att);
     await tab(p, 'awards'); await p.waitForTimeout(300); const aw = await p.$eval('#awDate', s => s.options[s.selectedIndex].textContent); assert(/^Wed 11\/18 \(Q\d\) · next/.test(aw), aw);
-    await tab(p, 'reports'); await p.waitForTimeout(300); await p.evaluate(() => { const s = document.getElementById('rSel'), o = [...s.options].find(x => { const r = window.Reports && Reports.LIST.find(y => y.id === x.value); return r && (r.opts || []).includes('date'); }); if (o) { s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true })); } }); await p.waitForTimeout(300);
-    const rep = await p.$$eval('#oDateSel option', o => o.map(x => ({ v: x.value, t: x.textContent }))); assert(rep.length > 0 && rep.every(x => /^\d{4}-\d{2}-\d{2}$/.test(x.v)), 'values stay ISO dates');
-    const r11 = rep.find(x => x.v === '2026-11-11'); assert(r11 && /^Wed 11\/11 \(Q\d\)/.test(r11.t) && / · last/.test(r11.t), JSON.stringify(r11)); await ctx.close();
+    assert.strictEqual(await p.locator('#oDateSel').count(), 0, 'the Reports tab has no Night picker any more (only the retired weekly award slips used it)'); await ctx.close();
   });
   await test('UX-30 (390): a Roster checkbox has a 44px footprint (a 32px box with 6px around it)', async () => {
     const { p, ctx } = await open(390, 844, { hasTouch: true, isMobile: true }); await tab(p, 'roster'); await p.waitForTimeout(500);

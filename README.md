@@ -130,6 +130,7 @@ NODE_PATH=<dir with playwright> node test/reports-cleanup-browser.test.js    # p
 NODE_PATH=<dir with playwright> node test/field-reports-browser.test.js    # field reports: + Add sheet beside the book tabs, the Color teams report group, the Uniforms tab fits and has no parent size, the year grid legend (no pin), progress sheets drawn lazily
 NODE_PATH=<dir with playwright> node test/uniforms-cards-browser.test.js    # Uniforms as one card per child at 390 and 430 wide, a table at 1280
 NODE_PATH=<dir with playwright> node test/award-strips-browser.test.js    # Awards to hand out: a 4.5in strip per child, all groups, agrees with the Awards tab, one PDF page per sheet
+NODE_PATH=<dir with playwright> node test/handout-rule-browser.test.js    # the hand-out rule on the strips, the Awards tab list and badges for 13 seeded cases; no date / told, no date; weekly slips retired; strips on a phone and on paper
 NODE_PATH=<dir with playwright> node test/games-both-browser.test.js         # Sparks and T&T scored on one screen (side by side; stacked with 44px boxes on a phone; a whole night saves in the same shape)
 node test/todo-emergency-note.test.js          # To do: a child with no emergency phone is ONE action item in its own group (counted once), not repeated under Details missing; N/A and a name alone are not a phone
 NODE_PATH=<dir with playwright> node test/todo-emergency-note-browser.test.js   # the missing emergency phone on the To do page: header, card, by-task group, badge
@@ -309,7 +310,7 @@ node test/teams-report-order.test.js          # the Color teams report: four lis
 NODE_PATH=<dir with playwright> node test/todo-date-entry-browser.test.js   # To do "Needs a date received" rows take the date directly
 NODE_PATH=<dir with playwright> node test/told-no-date-browser.test.js   # "Announced, no date" on the Progress sheet
 NODE_PATH=<dir with playwright> node test/unchecked-features-browser.test.js   # To do Ignore, and two other features that had no test
-node test/weekly-slips.test.js                # weekly award slips and the end-of-year list by group
+node test/ceremony-list.test.js            # the end-of-year awards list: every group, sorted Sparks, T&T, Cubbies
 node test/reports-season.test.js <export.csv> <calendar.csv> <season.json>
 NODE_PATH=<dir with playwright> node test/browser.test.js <export.csv> <calendar.csv> <season.json> <old-master.csv>   # real Chromium, optional
 # (the one-time migration tools and tests, migrate.test.js and migrate-db.test.js, are retired: see dev/retired/migration/README.md)

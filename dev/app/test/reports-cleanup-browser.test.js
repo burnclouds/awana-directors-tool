@@ -63,9 +63,9 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 150000).unref()
     assert.strictEqual(await page.$$eval('#dlg input[data-part]', l => l.map(x => x.checked).join()), pages, 'pages untouched'); await page.click('#bindNone'); assert.strictEqual(await page.locator('#dlg input[data-bind]:checked').count(), 0); assert.strictEqual((await page.textContent('#bindCount')).trim(), '0 of ' + n + ' selected'); await page.keyboard.press('Escape');
   });
   const group = id => page.evaluate(i => { const o = [...document.querySelectorAll('#rSel option')].find(x => x.value === i); return o ? { hidden: o.hidden } : null; }, id);
-  await test('groups: Weekly slips stay with Attendance; Color teams, the coaches team list and Game standings are in Color teams; Awards to hand out and End-of-year list are with Progress & awards; Uniforms and Lessons are in Other', async () => {
+  await test('groups: Color teams, the coaches team list and Game standings are in Color teams; Awards to hand out and End-of-year list are with Progress & awards; Uniforms and Lessons are in Other', async () => {
     const where = async id => { await page.evaluate(x => App.showReport(x), id); await page.waitForTimeout(150); return page.evaluate(() => document.querySelector('#rSubs button.on').dataset.rsub); };
-    assert.strictEqual(await where('weeklySlips'), 'attend'); assert.strictEqual(await where('teams'), 'teams'); assert.strictEqual(await where('standings'), 'teams'); assert.strictEqual(await where('binderTeams'), 'teams'); assert.strictEqual(await where('handOut'), 'progress'); assert.strictEqual(await where('ceremony'), 'progress'); assert.strictEqual(await where('uniforms'), 'other'); assert.strictEqual(await where('lessons'), 'other'); assert.strictEqual(await where('photos'), 'binders');
+    assert.strictEqual(await where('teams'), 'teams'); assert.strictEqual(await where('standings'), 'teams'); assert.strictEqual(await where('binderTeams'), 'teams'); assert.strictEqual(await where('handOut'), 'progress'); assert.strictEqual(await where('ceremony'), 'progress'); assert.strictEqual(await where('uniforms'), 'other'); assert.strictEqual(await where('lessons'), 'other'); assert.strictEqual(await where('photos'), 'binders');
   });
   await test('the bundle note does not stay behind on an ordinary report; Title and List order show only where the bundle uses them', async () => {
     const pick = async v => { await page.selectOption('#rSel', v); await page.waitForTimeout(350); }, vis = id => page.isVisible('#' + id);
@@ -84,9 +84,9 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 150000).unref()
     const hasAsOf = await page.evaluate(() => !!App.master && !!App.master.pcAsOf); if (hasAsOf) assert(r.some(x => /Emergency|Medical/.test(x.t) && x.asof), 'on the contact pages');
     assert(!r.some(x => /Attendance|Color Teams/i.test(x.t) && x.asof), 'not on attendance or teams: ' + JSON.stringify(r.filter(x => x.asof).map(x => x.t)));
   });
-  await test('Attendance sheets have no Night picker (Weekly award slips keep theirs); the print buttons on other tabs say Print ...', async () => {
+  await test('No report has a Night picker any more (it only served the weekly award slips, which are retired); the print buttons on other tabs say Print ...', async () => {
     await page.evaluate(() => App.showReport('attendance')); await page.waitForTimeout(250); assert(!(await page.isVisible('#oDateSel')), 'no Night on Attendance sheets');
-    await page.evaluate(() => App.showReport('weeklySlips')); await page.waitForTimeout(250); assert(await page.isVisible('#oDateSel'), 'Night on the weekly slips');
+    assert.strictEqual(await page.locator('#oDateSel').count(), 0, 'no Night picker at all'); assert(!(await page.evaluate(() => Reports.LIST.some(r => r.id === 'weeklySlips'))), 'the weekly slips report is gone');
     assert(/^Print statistics/.test((await page.$eval('#btnStatsPrint', e => e.textContent)).trim()), 'Statistics'); 
   });
   await test('Color teams (Sparks, T&T) print one page per group: tighter rows, no group spills onto a second page', async () => {
@@ -96,7 +96,7 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 150000).unref()
   });
   await test('RP5: one bar in the order what, when, who, how many, go: Report, Quarter, Group, Class, ..., Pages to print, Print last; everything is inside it and the header (no second bar)', async () => {
     await page.evaluate(() => App.showReport('attendance')); await page.selectOption('#oRoomSel', ''); await page.waitForTimeout(300);      // all classes (an earlier test left one chosen)
-    const m = await page.evaluate(() => { const bar = document.getElementById('rBar'), order = ['rSel', 'qWrap', 'oGroup', 'oRoom', 'oDate', 'oKid', 'dateBar', 'calNote', 'pagePick', 'btnBinders', 'btnPrint'].map(id => document.getElementById(id)),
+    const m = await page.evaluate(() => { const bar = document.getElementById('rBar'), order = ['rSel', 'qWrap', 'oGroup', 'oRoom', 'oKid', 'dateBar', 'calNote', 'pagePick', 'btnBinders', 'btnPrint'].map(id => document.getElementById(id)),
         inside = order.every(e => e && bar.contains(e)), pos = order.map(e => [...bar.querySelectorAll('*')].indexOf(e)), visible = e => e.getClientRects().length > 0, vis = order.filter(visible).map(e => e.id);
       return { inside, sorted: pos.every((x, i) => !i || x > pos[i - 1]), vis, oneRow: !document.querySelector('#tab-reports > #dateBar, #tab-reports > #pagePick'), headerHasBar: !!document.querySelector('#tab-reports > .rhead > #rBar'), printLast: [...bar.querySelectorAll('button')].filter(visible).pop().id }; });
     assert(m.inside && m.sorted, 'inside the one bar, in order: ' + JSON.stringify(m)); assert(m.oneRow && m.headerHasBar, 'no second bar below the header'); assert.strictEqual(m.printLast, 'btnPrint', 'Print is the last button'); assert(m.vis.includes('qWrap') && m.vis.includes('pagePick'), m.vis.join());

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.68.0';
+(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.68.1';
 // Season store: everything recorded during one club year, kept in one JSON file keyed by person ID
 // (attendance, games, awards, handbooks, section-by-section progress, the roster) plus the lists and templates they use.
 //
@@ -829,7 +829,7 @@
   function pendingAwards(s, id, group, calRows) {
     const skip = (s.config.exclude || {})[group] || [];
     return awardLedger(s, id, group, calRows).filter(r => r.earned && !r.announced && !r.annNoDate && !skip.includes(r.award))
-      .map(r => ({ award: r.award, earned: r.earned, held: r.held })).sort((a, b) => a.earned < b.earned ? -1 : a.earned > b.earned ? 1 : a.award < b.award ? -1 : 1);
+        .map(r => ({ award: r.award, earned: r.earned, earnedNoDate: !!r.earnedNoDate, held: r.held })).sort((a, b) => a.earned < b.earned ? -1 : a.earned > b.earned ? 1 : a.award < b.award ? -1 : 1);
   }
   // What the slides show: pending and not held, for the given children of one group. [{ id, results: [award] }], children with nothing left out.
   function slidePending(s, group, ids, calRows, resolve) {
@@ -851,7 +851,8 @@
   }
   // Every award a child has earned this season: worked out from Progress and attendance, plus any recorded by hand (announced or given) since an award you record is one you say they earned.
   // Earned is the main idea; announcing is a reminder to tell the crowd and Given tracks what was handed over. [{ award, earned (day, '' for one recorded by hand) }].
-  // Earned or announced, and not yet given (a date or the "no date" tick both count as given), not on the group's exclude list, and not an end-of-year award (those wait for the ceremony list).
+  // Earned this season (from Progress or attendance) or recorded by hand, or earned in an earlier year and announced; and not Given (a date or the "no date" tick both count as given); not on the group's ignored list (config.exclude);
+  // and not an end-of-year award (those wait for the ceremony list). Holds and announcing do not matter.
   // One rule for the Awards tab's To hand out list, its badge and the Awards to hand out strips, so they always agree.
   function toHandOut(s, id, group, calRows) { const skip = (s.config.exclude || {})[group] || []; return awardLedger(s, id, group, calRows).filter(r => !r.given && !skip.includes(r.award) && !isEndOfYear(s, group, r.award)); }
   function earnedAwards(s, id, group, calRows) { return awardLedger(s, id, group, calRows).filter(r => !r.carried).map(r => ({ award: r.award, earned: r.earned })); }

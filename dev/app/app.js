@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.70.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.71.0';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -777,7 +777,7 @@
   const sel = $('rSel');
   // Report groups (the sub-tabs above the report box): each one shows only its own reports in the one list below, so the list and everything that picks a report from it (showReport, the tests) work as before.
   // The group of a report is looked up here, not stored with the report. The group chosen is for this visit only.
-  const RSUBS = { attend: ['attendance', 'attendDates', 'weeklySlips'], teams: ['teams', 'binderTeams', 'standings'], binders: ['binderClass', 'binderAll', 'volunteers', 'photos'], progress: ['progressSheets', 'achievement', 'awardsByChild', 'ceremony', 'handOut', 'booksYear', 'handbooks', 'paceWatch'] };
+  const RSUBS = { attend: ['attendance', 'attendDates'], teams: ['teams', 'binderTeams', 'standings'], binders: ['binderClass', 'binderAll', 'volunteers', 'photos'], progress: ['progressSheets', 'achievement', 'awardsByChild', 'ceremony', 'handOut', 'booksYear', 'handbooks', 'paceWatch'] };
   const subOf = v => /^bundle:/.test(v) ? 'binders' : Object.keys(RSUBS).find(k => RSUBS[k].includes(v)) || 'other';      // everything else (uniforms, lessons, Planning Center changes) is "Other"
   let rsub = 'attend'; const lastIn = {};
   let binderSel = null, binderPrefs = null;      // binderSel: the binders chosen in the Print class binders pop-up ({ name, items }); binderPrefs: the pop-up's last settings, kept for the visit
@@ -799,7 +799,7 @@
   $('sQuarter').value = settings.quarter;
   const bundleOf = () => sel.value === 'bundle:picked' ? binderSel : /^bundle:\d+$/.test(sel.value) ? Reports.bundlesOf(App.season)[+sel.value.slice(7)] || null : null;
   function renderBundle(b) {
-    ['oRoom', 'oGroup', 'oDate', 'oKid', 'calNote', 'oNoBook'].forEach(id => { $(id).hidden = true; });
+    ['oRoom', 'oGroup', 'oKid', 'calNote', 'oNoBook'].forEach(id => { $(id).hidden = true; });
     // One quarter control in bundle mode: the Quarter pills choose the quarter to print (bundleQ). The lower bar shows only what the bundle's reports use: List order for the color team lists, Title for the pace watch list (MC-01, UX-01).
     const uses = id => (b.items || []).some(i => i.report === id), order = uses('teams'), title = uses('paceWatch'), perClass = !!b.perClass && b !== binderSel;
     $('dateBar').hidden = !(order || title); $('oOrder').hidden = !order; $('tWrap').hidden = !title;
@@ -869,7 +869,7 @@
     // A report with groupAll (Awards to hand out) has an "All groups" choice in the Group picker; a report without it never sees that choice.
     const gsel0 = $('oGroupSel'), allOpt = [...gsel0.options].find(x => x.value === '');
     if (o.includes('groupAll') && !allOpt) gsel0.insertBefore(new Option('All groups', ''), gsel0.firstChild); else if (!o.includes('groupAll') && allOpt) { const was = gsel0.value === ''; allOpt.remove(); if (was) gsel0.value = 'Sparks'; }
-    $('oGroup').hidden = !(o.includes('group') || o.includes('groupAll')); $('oDate').hidden = !o.includes('date'); $('oKid').hidden = !o.includes('kid');    $('dateBar').hidden = !(o.includes('quarter') || o.includes('order') || o.includes('title') || o.includes('noBook')); $('oNoBook').hidden = !o.includes('noBook');
+    $('oGroup').hidden = !(o.includes('group') || o.includes('groupAll')); $('oKid').hidden = !o.includes('kid');    $('dateBar').hidden = !(o.includes('quarter') || o.includes('order') || o.includes('title') || o.includes('noBook')); $('oNoBook').hidden = !o.includes('noBook');
     $('qWrap').hidden = $('calNote').hidden = !o.includes('quarter'); $('oOrder').hidden = !o.includes('order'); $('tWrap').hidden = !o.includes('title');
     const nights = Calendar.nights(calendar, settings.quarter).length;
     $('calNote').textContent = calendar.length ? nights + ' club nights in ' + settings.quarter + ' from the calendar' : '';
@@ -878,13 +878,10 @@
     // A report with a Group picker lists only that group's rooms in the Room picker (an old choice from another group is dropped).
     const gsel = $('oGroupSel').value, rl = Reports.roomsOf(Reports.kids(master)).filter(r => (!(o.includes('group') || (o.includes('groupAll') && gsel !== '')) || Model.groupOf(r) === gsel) && !(def.id === 'progressSheets' && Model.groupOf(r) === 'Puggles'));      // Puggles have no progress sheets
     rs.innerHTML = '<option value="">All classes</option>' + rl.map(r => '<option>' + esc(r) + '</option>').join(''); rs.value = rl.includes(cur) ? cur : '';
-    const ds = $('oDateSel'), dcur = ds.value, nl = new Set(calendar.filter(Calendar.isNight).map(r => r.Date));
-    if (App.season) [App.season.attendance, App.season.awards, App.season.games].forEach(m => Object.keys(m).forEach(d => nl.add(d)));
-    ds.innerHTML = [...nl].sort().map(d => '<option value="' + esc(d) + '">' + esc(App.nightLabel ? App.nightLabel(d) : d) + '</option>').join('');      /* the same text as Attendance and Awards (UX-16); the value stays the ISO date */ ds.value = dcur || [...nl].sort().filter(d => d <= today()).pop() || '';
     const ks = $('oKidSel'), kcur = ks.value;
     ks.innerHTML = '<option value="">Everyone in the ' + (rs.value && o.includes('room') ? 'class' : 'group') + '</option>' + master.people.filter(p => Model.isActive(p) && Model.isClubber(p) && Model.groupOf(Model.room(p)) === $('oGroupSel').value && (!rs.value || !o.includes('room') || Model.room(p) === rs.value))
       .sort(Model.byRoomThenName).map(p => '<option value="' + esc(p[X.ID]) + '">' + esc(Model.room(p) + ' \u2014 ' + Model.fullName(p)) + '</option>').join(''); ks.value = kcur;
-    const html = def.render({ master, settings, calendar, rotation, season: App.season, progressSheet: (p, book) => App.sheets.html(p, book), opts: { room: rs.value, order: $('oOrderSel').value, group: $('oGroupSel').value, date: o.includes('date') ? ds.value : '', kid: ks.value, noBook: o.includes('noBook') && $('oNoBookChk').checked } });      // the night only counts for reports that show the Night box
+    const html = def.render({ master, settings, calendar, rotation, season: App.season, progressSheet: (p, book) => App.sheets.html(p, book), opts: { room: rs.value, order: $('oOrderSel').value, group: $('oGroupSel').value, kid: ks.value, noBook: o.includes('noBook') && $('oNoBookChk').checked } });      // the night only counts for reports that show the Night box
     // Contact and medical details come from the last Planning Center export; say how old it is.
     $('report').innerHTML = ['binderClass', 'binderAll', 'volunteers', 'photos'].includes(def.id) && master && master.pcAsOf ?
       html.replace(/<\/h2>/g, '</h2><p class="sub asof">Planning Center data as of ' + esc(master.pcAsOf) + '</p>') : html;
@@ -927,18 +924,18 @@
     else if (e.key === 'Tab' && !e.shiftKey && !e.target.value && finishDateBox(e.target)) { e.preventDefault(); if (document.activeElement === e.target) focusAfter(e.target); }      // month and day typed, no year: this year is filled in, then on to the next box
   }, true);
   document.addEventListener('focusout', e => { if (isDateBox(e.target)) finishDateBox(e.target); }, true);
-  App.reportOptions = o => {      // set the pickers, then draw once more if the class, night or child changed (they are set after the first draw, which fills their lists)
-    const g = $('oGroupSel'); if ('group' in o && [...g.options].some(x => x.value === o.group)) g.value = o.group;
-    renderReport();
-    const rs = $('oRoomSel'), ds = $('oDateSel'), ks = $('oKidSel'); let again = false;
+  App.reportOptions = o => {      // set the pickers: Group first (it decides which classes are listed), then Class and Child, drawing again each time one changed
+    renderReport();      // makes sure the pickers hold the choices this report has (for example All groups on the hand-out strips)
+    const g = $('oGroupSel'), rs = $('oRoomSel'), ks = $('oKidSel');
+    if ('group' in o && g.value !== o.group && [...g.options].some(x => x.value === o.group)) { g.value = o.group; renderReport(); }
+    let again = false;
     if (rs.value !== (o.room || '')) { rs.value = o.room || ''; again = true; }
-    if (o.date && ds.value !== o.date) { ds.value = o.date; again = true; }
     if (ks.value !== '') { ks.value = ''; again = true; }
     if (again) renderReport();
     if (o.kid) { ks.value = o.kid; renderReport(); }
   };
   App.showReport = id => { sel.value = id; showTab('reports'); };
-  [sel, $('oNoBookChk'), $('oRoomSel'), $('oOrderSel'), $('oGroupSel'), $('oDateSel'), $('oKidSel')].forEach(el => el.addEventListener('change', renderReport));
+  [sel, $('oNoBookChk'), $('oRoomSel'), $('oOrderSel'), $('oGroupSel'), $('oKidSel')].forEach(el => el.addEventListener('change', renderReport));
   // A group button shows that group's reports: the one used last in it, or its first.
   $('rSubs').addEventListener('click', e => {
     const b = e.target.closest('button[data-rsub]'); if (!b) return;

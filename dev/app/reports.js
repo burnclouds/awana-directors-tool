@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.17.3';
+(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.18.0';
 // Print reports. Each render(ctx) returns HTML; ctx = { master, settings, opts }.
 (function (root) {
   const M = root.Model || (typeof require !== 'undefined' ? require('./model.js') : null);
@@ -236,8 +236,8 @@
     { name: 'Coaches binder', items: [{ report: 'binderClass' }, { report: 'binderAll' }, { report: 'volunteers' }, { report: 'binderTeams' }] },
     { name: 'Class binder', perClass: true, items: [{ report: 'attendance' }, { report: 'binderClass' }, { report: 'volunteers' }, { report: 'progressSheets' }] }];      // perClass: the Class picker applies to each part (Reports tab and the Print class binders pop-up)      // a starting point: the club edits it under Options > Report bundles
   // Reports that were folded into others or dropped (1.50.35): a saved bundle that names one keeps working. The emergency-contact and medical lists became the class binder (by class) and the coaches binder (everyone by name),
-  // and the master schedule, nightly rotation and attendance summary reports are gone, so a bundle simply skips them.
-  const REPORT_ALIAS = { ecClass: 'binderClass', medical: 'binderClass', medicalClass: 'binderClass', ecName: 'binderAll', medicalAll: 'binderAll' }, REPORT_GONE = ['schedule', 'rotation', 'attendanceSummary'];
+  // and the master schedule, nightly rotation, attendance summary and weekly award slips reports are gone, so a bundle simply skips them.
+  const REPORT_ALIAS = { ecClass: 'binderClass', medical: 'binderClass', medicalClass: 'binderClass', ecName: 'binderAll', medicalAll: 'binderAll' }, REPORT_GONE = ['schedule', 'rotation', 'attendanceSummary', 'weeklySlips'];      // weeklySlips (1.51.15e): the Awards to hand out strips list every award waiting, so a bundle that named the weekly slips simply skips it
   const tidyBundle = b => { const seen = new Set(); const out = Object.assign({}, b, { items: (b.items || []).map(it => REPORT_ALIAS[it.report] ? Object.assign({}, it, { report: REPORT_ALIAS[it.report] }) : it).filter(it => !REPORT_GONE.includes(it.report)).filter(it => { const k = it.report + '|' + (it.room || '') + '|' + (it.group || ''); if (seen.has(k)) return false; seen.add(k); return true; }) });
     // A bundle saved before 1.51.15c has no perClass: one that holds the per-class pages (attendance, roster, progress sheets) and names no class is a class binder, so the Class picker applies to it.
     if (out.perClass === undefined) out.perClass = out.items.some(it => it.report === 'progressSheets') && out.items.some(it => it.report === 'binderClass') && !out.items.some(it => it.room);
@@ -258,7 +258,7 @@
     // "Planning Center data as of" goes only under the pages that carry Planning Center contact and medical data (the same pages as a single report), not under attendance sheets or team lists.
     const CONTACT = ['binderClass', 'binderAll', 'volunteers', 'photos'], asOf = html => ctx.master && ctx.master.pcAsOf ? html.replace(/<\/h2>/g, '</h2><p class="sub asof">Planning Center data as of ' + esc(ctx.master.pcAsOf) + '</p>') : html;
     (bundle.items || []).forEach(it => { const def = LIST.find(r => r.id === it.report); if (!def) return;
-      const h = def.render(Object.assign({}, ctx, { settings, opts: Object.assign({}, ctx.opts, { room: it.room || '', group: it.group || ctx.opts.group, date, asOfFirst: !!date }) })); out.push(CONTACT.includes(def.id) ? asOf(h) : h); });
+      const h = def.render(Object.assign({}, ctx, { settings, opts: Object.assign({}, ctx.opts, { room: it.room || '', group: it.group || (def.opts && def.opts.includes('groupAll') ? '' : ctx.opts.group), date, asOfFirst: !!date }) })); out.push(CONTACT.includes(def.id) ? asOf(h) : h); });
     return out.join('');
   }
   const api = { LIST, DEFAULT_BUNDLES, bundlesOf, runBundle, nextQuarter, firstNightOf, esc, TEAM_COLORS, kids, roomsOf, nightDates, uniformRows, uniformHead, UNI_HEAD, table };

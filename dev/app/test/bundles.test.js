@@ -18,8 +18,8 @@ test('the standard bundles are Quarterly Printables (attendance, medical by clas
 test('a club\'s own bundles replace the standard one; an empty list falls back to it', () => {
   const s = { config: { bundles: [{ name: 'Coaches binder', items: [{ report: 'binderAll' }] }] } }; assert.strictEqual(R.bundlesOf(s)[0].name, 'Coaches binder');
   // a bundle saved before 1.50.35 still works: the folded reports map to the binders, the dropped ones are skipped, and nothing is listed twice
-  const old = { config: { bundles: [{ name: 'Old', items: [{ report: 'ecClass' }, { report: 'medicalClass' }, { report: 'schedule' }, { report: 'medicalAll' }, { report: 'rotation' }, { report: 'attendanceSummary' }, { report: 'teams' }] }] } };
-  assert.deepStrictEqual(R.bundlesOf(old)[0].items.map(i => i.report), ['binderClass', 'binderAll', 'teams'], 'old ids mapped, dropped ones skipped, duplicates merged');
+  const old = { config: { bundles: [{ name: 'Old', items: [{ report: 'ecClass' }, { report: 'medicalClass' }, { report: 'schedule' }, { report: 'medicalAll' }, { report: 'rotation' }, { report: 'attendanceSummary' }, { report: 'weeklySlips' }, { report: 'teams' }] }] } };
+  assert.deepStrictEqual(R.bundlesOf(old)[0].items.map(i => i.report), ['binderClass', 'binderAll', 'teams'], 'old ids mapped, dropped ones (the weekly award slips too) skipped, duplicates merged');
   assert.strictEqual(R.bundlesOf({ config: { bundles: [] } })[0].name, 'Quarterly Printables');
 });
 test('the default quarter is the next one: in Q2 it is Q3; in Q4 it stays Q4; before the first night it is Q1', () => {

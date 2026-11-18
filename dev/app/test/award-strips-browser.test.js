@@ -50,6 +50,10 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
     await toReport('Puggles'); assert(/Nothing earned is waiting/.test(await page.textContent('#report')), 'empty message');
     await page.evaluate(() => App.showReport('attendDates')); await page.waitForTimeout(250); assert(!(await page.$$eval('#oGroupSel option', o => o.some(x => x.textContent === 'All groups'))), 'no All groups on other reports');
   });
+  await test('each strip is labelled Date and Initials once, and every award has a Date box and an Initials box (no unlabelled tick box)', async () => {
+    await toReport(''); const m = await page.evaluate(() => ({ strips: document.querySelectorAll('#report .strip').length, caps: [...document.querySelectorAll('#report .strip .stcap')].map(c => c.textContent.replace(/\s+/g, ' ').trim()), lines: document.querySelectorAll('#report .stripaward').length, dates: document.querySelectorAll('#report .stripaward .stdate').length, inits: document.querySelectorAll('#report .stripaward .stinit').length, ticks: document.querySelectorAll('#report .stbox').length }));
+    assert.strictEqual(m.caps.length, m.strips); assert(m.caps.every(c => c === 'DateInitials' || c === 'Date Initials'), m.caps[0]); assert.strictEqual(m.dates, m.lines); assert.strictEqual(m.inits, m.lines); assert.strictEqual(m.ticks, 0, 'no tick boxes');
+  });
   await test('the Awards tab button carries the Class picker: only that class prints (and the report says so)', async () => {
     const room = await page.evaluate(() => { const s = App.season, c = App.master.people.filter(p => Model.isActive(p) && Model.isClubber(p) && Model.groupOf(Model.room(p)) === 'Sparks'); const rooms = [...new Set(c.map(Model.room))]; return rooms.find(r => c.some(p => Model.room(p) === r && Season.toHandOut(s, p[Model.X.ID], 'Sparks', App.calendar).length)) || rooms[0]; });
     await page.evaluate(() => App.showTab('awards')); await page.waitForTimeout(250); await page.selectOption('#awGroup', 'Sparks').catch(() => {}); await page.selectOption('#awRoom', room); await page.waitForTimeout(250);

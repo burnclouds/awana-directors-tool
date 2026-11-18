@@ -310,7 +310,7 @@ Section 10.
 | `teamsOk` | `{ repeats: [id...], uneven: [quarter...] }` | both empty | Color-team warnings accepted for good: children allowed a repeated color, quarters allowed uneven teams. A new season clears it. |
 | `teamPlan` | object (below) | absent while empty | The color-team year plan. |
 | `awardLists` | `{ <group>: [award name...] }` | built in | The awards the club knows, per group. |
-| `exclude` | `{ <group>: [award name...] }` | `{ Sparks: ["Flight 3:16"] }` | Awards left off the slides (everybody gets them) and out of announce lists. |
+| `exclude` | `{ <group>: [award name...] }` | `{ Sparks: ["Flight 3:16"] }` | Awards left off the slides (everybody gets them) and out of announce lists. It is also left off the hand-out list, its badge and the Awards to hand out strips. |
 | `completion` | `{ <group>: [award name...] }` | built in | The awards for finishing books, in the order of how many books are finished. |
 | `endOfYear` | `{ <group>: [award name...] }` | built in | Awards announced when earned but presented at the ceremony. |
 | `books` | `{ <code>: { name, emblem, group } }` | the nine standard books | The books. `emblem` is a color or `""`; `group` is `Cubbies`, `Sparks` or `T&T`. Codes are 2 or 3 letters. |
@@ -319,7 +319,7 @@ Section 10.
 | `cubbiesDetail` | `unit` or `section` | absent (= `unit`) | Older switch for the Cubbies sheet; the template in `progress.Cubbies` is what counts now. |
 | `clubTitle` | text | absent | A title typed by hand; absent = follow the year. |
 | `slideNames` | `{ "<recorded name>": "<slide wording>" }` | absent | Overrides the wording of an award on the slides. |
-| `bundles` | list of `{ name, items: [ { report, ... } ] }` | absent (= three standard bundles) | Report bundles (Options). Reports named that no longer exist are skipped. |
+| `bundles` | list of `{ name, items: [ { report, ... } ] }` | absent (= three standard bundles) | Report bundles (Options). Reports named that no longer exist are skipped. (a bundle that names the retired `weeklySlips` skips it). |
 | `medRead` | `{ <id>: "<medical text as read>" }` | absent | A medical note marked read; it comes back only if the text changes. |
 | `medPrinted` | `{ <id>: "<medical text as printed>" }` | absent | The text last printed on the class medical sheet. |
 | `tntBook` | text | gone | Read from a 1.32 file and folded into `yearBook["T&T"]`, then deleted. Never written. |

@@ -35,7 +35,7 @@ const count = (s, re) => (s.match(re) || []).length;
 
 test('the season reports are registered; the weekly awards and Awards status reports are gone, the hand-out and end-of-year ones stay', () => {
   ['awardsByChild', 'achievement', 'standings', 'handbooks', 'handOut', 'ceremony'].forEach(id => assert(Reports.LIST.some(r => r.id === id), id)); assert(!Reports.LIST.some(r => r.id === 'attendanceSummary'), 'the attendance summary report is gone');
-  ['weeklyAwards', 'awardStatus'].forEach(id => assert(!Reports.LIST.some(r => r.id === id), id + ' should be removed'));
+  ['weeklyAwards', 'awardStatus', 'weeklySlips'].forEach(id => assert(!Reports.LIST.some(r => r.id === id), id + ' should be removed'));
 });
 test('every season report says what to do when no data file is open', () => {
   Reports.LIST.filter(r => ['awardsByChild', 'achievement', 'standings', 'handbooks'].includes(r.id))

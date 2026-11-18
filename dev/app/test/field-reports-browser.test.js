@@ -30,7 +30,7 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
     assert.deepStrictEqual(await page.$$eval('#rSubs button', b => b.map(x => x.textContent)), ['Attendance', 'Color teams', 'Binders', 'Progress & awards', 'Other']);
     const where = async id => { await page.evaluate(x => App.showReport(x), id); await page.waitForTimeout(150); return page.evaluate(() => document.querySelector('#rSubs button.on').dataset.rsub); };
     const errs7 = []; page.on('pageerror', e => errs7.push(e.message));
-    for (const [id, g] of [['standings', 'teams'], ['teams', 'teams'], ['binderTeams', 'teams'], ['paceWatch', 'progress'], ['attendance', 'attend'], ['attendDates', 'attend'], ['weeklySlips', 'attend'], ['binderClass', 'binders'], ['uniforms', 'other']]) assert.strictEqual(await where(id), g, id);
+    for (const [id, g] of [['standings', 'teams'], ['teams', 'teams'], ['binderTeams', 'teams'], ['paceWatch', 'progress'], ['attendance', 'attend'], ['attendDates', 'attend'], ['binderClass', 'binders'], ['uniforms', 'other']]) assert.strictEqual(await where(id), g, id);
     assert.deepStrictEqual(errs7, [], 'no page errors'); await ctx.close();
   });
   await test('#10: the Uniforms tab fits at 1280 and 1366 wide with no sideways scroll, has no Parent size column, and lists the sizes before the dates', async () => {
