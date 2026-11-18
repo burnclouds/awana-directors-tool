@@ -223,6 +223,7 @@ NODE_PATH=<dir with playwright> node test/uniform-order-browser.test.js   # the 
 NODE_PATH=<dir with playwright> node test/awards-recalc-browser.test.js   # an award earned by an edit (Progress, attendance) shows in the To do count at once; Awards offers it; Undo takes it back
 NODE_PATH=<dir with playwright> node test/progress-reviews-browser.test.js   # Sparks Progress: jewels, then the reviews numbered 1 to 4, then the Review Emblem
 NODE_PATH=<dir with playwright> node test/table-wrap-browser.test.js   # long messages in a table wrap inside their cell (Data checks, To do, Validate) instead of running under the link beside them
+NODE_PATH=<dir with playwright> node test/update-launch-browser.test.js   # N5: one version check as the app opens (bar within seconds, one check only, silent offline, none from a file)
 NODE_PATH=<dir with playwright> node test/update-autosave-browser.test.js   # version check and bar, Update now carrying the session through a reload, auto-save
 NODE_PATH=<dir with playwright> node test/splash-update-check-browser.test.js   # the start screen's version line checks for updates and says what it found (latest, newer with Update now, unreachable)
 node test/deploy-stamp.test.js                # make-deploy.sh stamps ?v=<version> on the published page and still refuses an unbumped change

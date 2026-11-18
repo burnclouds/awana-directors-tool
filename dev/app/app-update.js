@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-update.js'] = '1.5.4';
+(this.AwanaVersions = this.AwanaVersions || {})['app-update.js'] = '1.6.0';
 // App updates and auto-save.
 //  Updates: every few minutes (10 by default) the page asks the site for its index.html and compares the version in it with the one running. A newer one shows a bar with Update now / Later; nothing happens until you choose.
 //  Update now: anything held on a tab is settled, an unsaved data file is SAVED FIRST (the Save button's way: this computer or Drive), the open session is put in this tab's sessionStorage, the page reloads, and the new version
@@ -13,6 +13,7 @@
   const newerVersion = (a, b) => { const na = String(a || '').match(/\d+/g) || [], nb = String(b || '').match(/\d+/g) || []; for (let i = 0; i < Math.max(na.length, nb.length); i++) { const x = +(na[i] || 0), y = +(nb[i] || 0); if (x !== y) return x > y; } return String(a || '').localeCompare(String(b || '')) > 0; };
   const HANDOFF = 'awana-handoff';
   const DEF_U = { on: true, minutes: 10 }, DEF_A = { on: false, minutes: 5 };
+  const LAUNCH_CHECK_MS = 1500;      // after the page's load event: past the session restore (which runs at load + 0 ms) and the first paint
   // The two timers' settings live in the data file (config.autoUpdate, config.autoSave). Before a file is open, the code defaults apply; App.fileSettingsLoaded runs when a file opens.
   const fromFile = (key, def) => Object.assign({}, def, (App.season && App.season.config && App.season.config[key]) || {});
   const hhmm = () => new Date().toTimeString().slice(0, 5);
@@ -115,6 +116,9 @@
   App.swReady = () => { if (!U.found) { U.found = { version: '', build: '' }; redraw(); } };
   // Called when a data file opens (or the page's file is closed): take the timers' settings from that file.
   App.fileSettingsLoaded = () => { U.cfg = fromFile('autoUpdate', DEF_U); A.cfg = fromFile('autoSave', DEF_A); schedule(); scheduleAuto(); };
-  if (web) { setTimeout(check, 15000); schedule(); }
+  // N5: one check as the LAST step of start-up, not 15 seconds later: after every script has loaded and the session restore above has run, ask the site for its index.html and run the service worker's update check
+  // (check() does both), so an installed PWA that served its cached copy finds the new release within seconds of opening. It only shows the bar (never applies anything); offline or a failed request is silent; the timer
+  // restarts after it, so a second check does not fire a moment later.
+  if (web) { const launch = () => setTimeout(async () => { await check(); schedule(); }, LAUNCH_CHECK_MS); if (doc.readyState === 'complete') launch(); else window.addEventListener('load', launch); schedule(); }
   scheduleAuto();
 })();

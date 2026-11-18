@@ -49,7 +49,9 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
   });
   await test('#8: progress sheets say "Drawing ..." while they are made, are lazily laid out on screen, and the sheets all arrive', async () => {
     const { page, ctx } = await open(1366); await page.evaluate(() => App.showTab('reports'));
-    const at = await page.evaluate(() => { App.showReport('progressSheets'); return document.getElementById('report').textContent; }); assert(/Drawing \d+ progress sheets/.test(at), 'the drawing line shows first: ' + at.slice(0, 60)); await page.waitForSelector('#report .onepage'); await page.waitForFunction(() => document.getElementById('pageSum'));
+    await page.evaluate(() => App.showReport('progressSheets')); await page.waitForSelector('#report .onepage'); await page.waitForFunction(() => !document.getElementById('busy').open);      // N4: it opens on one class; the whole club is drawn behind a pop-up
+    const at = await page.evaluate(() => { const s = document.getElementById('oRoomSel'); s.value = ''; s.dispatchEvent(new Event('change', { bubbles: true })); const b = document.getElementById('busy'); return b.open ? b.textContent : 'no pop-up'; }); assert(/Drawing \d+ progress sheets/.test(at), 'the drawing pop-up shows first: ' + at.slice(0, 60));
+    await page.waitForFunction(() => !document.getElementById('busy').open); await page.waitForFunction(() => document.getElementById('pageSum'));
     assert.strictEqual(await page.$eval('#report .onepage', e => getComputedStyle(e).contentVisibility), 'auto', 'sheets off screen are skipped until near'); assert((await page.locator('#report .onepage').count()) >= 30, 'many sheets');
     await page.evaluate(() => App.showReport('progressSheets')); await ctx.close();
   });
