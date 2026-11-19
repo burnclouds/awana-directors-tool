@@ -34,7 +34,8 @@
   const movesAsOf = (s, id, d, q, dflt) => Season.movesOf(s, id).filter(x => x.q === q && x.from <= d).reduce((t, x) => x.team, dflt || '');
   const teamAsOf = (ctx, p) => { const q = sheetQuarter(ctx), d = ctx.opts && ctx.opts.date, t = M.teamOf(p, q); return !ctx.season ? t : d ? (ctx.opts.asOfFirst ? movesAsOf : Season.teamOn)(ctx.season, p[M.X.ID], d, q, t) : Season.quarterColor(ctx.season, p[M.X.ID], q, t); };
   const movesThisQuarter = (ctx, p) => !!ctx.season && Season.movesOf(ctx.season, p[M.X.ID]).some(m => m.q === sheetQuarter(ctx));
-  const teamNote = ctx => !ctx.season ? '' : ctx.opts && ctx.opts.date ? 'Teams as of ' + ctx.opts.date + '. * = changes team this quarter.' : sheetQuarter(ctx) + ' teams. * = changes team during the quarter.';
+  // N37 F6: which teams these are (the quarter, or the night chosen) always prints; the "* = changes team" explanation prints only when a child on the page carries a "*" (people: the children the page lists).
+  const teamNote = (ctx, people) => { if (!ctx.season) return ''; const star = !people || people.some(p => movesThisQuarter(ctx, p)); return ctx.opts && ctx.opts.date ? 'Teams as of ' + ctx.opts.date + '.' + (star ? ' * = changes team this quarter.' : '') : sheetQuarter(ctx) + ' teams.' + (star ? ' * = changes team during the quarter.' : ''); };
 
   // ---------- attendance sheets (one page per room, every kid in the room) ----------
   const MARKS = {
@@ -85,7 +86,7 @@
       const fixed = 20 + (withTeam ? 7 : 0), each = dates.length * span ? ((100 - fixed) / (dates.length * span)).toFixed(3) : 0;
       const cols = '<colgroup><col style="width:20%">' + (withTeam ? '<col style="width:7%">' : '') + dates.map(() => ('<col style="width:' + each + '%">').repeat(span)).join('') + '</colgroup>';
       return Array.from({ length: pages }, (_, pg) => sheet(r + ' — ' + s.quarter + ' Attendance' + (pages > 1 ? ', page ' + (pg + 1) + ' of ' + pages : ''),
-        '<table class="att">' + cols + '<thead>' + head + '</thead><tbody>' + bodyOf(pg) + '</tbody></table>', 'landscape att', [withTeam ? esc(teamNote(ctx)) : '', esc(printedOn(ctx))].filter(Boolean).join(' &middot; '))).join('');
+        '<table class="att">' + cols + '<thead>' + head + '</thead><tbody>' + bodyOf(pg) + '</tbody></table>', 'landscape att', [withTeam ? esc(teamNote(ctx, people)) : '', esc(printedOn(ctx))].filter(Boolean).join(' &middot; '))).join('');
     }).join('') || '<p class="empty">No clubbers to show.</p>';
   }
 
@@ -102,7 +103,7 @@
       const star = p => movesThisQuarter(ctx, p) ? ' *' : '';
       (ctx.season ? Season.teamOrder(ctx.season) : TEAM_COLORS).concat(['']).forEach(t => people.filter(p => teamAsOf(ctx, p) === t).sort(cmp).forEach(p => rows.push(row(p, t, star(p)))));
       const head = [sheetQuarter(ctx) + ' Color Team', lastFirst ? 'Last, first name' : 'Full name', 'Class'];
-      return sheet(g + ' ' + sheetQuarter(ctx) + ' Color Teams', table(head, rows, 'tight'), 'portrait', esc(teamNote(ctx)));
+      return sheet(g + ' ' + sheetQuarter(ctx) + ' Color Teams', table(head, rows, 'tight'), 'portrait', esc(teamNote(ctx, people)));
     }).join('');
   }
 
@@ -143,7 +144,7 @@
       const body = teams
         ? table(['Name', sheetQuarter(ctx) + ' Color Team', 'Emergency contact', 'Medical / allergy notes'], people.map(p => [esc(M.fullName(p)), teamFor(ctx, p), contact(p), medAndPhotos(p)]), 'wrap emerg', EMERG_W_CLASS_TEAM)
         : table(['Name', 'Emergency contact', 'Medical / allergy notes'], people.map(p => [esc(M.fullName(p)), contact(p), medAndPhotos(p)]), 'wrap emerg', EMERG_W_CLASS);
-      return sheet(r + ' — Emergency, Medical and Photos', body + parentNote(people) + noPhoneNote(people), 'portrait punch', [printedOn(ctx), teams && ctx.season ? teamNote(ctx) : ''].filter(Boolean).join(' · ')); }).join('') || '<p class="status">No children.</p>';
+      return sheet(r + ' — Emergency, Medical and Photos', body + parentNote(people) + noPhoneNote(people), 'portrait punch', [printedOn(ctx), teams && ctx.season ? teamNote(ctx, people) : ''].filter(Boolean).join(' · ')); }).join('') || '<p class="status">No children.</p>';
   }
   // Color teams for the games leaders: one sheet for all of Sparks and one for all of T&T, each sorted by color (a heading per color), last name first, with the class. No contact details.
   function binderTeams(ctx) {
@@ -170,14 +171,14 @@
   }
   function binderAll(ctx) {
     const all = kids(ctx.master).sort(byLast);
-    return sheet('Emergency, Medical and Photos — everyone by name', table(['Name', 'Class', sheetQuarter(ctx) + ' Color Team', 'Emergency contact', 'Medical / allergy notes'], all.map(p => [esc(last(p) + ', ' + first(p)), esc(M.room(p)), teamFor(ctx, p), contact(p), medAndPhotos(p)]), 'wrap emerg', EMERG_W_ALL) + parentNote(all) + noPhoneNote(all), 'portrait punch', [printedOn(ctx), ctx.season ? teamNote(ctx) : ''].filter(Boolean).join(' · '));
+    return sheet('Emergency, Medical and Photos — everyone by name', table(['Name', 'Class', sheetQuarter(ctx) + ' Color Team', 'Emergency contact', 'Medical / allergy notes'], all.map(p => [esc(last(p) + ', ' + first(p)), esc(M.room(p)), teamFor(ctx, p), contact(p), medAndPhotos(p)]), 'wrap emerg', EMERG_W_ALL) + parentNote(all) + noPhoneNote(all), 'portrait punch', [printedOn(ctx), ctx.season ? teamNote(ctx, all) : ''].filter(Boolean).join(' · '));
   }
 
   function photos(ctx) {
     const rows = ctx.master.people.filter(p => M.isActive(p) && M.noPhotos(p)).sort(M.byRoomThenName).map(p =>
       [esc(first(p)), esc(last(p)), esc(M.room(p)), esc((M.eff(p, C.MED) || '').replace(/[;\s]+$/, ''))]);
     return sheet('No Photos Please', table(['First Name', 'Last Name', 'Class', 'Parent note'], rows), 'portrait',
-      'Flag is set automatically from parent notes on first import and can be edited on the Roster tab.');
+      '<span class="noprint">Flag is set automatically from parent notes on first import and can be edited on the Roster tab.</span>');      // N37 F9: screen help, not printed
   }
 
   // ---------- uniforms: who ordered, paid, received ----------

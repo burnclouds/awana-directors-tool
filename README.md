@@ -351,6 +351,7 @@ NODE_PATH=<dir with playwright> node test/debug-nodate-browser.test.js  # Debug 
 node test/oddballs.test.js                  # N39: records that look wrong (handbook for another class's book, received date or sign-offs for an unknown book, notes about a missing child or book, a color outside the four, an award listed twice); a fix only where it loses nothing; the list never changes the data
 NODE_PATH=<dir with playwright> node test/debug-oddballs-browser.test.js  # Debug tab: Records that look wrong lists with names, a button only where the fix is safe, one labelled History entry and one Undo step
 NODE_PATH=<dir with playwright> node test/person-default-book-browser.test.js  # N38: a Sparks child with no records opens on Hangglider; a bare WR code makes it open on WingRunner; Debug Reset puts it back
+NODE_PATH=<dir with playwright> node test/print-clean-browser.test.js  # N37: what the paper says, read from a real PDF: no heading ends a page, screen help stays off paper (and on screen), the "* = changes team" note only with a star, the year once
 NODE_PATH=<dir with playwright> node test/not-awards-browser.test.js     # N23 on the Awards tab and Progress sheet
 NODE_PATH=<dir with playwright> node test/announce-list-browser.test.js  # N29: the Announce page prints the club-night list
 NODE_PATH=<dir with playwright> node test/tnt-extra-credit-browser.test.js  # N32: the Silver and Gold heading on a T&T progress page

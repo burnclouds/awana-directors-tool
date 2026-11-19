@@ -234,7 +234,7 @@
       return [esc(M.fullName(p)), esc(M.room(p)), fin.length ? fin.map(b => esc(b.book) + (b.before ? ' (before)' : b.noDate ? ' ✓ (no date)' : ' ' + esc(paper(b.date)))).join(', ') : '<span class="status">none yet</span>',
         aw.length ? aw.map(r => esc(Season.awardLabel(season, id, r.award)) + ' \u2014 ' + (r.given === 'no date' ? '\u2713 given' : r.given ? 'given ' + esc(paper(r.given)) : 'not given')).join('<br>') : '<span class="status">none yet</span>']; });
     const body = rows.length ? R.table(['Name', 'Class', 'Books finished', 'End-of-year awards earned'], rows, 'wrap') : '<p class="empty">No children in ' + esc(g) + '.</p>';
-    return sheet('Books and end-of-year awards \u2014 ' + (opts.room || g), body, 'portrait', total.fin + ' book' + (total.fin === 1 ? '' : 's') + ' finished; ' + total.earned + ' end-of-year award' + (total.earned === 1 ? '' : 's') + ' earned, ' + total.given + ' given. Books come from Progress (every section dated) or the \u201cfinished before\u201d tick.');
+    return sheet('Books and end-of-year awards \u2014 ' + (opts.room || g), body, 'portrait', total.fin + ' book' + (total.fin === 1 ? '' : 's') + ' finished; ' + total.earned + ' end-of-year award' + (total.earned === 1 ? '' : 's') + ' earned, ' + total.given + ' given. <span class="noprint">Books come from Progress (every section dated) or the \u201cfinished before\u201d tick.</span>');      // N37 F10: the source note is screen help
   }
 
   // ---------- game standings ----------

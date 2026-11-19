@@ -17,10 +17,10 @@
     const c = col(f.children), a = f.adults.n ? col(f.adults) : null;
     const body = c.map((row, i) => '<tr><td>' + row[0] + '</td><td class="num">' + row[1] + '</td><td class="num">' + (a ? a[i][1] : (i === 0 ? 'No adults marked on these nights' : '—')) + '</td></tr>');
     return '<h3>Night by night: children and adults' + (span === 'season' ? '' : ', ' + esc(span)) + '</h3>' +
-      '<div class="statspan" role="group" aria-label="Which nights"><span class="status">Statistics for:</span> ' + spans.map(x => '<button type="button" data-span="' + x + '" aria-pressed="' + (x === span ? 'true' : 'false') + '"' + (x === span ? ' class="on"' : '') +
+      '<div class="statspan noprint" role="group" aria-label="Which nights"><span class="status">Statistics for:</span> ' + spans.map(x => '<button type="button" data-span="' + x + '" aria-pressed="' + (x === span ? 'true' : 'false') + '"' + (x === span ? ' class="on"' : '') +
         (x !== 'season' && !have.has(x) ? ' disabled title="No club nights held in ' + x + ' yet"' : '') + '>' + (x === 'season' ? 'Whole season' : x) + '</button>').join('') + '</div>' +
       (f.children.n ? table(['Figure', 'Children', 'Adults'], body) : '<p class="status">No club nights held in ' + esc(label) + ' yet.</p>') +
-      '<p class="status">Only nights with at least one child present are counted. Adult figures leave out nights where no adult was marked: that means adults were not counted, not that none came. Standard deviation is shown two ways: population (σ) treats these nights as the whole set; sample (s) treats them as a sample of a longer run, so it is a little larger.</p>';
+      '<p class="status noprint">Only nights with at least one child present are counted. Adult figures leave out nights where no adult was marked: that means adults were not counted, not that none came. Standard deviation is shown two ways: population (σ) treats these nights as the whole set; sample (s) treats them as a sample of a longer run, so it is a little larger.</p>';
   }
   const md = Model.md;      // shared (model.js): an empty date gives empty text instead of NaN
   const bar = (n, max) => '<span class="sbar" style="width:' + (max ? Math.round(n / max * 100) : 0) + 'px"></span>';
@@ -93,7 +93,7 @@
     att += '<h3>Attendance by class</h3>' + table(['Class', 'Enrolled', 'Average', 'Share', 'Highest night', 'Lowest night', 'Last night', ''],
       s.classes.map(x => '<tr><td>' + esc(x.room) + '</td><td class="num">' + x.enrolled + '</td><td class="num">' + x.average + '</td><td class="num">' + (x.rate === null ? '' : x.rate + '%') + '</td>' +
         '<td class="num">' + x.high.count + ' <small>' + md(x.high.date) + '</small></td><td class="num">' + x.low.count + ' <small>' + md(x.low.date) + '</small></td><td class="num">' + (x.last ? x.last.count : '') + '</td><td>' + bar(x.average, maxAvg) + '</td></tr>').join('')) +
-      '<p class="status">Share = average attendance as a percentage of the children enrolled in that class today.</p>';
+      '<p class="status noprint">Share = average attendance as a percentage of the children enrolled in that class today.</p>';
 
     const more = r => r.tied ? '<p class="status">and ' + r.tied + ' more tied with ' + r.top[r.top.length - 1].count + ' nights.</p>' : '';
     att += '<h3>Most nights present</h3>' +
@@ -138,7 +138,9 @@
   // Printable: every group one after the other, names as plain text (a link means nothing on paper).
   if (window.Reports && Reports.LIST) Reports.LIST.push({ id: 'statistics', title: 'Statistics (all sections)', opts: [], render: ctx => {
     const b = build(); if (b.msg) return '<p class="status">' + b.msg + '</p>';
-    return b.SUBS.map(x => '<section class="sheet portrait stats"><h2>' + esc(x[1]) + (x[0] === 'attendance' ? ' \u2014 Statistics' : '') + '</h2><p class="sub">' + esc(((ctx.settings || {}).club || '') + (App.season && App.season.year ? ' \u00b7 ' + App.season.year : '')) + '</p>' + x[2].replace(/<a href="#" data-person="[^"]*">([^<]*)<\/a>/g, '$1') + '</section>').join('');
+    // N37 F11: the club name usually holds the season already ("AWANA Club 26-27"): the year is added only when it is not there, so the subtitle never says it twice.
+    const yearLine = (club, year) => !year || (club && club.includes(String(year).replace(/^\d\d/, ''))) ? club : club + (club ? ' \u00b7 ' : '') + year;
+    return b.SUBS.map(x => '<section class="sheet portrait stats"><h2>' + esc(x[1]) + (x[0] === 'attendance' ? ' \u2014 Statistics' : '') + '</h2><p class="sub">' + esc(yearLine((ctx.settings || {}).club || '', App.season && App.season.year)) + '</p>' + x[2].replace(/<a href="#" data-person="[^"]*">([^<]*)<\/a>/g, '$1') + '</section>').join('');
   } }); if (App.fillReportSel) App.fillReportSel();      // the report list was built before this script ran
   App.onRefresh.push(() => { if (!$('tab-stats').hidden) render(); });
 })();
