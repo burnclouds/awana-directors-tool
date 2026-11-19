@@ -86,7 +86,7 @@ const GAPI = `window.gapi={load:function(n,o){google.picker=(function(){
     await s.p.click('#splashDrive'); await s.p.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent), null, { timeout: 8000 });
     await s.p.evaluate(() => { document.getElementById('btnSeasonSave').click(); }); await s.p.evaluate(() => { document.getElementById('btnSeasonSave').click(); });      // test data: two presses
     await s.p.waitForFunction(() => document.getElementById('driveStatus') && /saved/.test(document.getElementById('driveStatus').textContent), null, { timeout: 8000 });
-    assert(!(await s.p.$eval('#saveFloppy', e => e.classList.contains('on'))), 'the saving icon is off once the save has finished (N36)');
+    assert(!(await s.p.$eval('#btnSeasonSave', e => e.classList.contains('saving'))), 'the Save button shows its label again once the save has finished (N36)');
     assert(shown.length >= 1, 'the failure dialog did not open');
     assert(/busy right now \(it said 503\)/.test(shown[0]) && /Nothing was changed on Drive/.test(shown[0]), shown[0]);
     assert.strictEqual(s.seen.posts.length, 2, 'the busy save, then Try again'); assert.strictEqual(s.seen.downloads, 1, 'one copy, on the first failure');

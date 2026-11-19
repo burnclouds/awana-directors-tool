@@ -218,7 +218,8 @@
     waiting: () => st.wait ? { kind: st.wait.kind, at: st.wait.at } : null,
     go: (name, text, type, opts) => queue(async () => {
       // N36: a small floppy icon beside the save button shows while a save runs and fades when it ends (success or error).
-      const flop = on => { const el = document.getElementById('saveFloppy'); if (el) el.classList.toggle('on', on); };
+      // The save button's label turns into the floppy icon while a save runs (style.css: #btnSeasonSave.saving); its text stays for screen readers.
+      const flop = on => { const b = document.getElementById('btnSeasonSave'); if (!b) return; b.classList.toggle('saving', on); if (on) b.setAttribute('aria-busy', 'true'); else b.removeAttribute('aria-busy'); };
       flop(true);
       try { return await goRun(name, text, type, opts); }
       catch (err) { if (opts && opts.auto && !err.auto) wait('error', err.message); throw err; }

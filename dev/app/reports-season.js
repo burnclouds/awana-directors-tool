@@ -141,7 +141,7 @@
   }
   // One page: the child's name, class and club year as the title, then the record body. The Progress Sheets report prints the current book.
   function recordSheet(ctx, p, book) {
-    return '<section class="sheet portrait rec"><h2>' + esc(M.fullName(p) + ' — ' + M.room(p) + ' · ' + ctx.season.year) + '</h2>' + recordBody(ctx, p, book) + '</section>';
+    return '<section class="sheet portrait rec punch"><h2>' + esc(M.fullName(p) + ' — ' + M.room(p) + ' · ' + ctx.season.year) + '</h2>' + recordBody(ctx, p, book) + '</section>';
   }
 
   // ---------- the paper Achievement Record, filled in with recorded dates ----------
@@ -156,7 +156,7 @@
       const id = idOf(p), prog = season.progress[id] || {}, hb = Season.parseHandbook(season.handbooks[id]);
       const inG = c => ((season.config.books[c] || {}).group || g) === g;      // Sparks: one page per Sparks book started; T&T: one page per T&T book started
       const books = [...new Set([Season.bookKey(season, hb.code)].concat(Object.keys(season.config.books).filter(c => prog[c])).filter(c => c && inG(c)))];
-      const pages = (books.length ? books : ['']).map((code, n) => sheet(M.fullName(p) + ' — ' + g + ' Achievement Record', recordBody(ctx, p, code, { common: n === 0 }), 'portrait', esc(M.room(p)) + ' · Club year ' + esc(season.year) + (books.length > 1 ? ' · page ' + (n + 1) : '')));
+      const pages = (books.length ? books : ['']).map((code, n) => sheet(M.fullName(p) + ' — ' + g + ' Achievement Record', recordBody(ctx, p, code, { common: n === 0 }), 'portrait punch', esc(M.room(p)) + ' · Club year ' + esc(season.year) + (books.length > 1 ? ' · page ' + (n + 1) : '')));
       return pages.join('');
     }).join('') || '<p class="status">No children in ' + esc(g) + '.</p>';
   }

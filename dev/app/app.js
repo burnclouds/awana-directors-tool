@@ -834,7 +834,7 @@
   // The paper: the first sheet decides the page (so the printout does not start with a blank page, which a named page on the very first sheet causes); a sheet of the other orientation gets its own named page.
   function setPageStyle() {
     const sheets = [...document.querySelectorAll('#report .sheet')], first = sheets[0] && sheets[0].classList.contains('landscape') ? 'landscape' : 'portrait', other = first === 'landscape' ? 'portrait' : 'landscape';
-    const firstNotes = !!sheets[0] && sheets[0].classList.contains('notes'), margin = o => firstNotes ? '0.25in' : o === 'landscape' ? '0.4in' : '0.5in'; let st = document.getElementById('pageStyle');
+    const firstNotes = !!sheets[0] && sheets[0].classList.contains('notes'), punchOn = o => sheets.some(x => x.classList.contains('punch') && x.classList.contains(o)), margin = o => punchOn(o) ? (sheets.some(x => x.classList.contains('punch') && x.classList.contains('notes')) ? '0.3in 0.4in 0.3in 0.85in' : '0.5in 0.4in 0.5in 0.85in') : firstNotes ? '0.25in' : o === 'landscape' ? '0.4in' : '0.5in'; let st = document.getElementById('pageStyle');
     if (!st) { st = document.createElement('style'); st.id = 'pageStyle'; document.head.appendChild(st); }
     st.textContent = '@page { size: ' + first + '; margin: ' + margin(first) + '; } ' + (!firstNotes && sheets.some(x => x.classList.contains('notes')) ? '#report .sheet.notes { page: pgnotes; } @page pgnotes { size: portrait; margin: 0.25in; } ' : '') + (sheets.some(x => x.classList.contains(other)) ? '#report .sheet.' + other + ' { page: pg' + other + '; } @page pg' + other + ' { size: ' + other + '; margin: ' + margin(other) + '; }' : '');
   }
