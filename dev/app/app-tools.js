@@ -63,6 +63,35 @@
     return h + '<p><b>' + noDate.n + ' child' + (noDate.n === 1 ? '' : 'ren') + '</b>:</p><ul>' + noDate.rows.map(r => '<li>' + esc(r.name) + ' (' + esc(r.room) + '): ' + esc(r.code) + '</li>').join('') + '</ul>' +
       '<p><button type="button" id="dbgNoDateReset" class="primary">Reset these ' + noDate.n + ' book' + (noDate.n === 1 ? '' : 's') + '</button> <button type="button" id="dbgNoDateCount">Count again</button></p>';
   }
+  // N39: records that look wrong. Season.oddballs lists them (nothing is changed by listing); a fix button appears only for a check whose fix loses nothing, and one click is one Undo step. Names are shown on this screen only.
+  // A bare handbook code is the "Books with no dates" section above, so it is not listed twice here.
+  let odd = null;
+  const ODD = {
+    'handbook-group': ['Handbook for another class\'s book', 'The handbook names a book that belongs to a different group from the child\'s class. A bare code can be cleared; one with a date or a note is left for you to look at.'],
+    'received-book': ['Received date with no matching book', 'A received date for a book that is not in the book list, or belongs to another group. These hold a date, so they are only shown: fix the book list or the date on the child\'s Person page.'],
+    'progress-book': ['Sign-offs under an unknown book', 'Sign-off dates kept under a book that is no longer in the book list. They are only shown: add the book back in Options, or move the dates by hand.'],
+    'flag-target': ['Notes about a missing child or book', 'A note or flag whose child has left the roster or whose book is no longer in the book list. A note is what a leader wrote, so these are only shown.'],
+    'team-color': ['Color that is not one of the four', 'A quarter\'s color that is not Red, Blue, Green or Yellow. Only shown: change it on the Teams tab or the child\'s Person page.'],
+    'award-duplicate': ['Same award listed twice in one night', 'An award repeated in one night\'s announced list. One copy is kept.'],
+    'award-twice': ['Same award announced on more than one night', 'The same award announced on two nights. It may be right (a repeat announcement), so it is only shown.']
+  };
+  const FIXWORD = { clearHandbook: n => 'Clear these ' + n + ' handbook code' + (n === 1 ? '' : 's'), dedupeAwards: n => 'Keep one copy in these ' + n };
+  const oddGroup = id => { const p = App.master && App.master.people.find(x => x[Model.X.ID] === id); return p && Model.isClubber(p) ? Model.groupOf(Model.room(p)) : ''; };
+  const oddList = s => Season.oddballs(s, oddGroup).filter(r => r.check !== 'bare-handbook');
+  function oddHtml() {
+    const s = App.season; if (!s) return '';
+    let h = '<h3>Records that look wrong</h3><p class="status">Finds records that do not add up: a handbook for another class\'s book, a date for a book that is not in the list, a note about someone who left, a color that is not one of the four, an award listed twice. <b>Check</b> only looks. A fix button appears only where the fix loses nothing; every other row is shown for you to decide. Undo takes a fix back.</p>';
+    if (!odd) return h + '<p><button type="button" id="dbgOddCheck">Check the file</button></p>';
+    if (!odd.length) return h + '<p class="ok">None found.</p><p><button type="button" id="dbgOddCheck">Check again</button></p>';
+    const name = id => { const p = App.master && App.master.people.find(x => x[Model.X.ID] === id); return p ? Model.fullName(p) + (Model.room(p) ? ' (' + Model.room(p) + ')' : '') : id ? '(not on the roster)' : '(no child)'; };
+    h += Object.keys(ODD).map(c => {
+      const rs = odd.filter(r => r.check === c); if (!rs.length) return '';
+      const fixes = rs.filter(r => r.fix), kind = fixes.length && fixes[0].fix;
+      return '<h4>' + esc(ODD[c][0]) + ' (' + rs.length + ')</h4><p class="status">' + esc(ODD[c][1]) + '</p><ul>' + rs.map(r => '<li>' + esc(name(r.id)) + ': ' + esc(r.text) + '</li>').join('') + '</ul>' +
+        (fixes.length ? '<p><button type="button" class="primary" data-oddfix="' + c + '">' + esc(FIXWORD[kind](fixes.length)) + '</button></p>' : '');
+    }).join('');
+    return h + '<p><button type="button" id="dbgOddCheck">Check again</button></p>';
+  }
   // ---- Bug reports and feature requests (flag level "bug"): listed here, never on To do. Each has a status and a reply, kept in the data file so every leader sees the same list. ----
   let bugFilter = 'open', bugEditing = '', bugBy = 'leader';
   const STATUS_WORD = { open: 'Open', fixed: 'Fixed', dropped: 'Dropped' }, BY_WORD = { leader: 'Leader', developer: 'Developer' };
@@ -102,7 +131,7 @@
       '<p><a href="version-history.html" target="_blank" rel="noopener">Version history: every version and lettered sub-version, from 1.44 on</a></p>' +
       '<h3>Scripts on this page (' + scripts.length + ')</h3>' + table(['Script', 'Version'], scripts) +
       '<h3>Planning Center columns</h3>' + (App.master ? App.pcColumns.html() : '<p class="status">No roster is open.</p>') +
-      assumedHtml() + noDateHtml() + '<h3>Open now</h3>' + (open ? table(['', ''], open) : '<p class="status">No data file is open.</p>') +
+      assumedHtml() + noDateHtml() + oddHtml() + '<h3>Open now</h3>' + (open ? table(['', ''], open) : '<p class="status">No data file is open.</p>') +
       '<h3>Files opened this session</h3>' + (App.opened.length ? table(FILE_HEAD, App.opened.map(fileRow)) : '<p class="status">None yet. Import files from the top bar, or check some here.</p>') +
       '<p><label class="btn">Check files&hellip;<input type="file" id="dbgFiles" multiple class="vh" accept=".csv,.json,.txt,text/csv,application/json,text/plain"></label> <span class="status">reads the dates and counts inside each file; nothing is opened into the app</span></p>' +
       '<h3>Browser</h3>' + table(['', ''], [['Address', esc(location.protocol + '//' + (location.host || '') + location.pathname)], ['Time zone', esc(Intl.DateTimeFormat().resolvedOptions().timeZone)],
@@ -128,6 +157,13 @@
     const id = e.target.id, s = App.season;
     if (s && id === 'dbgNoDateCount') { const ids = Season.noDateBookKids(s); noDate = { n: ids.length, rows: ids.map(kid => { const p = App.master && App.master.people.find(x => x[Model.X.ID] === kid); return { name: p ? Model.fullName(p) : '(not on the roster)', room: p ? Model.room(p) : '', code: String(s.handbooks[kid] || '').trim().split(/\s+/)[0] }; }) }; renderDebug(); return; }
     if (s && id === 'dbgNoDateReset') { if (!noDate || !noDate.n) return; const n = Season.resetNoDateBooks(s); noDate = null; App.touch(); renderDebug(); App.done(n + ' book code' + (n === 1 ? '' : 's') + ' with no dates cleared. Each sheet opens on its group\'s default book now. Undo takes it back.'); return; }
+    if (s && id === 'dbgOddCheck') { odd = oddList(s); renderDebug(); return; }
+    const fixCheck = e.target.dataset && e.target.dataset.oddfix;
+    if (s && fixCheck) {      // one click is one History entry of its own (labelled, never folded into an earlier edit) and one Undo step
+      const rows = oddList(s).filter(r => r.check === fixCheck && r.fix); let n = 0; rows.forEach(r => { if (Season.fixOddball(s, r)) n++; });
+      const kind = rows.length && rows[0].fix, logged = n && App.importChanged('Debug: ' + (kind === 'clearHandbook' ? 'cleared ' + n + ' handbook code' : 'kept one copy of ' + n + ' award list') + (n === 1 ? '' : 's'));
+      odd = oddList(s); renderDebug(); if (logged) App.done(n + ' record' + (n === 1 ? '' : 's') + ' fixed. Undo takes it back.'); return;
+    }
     if (!s || !['dbgAssumedCount', 'dbgAssumedClear'].includes(id)) return;
     if (id === 'dbgAssumedCount') { const l = Season.assumedGiven(s), by = {}; l.forEach(x => { by[x.date] = (by[x.date] || 0) + 1; }); assumed = { n: l.length, kids: new Set(l.map(x => x.id)).size, days: Object.keys(by).sort().map(d => [d, by[d]]) }; renderDebug(); return; }
     if (!assumed) return;      /* the count came first; clearing is done at once, with Undo (UX-20) */

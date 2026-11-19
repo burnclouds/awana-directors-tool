@@ -426,6 +426,44 @@
     });
   }
   function resetNoDateBooks(s) { const ids = noDateBookKids(s); ids.forEach(id => { delete s.handbooks[id]; }); return ids.length; }
+  // N39 (Debug, "Records that look wrong"): a list of records that look wrong, and a fix only where the fix loses nothing. Nothing is stored; the list is worked out each time and never changes the data.
+  // groupOf(id) is the child's group from the roster ('' when unknown: such a child is not judged on class). A row is { check, id, text, fix [, date] }; fix '' means "shown, left alone": a date, a note or a choice a person made is never removed for you.
+  // The text never holds a name: the screen adds the child's name from id.
+  function oddballs(s, groupOf) {
+    const out = [], books = s.config.books || {}, grp = id => (groupOf && groupOf(id)) || '', add = (check, id, text, fix, date) => out.push(Object.assign({ check, id, text, fix: fix || '' }, date ? { date } : {}));
+    const bare = new Set(noDateBookKids(s));
+    bare.forEach(id => add('bare-handbook', id, 'Handbook "' + parseHandbook(s.handbooks[id]).code + '" with no date and nothing else recorded.', 'clearHandbook'));
+    Object.keys(s.handbooks || {}).forEach(id => {
+      const p = parseHandbook(s.handbooks[id]), b = p.code && bookKey(s, p.code), g = grp(id); if (bare.has(id) || !b || !g || bookGroup(s, b) === g) return;
+      add('handbook-group', id, 'Handbook "' + p.code + '" is a ' + bookGroup(s, b) + ' book, but the child is in ' + g + '.', !p.date && !p.note ? 'clearHandbook' : '');
+    });
+    Object.keys(s.received || {}).forEach(id => Object.keys(s.received[id] || {}).forEach(b => {
+      if (!books[b]) add('received-book', id, 'Received date for "' + b + '", which is not in the book list.');
+      else if (grp(id) && bookGroup(s, b) !== grp(id)) add('received-book', id, 'Received date for "' + b + '", a ' + bookGroup(s, b) + ' book, but the child is in ' + grp(id) + '.');
+    }));
+    Object.keys(s.progress || {}).forEach(id => Object.keys(s.progress[id] || {}).forEach(b => { if (b !== 'common' && !books[b]) add('progress-book', id, 'Sign-offs under "' + b + '", which is not in the book list.'); }));
+    const people = (s.roster && s.roster.people) || {};
+    Object.keys(s.flags || {}).forEach(fid => {
+      const f = s.flags[fid]; if (!f || f.level === 'bug') return;
+      if (f.kid && !people[f.kid]) add('flag-target', f.kid, 'A note about a child who is no longer on the roster.');
+      else if (f.book && !books[f.book]) add('flag-target', f.kid, 'A note about the book "' + f.book + '", which is not in the book list.');
+    });
+    Object.keys(people).forEach(id => { const v = people[id].v || {}; Object.keys(v).forEach(k => { if (/^team:Q[1-4]$/.test(k) && v[k] && v[k] !== Model.NO_TEAM && !TEAMS.includes(v[k])) add('team-color', id, k.slice(5) + ' color "' + v[k] + '" is not one of the four colors.'); }); });
+    const seen = {};
+    Object.keys(s.awards || {}).sort().forEach(d => Object.keys(s.awards[d] || {}).forEach(id => {
+      const list = s.awards[d][id] || []; if (new Set(list).size < list.length) add('award-duplicate', id, 'The same award is listed twice on ' + d + '.', 'dedupeAwards', d);
+      new Set(list).forEach(a => { const k = id + '\u0001' + a; (seen[k] = seen[k] || { id, a, days: [] }).days.push(d); });
+    }));
+    Object.keys(seen).forEach(k => { const x = seen[k]; if (x.days.length > 1) add('award-twice', x.id, '"' + x.a + '" was announced on ' + x.days.length + ' nights (' + x.days.join(', ') + ').'); });
+    return out;
+  }
+  // Apply one row's fix. Re-checks the record first (a row can be stale), so a handbook with a date or a note is never cleared. Returns true when something changed.
+  function fixOddball(s, row) {
+    if (!row || !row.fix) return false;
+    if (row.fix === 'clearHandbook') { const p = parseHandbook((s.handbooks || {})[row.id]); if (!p.code || p.date || p.note) return false; delete s.handbooks[row.id]; return true; }
+    if (row.fix === 'dedupeAwards') { const list = ((s.awards || {})[row.date] || {})[row.id]; if (!list) return false; const u = [...new Set(list)]; if (u.length === list.length) return false; s.awards[row.date][row.id] = u; return true; }
+    return false;
+  }
   function setReceived(s, id, book, date, opts) {
     if (!(s.config.books || {})[book]) throw new Error('"' + book + '" is not one of your books.');
     const noDate = !!(opts && opts.noDate) && !date; if (date) needDate(date); if (!s.received) s.received = {};
@@ -1530,7 +1568,7 @@
     return { keep, skipped: items.filter(it => it !== keep) };
   }
   const api = { SECTIONS, KNOWN_TOP, nightStatus, volunteerNights, volunteerExpected, addAbsence, clearAbsenceNights, clearAbsence, absenceList, FLAG_LEVELS, FLAG_NO_KID, shiftDates, freshenFake, FORMAT, VERSION, fileName, MARKS, QUARTERS, TEAMS, blank, toJson, fromJson, isRealDate, badDates, guessDate, dateClashes, fixDates, newSeason, turnoutCounts, addPastYear, addEarlierYear, seasonStart, sectionsThisSeason, defaultYear, setMark, hasNight, heldNights, newest, totals, blueJewels,
-    toHandOut, jewelWaitsForWing, addFlagReply, orphanHandbook, setHandbook, noDateBookKids, resetNoDateBooks, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
+    toHandOut, jewelWaitsForWing, addFlagReply, orphanHandbook, setHandbook, noDateBookKids, resetNoDateBooks, oddballs, fixOddball, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
     setProgress, addExtraSheet, blueWingPlan, sparkJewels, heldGems, grantBlue, dropBlue, isAnnNoDate, setAnnNoDate, noDateSigns, isSignNoDate, signShown, signsShown, unsignedIn, markSignsNoDate, baseAward, jewelName, awardLabel, childBook, sparksCurrent, receivedOf, receivedShown, isReceivedNoDate, setReceived, completedBlocks, finishedBooks, bookStatus, completionAwards, setBookDone, suggestedAwards, firstNight, pastYearAwards, markPastYearsGiven, counted,
     normDriveDirs, isGivenNoDate, givenShown, isHeld, setHold, addFlag, setFlagNote, clearFlag, setFlagHidden, isFlagHidden, todoNotes, notAnAward, NOT_AWARDS, upgradeNotAwards, setBugStatus, addBugReply, removeBugReply, bugThread, bugStatusOf, BUG_STATUS, BUG_BY, noteList, bugList, flagList, flagsOf, flagsAt, flagsAtPlace, renameAward, snapshot, diff, merge3, applyChanges, record, labelOf, at, replayDiff, reconcile, tag, restoreTo, compare, kindOf, describe, MERGE_MINUTES };
   if (typeof module !== 'undefined') module.exports = api; else root.Season = api;
