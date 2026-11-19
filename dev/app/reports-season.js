@@ -32,7 +32,8 @@
         ' &nbsp; <b>Handbook:</b> ' + t.year.h + ' &nbsp; <b>Participation:</b> ' + t.year.p + ' &nbsp; <b>Extra:</b> ' + t.year.x + '</p>' +
         (jewels.length ? '<p><b>Blue Jewels reached:</b> ' + jewels.map(j => j.n + ' (' + esc(paper(j.date)) + ')').join(', ') + '</p>' : '') +
         (a.length ? R.table(['Earned', 'Award', 'Announced', 'Given'], a.map(x => [esc(earnedText(x, pretty)), esc(Season.awardLabel(season, id, x.award)), esc(x.announced ? pretty(x.announced) : ''), esc(x.given === 'no date' ? '\u2713 (no date)' : x.given ? pretty(x.given) : '')])) : '<p class="status">No awards earned yet.</p>');
-      return { name: M.fullName(p), sub: esc(M.room(p)) + ' · ' + esc(season.year), body, rows: 5 + (jewels.length ? 1 : 0) + Math.max(a.length, 1) };      // rows: a rough page-space estimate (head, counts, jewels, table head, one per award)
+      return { name: M.fullName(p), sub: esc(M.room(p)), body,      // N37 F12: the year is in the page subtitle once, not after every child
+      rows: 5 + (jewels.length ? 1 : 0) + Math.max(a.length, 1) };      // rows: a rough page-space estimate (head, counts, jewels, table head, one per award)
     });
     if (!blocks.length) return '<p class="status">No children in ' + esc(g) + '.</p>';
     // One child alone keeps the one-child page. Several children share pages: filled in order up to PAGE_ROWS estimated rows, a child's block never split (break-inside: avoid),
@@ -172,7 +173,7 @@
       const order = (season.config.endOfYear || {})[g] || [], names = Object.keys(by).sort((a, b) => order.indexOf(a) - order.indexOf(b));
       const body = names.length ? names.map(a => '<h3 class="cerem">' + esc(Season.baseAward(season, a)) + ' <span class="status">(' + by[a].length + ' to have ready)</span></h3>' + R.table(['Given', 'Name', 'Class', 'Earned', 'Announced'],
         by[a].sort((x, y) => byRoomLast(x.p, y.p)).map(({ p, r }) => ['<span class="abox"><i>&nbsp;</i><b>&nbsp;</b></span>', esc(M.fullName(p)), esc(M.room(p)), esc(earnedText(r, paper)), esc(r.announced ? paper(r.announced) : 'not yet')]), 'wrap')).join('') : '<p class="empty">No end-of-year award is waiting' + (opts.room ? ' in ' + esc(opts.room) : '') + '.</p>';
-      return sheet('End-of-year awards \u2014 ' + (opts.room || g), body, 'portrait', 'Earned and not yet given.');
+      return sheet('End-of-year awards \u2014 ' + (opts.room || g), body, 'portrait' + (names.length ? '' : ' emptysheet'), 'Earned and not yet given.');      // N37 F13: nothing waiting: the page is not printed
     }).join('');
   }
 
@@ -284,8 +285,8 @@
     const f = Pace.f1, W = Pace.CFG.WINDOW;
     const head = ['Name', 'Attended', 'Overall', 'Recent', 'Trend', 'Last signed', 'Core', 'Extra'];
     return Pace.room(all).map(x => x.room).map(rm => {
-      const k = all.filter(r => r.room === rm).sort((a, b) => a.name.localeCompare(b.name)), sub = esc((settings || {}).club || '') + ' \u00b7 For leaders only: do not hand this page to parents \u00b7 pace = core sections signed per night attended; recent = last ' + W + ' nights attended \u00b7 data through ' + (paper(k[0].roomThrough) || 'nothing entered');
-      if (!k[0].roomEntered) return sheet(rm + ' \u2014 Pace Watch List', '<p class="status">No sign-off dates are entered for this class yet, so there is nothing to compare.</p>', 'portrait', sub);
+      const k = all.filter(r => r.room === rm).sort((a, b) => a.name.localeCompare(b.name)), sub = esc((settings || {}).club || '') + ' \u00b7 For leaders only: do not hand this page to parents \u00b7 pace = core sections signed per night attended; recent = last ' + W + ' nights attended' + (k[0].roomThrough ? ' \u00b7 data through ' + paper(k[0].roomThrough) : '');      // N37 F13: no "data through nothing entered"
+      if (!k[0].roomEntered) return sheet(rm + ' \u2014 Pace Watch List', '<p class="status">No sign-off dates are entered for this class yet, so there is nothing to compare.</p>', 'portrait emptysheet', sub);
       const row = r => [esc(r.name), r.nights + (r.guest ? ' (guest)' : ''), f(r.overall), f(r.recent), esc(Pace.ARROW[r.trend] || ''), esc(paper(r.last) || 'none'), r.core, r.extra + '/' + r.extraTotal];
       const body = Object.keys(Pace.LISTS).map(key => {
         const list = k.filter(r => r.list === key);

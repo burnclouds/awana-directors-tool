@@ -889,7 +889,8 @@
     });
   }
   function pagePick() {
-    const box = $('pagePick'), sheets = [...document.querySelectorAll('#report .sheet')];
+    const box = $('pagePick'), sheets = [...document.querySelectorAll('#report .sheet:not(.emptysheet)')];      // N37 F13: a page that only says "nothing to show" is neither counted nor printed, and with none left Print is off
+    $('btnPrint').disabled = !sheets.length; $('btnPrint').title = sheets.length ? '' : 'Nothing to print on this report.';
     box.textContent = ''; box.hidden = sheets.length < 2;
     if (sheets.length < 2) return;
     const lead = document.createElement('span'); lead.className = 'status'; lead.textContent = 'Pages to print:'; box.appendChild(lead);

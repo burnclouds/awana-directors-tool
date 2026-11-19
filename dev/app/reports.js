@@ -120,12 +120,14 @@
   const warnCell = '<span class="nw" style="color:var(--warntxt);font-weight:700">&#9888; NO PHONE ON FILE</span>';
   const contact = p => {
     const { name } = emergOf(p), src = phoneSource(p);
-    const ph = v => '<span class="' + (String(v).length > 16 ? 'nw nm' : 'nw') + '">' + esc(v);      // a phone stays on one line, unless the field holds more than a number (N15: it then wraps inside its column instead of spilling into the next one)
+    // N37 F7: every phone-shaped number in a contact cell prints as (ddd) ddd-dddd whatever way it was typed (5675550163, 513-555-0174). Text around it (a name, "&", an extension) is left as written. Display only: the stored value is not changed.
+    const fmtPhone = v => String(v).replace(/(?<!\d)(?:\+?1[\s.-]?)?\(?(\d{3})\)?[\s.-]?(\d{3})[\s.-]?(\d{4})(?!\d)/g, '($1) $2-$3');
+    const ph = v => '<span class="' + (String(v).length > 16 ? 'nw nm' : 'nw') + '">' + esc(fmtPhone(v));      // a phone stays on one line, unless the field holds more than a number (N15: it then wraps inside its column instead of spilling into the next one)
     const phoneCell = src === 'parent' ? ph(parentPhone(p)) + '</span>'
       : src === 'own' ? ph(emergOf(p).phone) + '</span>'
       : src === 'club' ? ph(M.clubPhone(p)) + '</span>'
       : src === 'reg' ? ph(regPhone(p)) + ' †</span>' : warnCell;
-    return [name && '<span class="nw nm">' + esc(name) + '</span>', phoneCell].filter(Boolean).join('<br>');
+    return [name && '<span class="nw nm">' + esc(fmtPhone(name)) + '</span>', phoneCell].filter(Boolean).join('<br>');
   };
   // "Printed 11/14/26" in the subtitle of the binder pages (emergency, medical and photos; coaches color lists), so a loose page says how old it is. Nothing when the caller gave no day (ctx.today, ISO).
   const printedOn = ctx => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ctx.today || ''); return m ? 'Printed ' + m[2] + '/' + m[3] + '/' + m[1].slice(2) : ''; };
@@ -263,7 +265,7 @@
     const list = M.pendingChanges(ctx.master).sort((a, b) => M.byRoomThenName(a.person, b.person));
     const rows = list.map(c => [esc(M.fullName(c.person)), esc(c.person[C.REG]), esc(c.col), esc(c.from) || (M.isGuest(c.person) ? 'not in Planning Center' : none), '<b>' + esc(c.to) + '</b>']);
     return sheet('Changes needed in Planning Center', rows.length ? table(['Person', 'Reg ID', 'Field', 'Planning Center now', 'Change to'], rows, 'wrap') : '<p class="empty">Nothing pending.</p>',
-      'landscape', 'Made here as pending changes. Each clears automatically when a later export matches. Name shown is the pending value if one is set.');
+      'landscape' + (rows.length ? '' : ' emptysheet'), 'Made here as pending changes. Each clears automatically when a later export matches. Name shown is the pending value if one is set.');
   }
 
   const LIST = [

@@ -55,6 +55,23 @@ const pagesOf = buf => { const f = path.join(os.tmpdir(), 'awana-clean-' + proce
   // F9, F10: instructions written for the screen stay on the screen
   await test('F9: the No photos report does not print its screen instruction', async () => { const r = await paper('photos'); assert(!flat(r).includes('can be edited on the Roster tab'), 'printed'); assert(r.screen.text.includes('can be edited on the Roster tab'), 'gone from the screen'); });
   await test('F10: Books and end-of-year awards does not print its source note', async () => { const r = await paper('booksYear'); assert(!flat(r).includes('Books come from Progress'), 'printed'); assert(r.screen.text.includes('Books come from Progress'), 'gone from the screen'); });
+  // F12: the year is on the page once, not after every child
+  await test('F12: Awards earned prints the year once, not after every child', async () => {
+    const r = await paper('awardsByChild'), n = (flat(r).match(/2026-27/g) || []).length; assert(n <= r.pages.length, 'the year is printed ' + n + ' times on ' + r.pages.length + ' pages');
+  });
+  // F13: a report with nothing to show disables Print and puts no blank page in a printout
+  await test('F13: an empty report disables Print and prints no page; a full one does not', async () => {
+    for (const id of ['pcChanges', 'ceremony']) { const r = await paper(id); assert.strictEqual(await page.evaluate(() => document.getElementById('btnPrint').disabled), true, id + ': Print is still on'); assert.strictEqual(r.pages.length, 0, id + ' printed ' + r.pages.length + ' page(s) with nothing to say'); }
+    await paper('attendance'); assert.strictEqual(await page.evaluate(() => document.getElementById('btnPrint').disabled), false, 'Print is off on a report with pages');
+  });
+  await test('F13: the Pace Watch subtitle never says "data through nothing entered"', async () => { const r = await paper('paceWatch'); assert(!/data through nothing/.test(flat(r) + r.screen.text), 'wording'); });
+  // F7: every phone number on the emergency pages is in one style
+  await test('F7: phone numbers on the emergency pages are all (ddd) ddd-dddd', async () => {
+    for (const id of ['binderClass', 'binderAll']) {
+      const t = flat(await paper(id)), found = t.match(/\(?\b\d{3}\)?[ .-]?\d{3}[ .-]\d{4}\b|(?<![\d(])\d{10}(?!\d)/g) || [];
+      assert(found.length > 5, id + ': found too few numbers to judge (' + found.length + ')'); const bad = found.filter(x => !/^\(\d{3}\) \d{3}-\d{4}$/.test(x)); assert(!bad.length, id + ': other styles: ' + bad.slice(0, 4).join(' | '));
+    }
+  });
   await test('no script errors', async () => { assert.strictEqual(errs.length, 0, errs.join(' | ')); });
   await browser.close(); server.close();
   console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

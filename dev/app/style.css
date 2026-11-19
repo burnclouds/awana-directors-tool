@@ -150,6 +150,7 @@ table.rotgrid textarea, #rotWrap textarea { width:100%; min-width:120px; font:in
   table.grid tr { break-inside:avoid; }
   #report h1, #report h2, #report h3, #report h4, #report caption { break-after:avoid; }      /* N37 F1: a heading never ends a page with its table on the next */
   #report table tr { break-inside:avoid; }      /* N37 F1: a table row is never split across two pages */
+  #report .sheet.emptysheet { display:none; }      /* N37 F13: a page that only says there is nothing to show is not printed */
   #report .sheet p.sub:has(> .noprint:only-child) { display:none; }      /* N37 F9, F10: a subtitle that is only screen help leaves no empty line on paper */
   /* One child per printed page (progress sheets, also inside binders). The break is on the wrapper, because each sheet is its own :last-child. */
   #report .onepage { break-inside:avoid; }
