@@ -803,8 +803,8 @@ table.tg select.tgsel.tgset.team-Red { background-color:#ea9999; border-color:#c
 @media screen and (max-width: 760px) { .sheet.notes .nsheet th, .sheet.notes .nsheet td { font-size:8px; padding:0 1px; } .sheet.notes .nsheet thead th { font-size:8px; } .sheet.notes .nsheet th.nhead b, .sheet.notes .nsheet th.nhead i { font-size:8px; } .sheet.notes .nsheet col.d { width:16%; } }
 .pextra { margin:14px 0 6px; padding:6px 10px; border-top:2px solid var(--line); border-bottom:1px dashed var(--line); font-weight:700; background:var(--soft); }      /* N32: the Silver and Gold extra-credit heading on a T&T progress page */
 
-.saveflop { display:inline-flex; align-items:center; margin-right:6px; color:var(--okfg, #1e7a3c); opacity:0; transition:opacity .4s ease; pointer-events:none; }      /* N36: the floppy beside Save to Google Drive: fades in while saving, out when done */
-.saveflop.on { opacity:1; }
+.saveflop { display:inline-flex; align-items:center; width:0; margin:0; overflow:hidden; color:var(--okfg, #1e7a3c); opacity:0; transition:opacity .4s ease, width .4s ease, margin .4s ease; pointer-events:none; }      /* N36: the floppy beside Save to Google Drive: fades in while saving, out when done */
+.saveflop.on { width:18px; margin-right:6px; opacity:1; }
 @media (prefers-reduced-motion: reduce) { .saveflop { transition:none; } }
 
 .offchip { display:inline-block; margin-right:8px; padding:4px 10px; border-radius:4px; background:var(--warnbg, #fff4d6); color:var(--warntxt, #6b4300); font-size:13px; max-width:min(320px, 46vw); white-space:normal; line-height:1.3; } .offchip[hidden] { display:none; }      /* N9 point 8: offline chip in the top bar */

@@ -68,7 +68,8 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
   await test('"Needs a handbook": a book code typed on the row is saved and the row leaves To do', async () => {
     const id = await page.evaluate(() => {
       const s = App.season, M = Model, kids = App.master.people.filter(p => M.isActive(p) && M.isClubber(p) && M.groupOf(M.room(p)) === 'Sparks');
-      for (const p of kids) { const i = p[M.X.ID]; delete s.handbooks[i]; if (s.received) delete s.received[i]; const code = Season.childBook(s, i); if (!['HG', 'WR', 'SS'].includes(code)) { App.touch(); return i; } }
+      // N33: a child with no progress and no book gets no warning, so this child has a non-Sparks handbook code (progress indicated)
+      for (const p of kids) { const i = p[M.X.ID]; s.handbooks[i] = 'AS'; if (s.received) delete s.received[i]; const code = Season.childBook(s, i); if (!['HG', 'WR', 'SS'].includes(code)) { App.touch(); return i; } }
       return null;
     });
     await page.evaluate(() => { App.lastImport = null; App.showTab('todo'); }); await page.waitForTimeout(300);

@@ -6,7 +6,7 @@ const { chromium } = require('playwright');
 const root = path.join(__dirname, '..', '..', '..'), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'awana-sw-'));
 let passed = 0, failed = 0;
 async function test(name, fn) { try { await fn(); passed++; console.log('  ok   ' + name); } catch (e) { failed++; console.log('  FAIL ' + name + '\n       ' + String(e.message).split('\n')[0]); } }
-cp.execSync('mkdir -p "' + tmp + '/dev" "' + tmp + '/deploy" && cp "' + root + '/make-deploy.sh" "' + tmp + '/" && cp -r "' + root + '/dev/app" "' + tmp + '/dev/app" && cp -r "' + root + '/dev/test-data" "' + tmp + '/dev/test-data" && rm -rf "' + tmp + '/dev/app/test" && mkdir -p "' + tmp + '/dev/tools" && cp "' + root + '/dev/tools/minify.js" "' + tmp + '/dev/tools/" && ln -s "' + root + '/node_modules" "' + tmp + '/node_modules"');
+cp.execSync('mkdir -p "' + tmp + '/dev" "' + tmp + '/deploy" && cp "' + root + '/make-deploy.sh" "' + tmp + '/" && cp -r "' + root + '/dev/app" "' + tmp + '/dev/app" && cp -r "' + root + '/dev/test-data" "' + tmp + '/dev/test-data" && rm -rf "' + tmp + '/dev/app/test" && mkdir -p "' + tmp + '/dev/tools" && cp "' + root + '/dev/tools/minify.js" "' + tmp + '/dev/tools/" && cp "' + root + '/dev/tools/stamp-source.sh" "' + tmp + '/dev/tools/" && ln -s "' + root + '/node_modules" "' + tmp + '/node_modules"');
 cp.execSync('sh make-deploy.sh', { cwd: tmp, stdio: 'pipe' });
 const deploy = path.join(tmp, 'deploy'), types = { '.js': 'application/javascript', '.html': 'text/html', '.css': 'text/css', '.json': 'application/json', '.csv': 'text/csv', '.woff2': 'font/woff2' };
 const server = http.createServer((req, res) => {

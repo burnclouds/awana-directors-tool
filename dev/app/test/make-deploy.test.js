@@ -20,6 +20,7 @@ function deployCopy() {
     sh('cp -r "' + root + '/dev/app" dev/app && rm -rf dev/app/test');
     sh('cp -r "' + root + '/dev/test-data" dev/test-data');
     sh('cp "' + root + '/dev/tools/minify.js" dev/tools/');
+    sh('cp "' + root + '/dev/tools/stamp-source.sh" dev/tools/');      // N9 point 7: the deploy stamps the source commit with this script
     sh('ln -s "' + root + '/node_modules" node_modules');
     const r = run(template); assert.strictEqual(r.code, 0, 'first deploy of the copy: ' + r.out.slice(0, 300));
   }

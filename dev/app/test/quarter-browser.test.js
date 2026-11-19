@@ -51,7 +51,8 @@ const server = http.createServer((req, res) => {
     const { page, ctx } = await open('2027-01-15');
     await page.click('button[data-tab="reports"]');
     const shown = async id => page.evaluate(i => { const e = document.getElementById(i); return !!e && !e.hidden && e.offsetParent !== null; }, id);
-    for (const [report, want] of [['attendance', true], ['teams', true], ['binderClass', false], ['uniforms', false], ['binderAll', false], ['handbooks', false]]) {
+    for (const [report, want] of [['attendance', true], ['teams', true],      // binderClass shows each child's color team for the quarter (N30), so it depends on the quarter
+       ['binderClass', true], ['uniforms', false], ['binderAll', true], ['handbooks', false]]) {
       await page.selectOption('#rSel', report); await page.waitForTimeout(150);
       for (const id of ['qWrap']) assert.strictEqual(await shown(id), want, report + ': ' + id + ' should be ' + (want ? 'shown' : 'hidden'));
       if (!want) assert.strictEqual(await shown('calNote'), false, report + ': the nights note should be hidden');

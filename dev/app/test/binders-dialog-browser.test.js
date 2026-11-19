@@ -17,7 +17,7 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
   await page.evaluate(() => document.querySelector('.tabs button[data-tab="reports"]').click()); await page.waitForTimeout(200);
   await page.click('#rSubs button[data-rsub="binders"]'); await page.click('#btnBinders'); await page.waitForTimeout(200);      // the Binders button is on the Binders group
   await test('the pop-up has a quick pick, the pages in each binder, and one box per class that has children (from the roster) with Select all / Select none', async () => {
-    assert.deepStrictEqual(await page.$$eval('#bindQuick option', o => o.map(x => x.textContent)), ['Quarterly Printables', 'Coaches binder', 'Class binder', 'Custom: the pages I tick below']);
+    assert.deepStrictEqual(await page.$$eval('#bindQuick option', o => o.map(x => x.textContent)), ['Quarterly Printables', 'Coaches binder', 'Class binder', 'Club night pack', 'Custom: the pages I tick below']);
     assert.strictEqual(await page.inputValue('#bindQuick'), '2', 'it opens on the Class binder'); assert.strictEqual(await page.locator('#dlg input[data-part]').count(), 8);
     const classes = await page.$$eval('#dlg input[data-bind]', l => l.map(x => x.dataset.room)); assert.strictEqual(classes.length, 10); assert.deepStrictEqual(classes.slice(0, 3), ['Puggles', 'Cubbies', 'Sparks A']);
     assert.deepStrictEqual(await page.$$eval('#dlg input[data-part]:checked', l => l.map(x => x.dataset.part)), ['attendance', 'binderClass', 'volunteers', 'progressSheets'], 'the Class binder pages are ticked');

@@ -17,7 +17,7 @@ for f in dev/app/*.js dev/app/*.html; do
   [ "$(basename "$f")" = sw.js ] && continue      # the service worker's version is its release (below), not a line in the file
   b="$build/app/$(basename "$f")"; d="deploy/app/$(basename "$f")"
   if [ -f "$d" ]; then
-    case "$f" in *.html) same=$([ "$(stamp "$f")" = "$(cat "$d")" ] && echo y || echo n);; *) same=$({ cmp -s "$b" "$d" || cmp -s "$f" "$d"; } && echo y || echo n);; esac      # a copy from before minifying is the dev file itself: unchanged too
+    case "$f" in *.html) same=$([ "$(stamp "$f")" = "$(grep -v 'name="app-source"' "$d")" ] && echo y || echo n);; *) same=$({ cmp -s "$b" "$d" || cmp -s "$f" "$d"; } && echo y || echo n);; esac      # a copy from before minifying is the dev file itself: unchanged too. The app-source line (N9 point 7) is added at deploy time, so it is ignored in the html check.
     if [ "$same" = n ] && [ "$(basename "$f")" != drive-config.js ]; then changed=y; fi      # drive-config.js is replaced by the real one below; it is compared separately
     if [ "$same" = n ] && [ "$(ver "$f")" = "$(ver "$d")" ]; then stale="$stale $(basename "$f") (still $(ver "$f"))"; fi
   else changed=y      # a new script or page
