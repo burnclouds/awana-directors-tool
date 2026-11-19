@@ -11,7 +11,7 @@ stamp() { v=$(ver "$1"); sed -E "s/(src|href)=\"([A-Za-z0-9_.-]+\.(js|css))\"/\1
 build=$(mktemp -d); trap 'rm -rf "$build"' EXIT
 mkdir -p "$build/app"
 rsync -a --exclude test/ --exclude '*.js' dev/app/ "$build/app/"
-cp version-history.html "$build/app/version-history.html"      # the version history page lives in the project root (one copy); it is published with the app
+[ -f version-history.html ] && cp version-history.html "$build/app/version-history.html"      # the version history page lives in the project root (one copy); it is published with the app
 for f in dev/app/*.js; do [ "$(basename "$f")" = sw.js ] && continue; node dev/tools/minify.js "$f" "$build/app/$(basename "$f")"; done      # sw.js is a template, written below
 stale=""; changed=n
 for f in dev/app/*.js dev/app/*.html; do

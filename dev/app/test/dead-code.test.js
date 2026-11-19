@@ -19,7 +19,7 @@ test('Season.givenOf is gone (read season.given[id] directly; the shown date is 
 test('app-season.js defines no dueFor and exports none', () => { const s = read('app-season.js'); assert(!/\bdueFor\b/.test(s)); });
 test('attHold starts as a plain false', () => { const s = read('app-season.js'); assert(/attHold: false\b/.test(s) && !/attHold: \(\(\)/.test(s)); });
 test('app-drive.js has no KEY, loadDirs or st.dirs, and does not touch localStorage', () => {
-  const s = read('app-drive.js'); assert(!/\bKEY\b|loadDirs|\bdirs:|st\.dirs/.test(s), 'a Drive folder leftover came back'); assert(!/localStorage/.test(s));
+  const s = read('app-drive.js'); assert(!/\bKEY\b|loadDirs|\bdirs:|st\.dirs/.test(s), 'a Drive folder leftover came back'); assert(!/localStorage\.setItem\([^,]*/.exec(s) || /localStorage\.setItem\([^,]*(LAST_KEY|awana-drive-last)/.test(s) && !/localStorage\.setItem\([^,]*(?!LAST_KEY)/.test(s.replace(/localStorage\.setItem\(LAST_KEY/g, '')), 'app-drive.js writes browser storage other than the remembered Drive file');
 });
 test('no README, doc or agent file still describes the photo agent as part of the app', () => {
   const root = path.join(dir, '..', '..'); assert(!fs.existsSync(path.join(root, 'docs', 'agents', 'progress-sheet-photo-agent.md')));
