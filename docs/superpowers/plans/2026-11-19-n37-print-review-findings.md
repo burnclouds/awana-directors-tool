@@ -1,6 +1,6 @@
 # N37: print review of every printed page, findings (2026-11-19)
 
-Status: FINDINGS ONLY. Nothing was changed in the app. Each fix below becomes its own backlog item when Mike picks it (N37 says "findings first, fixes as separate items").
+Status (2026-11-19, later the same day): **F1 to F7 and F9 to F13 are fixed** in dev (commits 4b84774, 9977831, 17c4888, 8eeecab), each held by a check in `test/print-clean-browser.test.js` that reads the printed text of a real PDF (17 checks). **Not fixed, by decision or because they need an answer:** F8 (keep "none reported"? Mike's call), F14 and F15 (data-dependent: an empty lesson column and an empty Rank column; wait for real data), F16 (check on paper), F17 (which reports go in a binder? Mike's call). Checked again after the fixes with the same PDF measurement: no page of any report ends on a heading; `booksYear` is grouped by class and no longer strands one row; the empty-state pages are not printed and Print is off for them. Not measured: a row split across a page (the CSS now forbids it on every table; the TEST data has no row near a page edge). The text below is the original findings pass and is kept as written.
 
 ## How this was done, and its limits
 
