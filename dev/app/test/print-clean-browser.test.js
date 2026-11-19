@@ -72,6 +72,17 @@ const pagesOf = buf => { const f = path.join(os.tmpdir(), 'awana-clean-' + proce
       assert(found.length > 5, id + ': found too few numbers to judge (' + found.length + ')'); const bad = found.filter(x => !/^\(\d{3}\) \d{3}-\d{4}$/.test(x)); assert(!bad.length, id + ': other styles: ' + bad.slice(0, 4).join(' | '));
     }
   });
+  // F3, F4: a class name such as "T&T Girls (Group B)" stays on one line on the lists that carry a Class column
+  const splitClass = r => r.pages.join('\n').split('\n').filter(l => { const a = (l.match(/\(Group [AB]\)/g) || []).length, b = (l.match(/T&T (Boys|Girls) \(Group [AB]\)/g) || []).length; return a > b || /\(Group\s*$/.test(l.trim()) || /(^|\s{2,})[AB]\)(\s|$)/.test(l); }).length;      // a class name split over two lines: "(Group A)" without its "T&T Boys" on the same line, or "(Group" / "B)" torn apart
+  await test('F3: the everyone-by-name page keeps "(Group A)" on one line', async () => { const r = await paper('binderAll'); assert.strictEqual(splitClass(r), 0, 'class names wrapped: ' + splitClass(r)); });
+  await test('F3: the colour-team column heading fits on one line', async () => { const t = (await paper('binderAll')).pages[0]; assert(/Name\s+Class\s+Q2 Team\s+Emergency/.test(t), 'the heading row is not on one line: ' + t.split('\n').filter(l => l.trim()).slice(0, 6).map(l => l.replace(/\s+/g, ' ')).join(' | ')); });
+  await test('F4: the volunteer list keeps "(Group A)" on one line', async () => { const r = await paper('volunteers'); assert.strictEqual(splitClass(r), 0, 'class names wrapped: ' + splitClass(r)); });
+  // F5: a theme word is never broken in the middle on the coaches notes sheet
+  await test('F5: no theme word on the coaches notes sheet is split mid-word', async () => {
+    await show('noteSheets'); const words = await page.evaluate(() => [...new Set([...document.querySelectorAll('#report .nhead i')].flatMap(i => i.textContent.split(/[\s/]+/)).filter(w => w.replace(/\W/g, '').length >= 6))]);
+    assert(words.length >= 3, 'too few long theme words to judge: ' + words.join(','));
+    const t = flat(await paper('noteSheets')); words.forEach(w => assert(t.includes(w.replace(/^["“(]+|["”),.]+$/g, '')), 'broken: ' + w));
+  });
   await test('no script errors', async () => { assert.strictEqual(errs.length, 0, errs.join(' | ')); });
   await browser.close(); server.close();
   console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

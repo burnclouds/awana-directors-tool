@@ -25,7 +25,7 @@ const { open } = require('./lib/app-page'), assert = require('assert');
     });
   }
   await t.test('N15-2 the everyone-by-name page is fixed, has five columns with the Color Team after Class, and nothing is clipped', async () => {
-    const o = await drawn('binderAll', ''); assert.strictEqual(o.layout, 'fixed'); assert.strictEqual(o.left.length, 5); assert(/^Name$/.test(o.heads[0]) && /^Class$/.test(o.heads[1]) && /Color Team/.test(o.heads[2]), o.heads.join('|')); assert.strictEqual(o.overflow, 0, 'clipped cells ' + o.overflow);
+    const o = await drawn('binderAll', ''); assert.strictEqual(o.layout, 'fixed'); assert.strictEqual(o.left.length, 5); assert(/^Name$/.test(o.heads[0]) && /^Class$/.test(o.heads[1]) && /^Q\d Team$/.test(o.heads[2]), o.heads.join('|'));      // N37 F3: the heading is "Q2 Team" so it stays on one line assert.strictEqual(o.overflow, 0, 'clipped cells ' + o.overflow);
   });
   await t.test('N31 the longest class name is on ONE line in the Class column, and no name is broken in the middle of a word (screen and print)', async () => {
     const check = () => page.evaluate(() => {

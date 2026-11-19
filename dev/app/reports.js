@@ -116,7 +116,7 @@
   const emergOf = p => { const raw = String(M.eff(p, C.EMERG) || '').trim(), i = raw.lastIndexOf(' - '); return { name: !raw ? '' : i < 0 ? raw : raw.slice(0, i), phone: M.emergencyPhone(p) }; };
   // The club's own choice (set on the Person tab) comes after the two Planning Center answers and before the registration contact's number. It prints with no mark.
   const phoneSource = p => parentPhone(p) ? 'parent' : emergOf(p).phone ? 'own' : M.clubPhone(p) ? 'club' : regPhone(p) ? 'reg' : '';
-  const EMERG_W_CLASS = [24, 28, 48], EMERG_W_CLASS_TEAM = [22, 10, 26, 42], EMERG_W_ALL = [24, 18, 8, 19, 31];      // N30, N31: everyone by name: Name, Class, Color Team, Contact, Medical (Class wide enough for "T&T Girls (Group A)", Contact narrower: it has room); a class page of Sparks or T&T has a Color Team column too, so it has its own set; Cubbies and Puggles pages keep the first      // N15: the same column positions on every class page (and on the everyone-by-name page)
+  const EMERG_W_CLASS = [24, 28, 48], EMERG_W_CLASS_TEAM = [22, 10, 26, 42], EMERG_W_ALL = [21, 22, 10, 19, 28];      // N30, N31: everyone by name: Name, Class, Color Team, Contact, Medical (Class wide enough for "T&T Girls (Group A)", Contact narrower: it has room); a class page of Sparks or T&T has a Color Team column too, so it has its own set; Cubbies and Puggles pages keep the first      // N15: the same column positions on every class page (and on the everyone-by-name page)
   const warnCell = '<span class="nw" style="color:var(--warntxt);font-weight:700">&#9888; NO PHONE ON FILE</span>';
   const contact = p => {
     const { name } = emergOf(p), src = phoneSource(p);
@@ -173,7 +173,7 @@
   }
   function binderAll(ctx) {
     const all = kids(ctx.master).sort(byLast);
-    return sheet('Emergency, Medical and Photos — everyone by name', table(['Name', 'Class', sheetQuarter(ctx) + ' Color Team', 'Emergency contact', 'Medical / allergy notes'], all.map(p => [esc(last(p) + ', ' + first(p)), esc(M.room(p)), teamFor(ctx, p), contact(p), medAndPhotos(p)]), 'wrap emerg', EMERG_W_ALL) + parentNote(all) + noPhoneNote(all), 'portrait punch', [printedOn(ctx), ctx.season ? teamNote(ctx, all) : ''].filter(Boolean).join(' · '));
+    return sheet('Emergency, Medical and Photos — everyone by name', table(['Name', 'Class', sheetQuarter(ctx) + ' Team', 'Emergency contact', 'Medical / allergy notes'], all.map(p => [esc(last(p) + ', ' + first(p)), esc(M.room(p)), teamFor(ctx, p), contact(p), medAndPhotos(p)]), 'wrap emerg', EMERG_W_ALL) + parentNote(all) + noPhoneNote(all), 'portrait punch', [printedOn(ctx), ctx.season ? teamNote(ctx, all) : ''].filter(Boolean).join(' · '));
   }
 
   function photos(ctx) {
@@ -226,10 +226,11 @@
   const rowHeightIn = n => Math.round(Math.min(0.36, ROWS_BUDGET_IN / (n * rowsFor(n))) * 100) / 100;
   const longDate = iso => Cal.short(iso);      // M/D, no year: the date column is narrow and the date is printed large (the quarter and the club year are known)
   // N16: the theme never sets the height of a night's block: it sits in a clipped box that is as tall as the block's rows, and a long theme is set smaller (the full theme is on the calendar).
-  const themeSize = t => String(t).length <= 30 ? 'ts1' : String(t).length <= 60 ? 'ts2' : 'ts3';
+  // N37 F5: the size follows the longest word as well as the length, so a long word is made smaller to fit its column instead of being broken in the middle.
+  const themeSize = t => { const s = String(t), w = Math.max(0, ...s.split(/[\s/]+/).map(x => x.length)), byLen = s.length <= 30 ? 1 : s.length <= 60 ? 2 : 3, byWord = w <= 8 ? 1 : w <= 10 ? 2 : 3; return 'ts' + Math.max(byLen, byWord); };
   function noteNight(r, rows, h) {
     const cells = '<td></td><td class="r1"></td><td class="gp"></td><td class="c3"></td><td></td><td></td><td class="r2"></td><td class="gp"></td><td class="c8"></td>', tr = '<tr class="nr" style="height:' + h + 'in">';
-    return '<tbody class="nblock">' + tr.replace('nr', 'nr nfirst') + '<th rowspan="' + rows + '" class="nhead"><div class="nh" style="max-height:' + Math.round((rows * h - 0.05) * 100) / 100 + 'in"><b>' + esc(longDate(r.Date)) + '</b>' + (r.Theme ? ' <i class="' + themeSize(r.Theme) + '">' + esc(r.Theme) + '</i>' : '') + '</div></th>' + cells + '</tr>' + (tr + cells + '</tr>').repeat(rows - 1) + '</tbody>';
+    return '<tbody class="nblock">' + tr.replace('nr', 'nr nfirst') + '<th rowspan="' + rows + '" class="nhead"><div class="nh" style="max-height:' + Math.round((rows * h - 0.05) * 100) / 100 + 'in"><b>' + esc(longDate(r.Date)) + '</b>' + (r.Theme ? ' <i class="' + themeSize(r.Theme) + '">' + esc(r.Theme).replace(/([A-Za-z])\/(?=[A-Za-z])/g, '$1/<wbr>') + '</i>' : '') + '</div></th>' + cells + '</tr>' + (tr + cells + '</tr>').repeat(rows - 1) + '</tbody>';
   }
   function noteTable(list) {
     const rows = rowsFor(list.length), h = rowHeightIn(list.length);
@@ -257,7 +258,7 @@
     const rows = ctx.master.people.filter(p => M.isActive(p) && /volunteer/i.test(M.eff(p, C.SELECTION) || '')).sort((a, b) => volRank(a) - volRank(b) || M.room(a).localeCompare(M.room(b)) || byLast(a, b)).map(p =>['<span class="nw">' + esc(last(p) + ', ' + first(p)) + '</span>', esc(M.room(p)),
       pieces(firstOf(p, ['Mobile Phone Number', 'Home Phone Number', 'Work Phone Number', 'Other Phone Number'])).map(x => '<span class="nw">' + esc(x) + '</span>').join('; '),
       pieces(firstOf(p, ['Home Email Address', 'Work Email Address', 'Other Email Address'])).map(esc).join('; ')]);
-    return sheet('Volunteer Contact List', table(['Name', 'Assignment (class)', 'Phone', 'Email'], rows), 'portrait punch');
+    return sheet('Volunteer Contact List', table(['Name', 'Assignment (class)', 'Phone', 'Email'], rows, '', [24, 24, 19, 33]), 'portrait punch');      // N37 F4: the class column is wide enough for "T&T Girls (Group A)" on one line
   }
 
   // ---------- changes needed in Planning Center ----------
