@@ -46,6 +46,7 @@ if [ "$changed" = y ] && [ -n "$old" ] && [ "$old" = "$rel" ]; then echo "STOP: 
 mkdir -p deploy/app
 rsync -a --delete "$build/app/" deploy/app/
 stamp dev/app/index.html > deploy/app/index.html
+sh dev/tools/stamp-source.sh deploy/app/index.html .      # N9 point 7: the source commit (+changes if dev/app is not committed)
 # The published copy has the real Google Drive settings (deploy-config/drive-config.js); dev/app/drive-config.js stays empty so development and the tests never reach Google.
 [ -f deploy-config/drive-config.js ] && cp deploy-config/drive-config.js deploy/app/drive-config.js
 printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=app/index.html"><title>Gonkulator</title><a href="app/index.html">Open the app</a>\n' > deploy/index.html

@@ -1,32 +1,37 @@
-// make-deploy.sh stamps the published index.html so a new version is fetched fresh (src="app.js?v=<version>"), and still refuses a changed file whose version was not bumped. Runs the real script on a copy.
+// N9 point 7: dev/tools/stamp-source.sh writes the source commit into a published index.html: "unknown" with no git, the short commit, and +changes when dev/app is not committed. Runs in temporary folders only.
 // Usage: node test/deploy-stamp.test.js
-const assert = require('assert'), fs = require('fs'), os = require('os'), path = require('path'), cp = require('child_process');
+const assert = require('assert'), fs = require('fs'), os = require('os'), path = require('path'), { execFileSync } = require('child_process');
+const script = path.join(__dirname, '..', '..', 'tools', 'stamp-source.sh');
 let passed = 0, failed = 0;
 function test(name, fn) { try { fn(); passed++; console.log('  ok   ' + name); } catch (e) { failed++; console.log('  FAIL ' + name + '\n       ' + String(e.message).split('\n')[0]); } }
-const root = path.join(__dirname, '..', '..', '..'), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'awana-deploy-'));
-cp.execSync('mkdir -p "' + tmp + '/dev" "' + tmp + '/deploy" && cp "' + root + '/make-deploy.sh" "' + tmp + '/" && cp -r "' + root + '/dev/app" "' + tmp + '/dev/app" && cp -r "' + root + '/dev/test-data" "' + tmp + '/dev/test-data" && rm -rf "' + tmp + '/dev/app/test" && mkdir -p "' + tmp + '/dev/tools" && cp "' + root + '/dev/tools/minify.js" "' + tmp + '/dev/tools/" && ln -s "' + root + '/node_modules" "' + tmp + '/node_modules"');
-const run = () => { try { return { out: cp.execSync('sh make-deploy.sh 2>&1', { cwd: tmp }).toString(), ok: true }; } catch (e) { return { out: String(e.stdout || e.message), ok: false }; } };
-const html = () => fs.readFileSync(path.join(tmp, 'deploy', 'app', 'index.html'), 'utf8'), dev = fs.readFileSync(path.join(tmp, 'dev', 'app', 'index.html'), 'utf8'), ver = /name="app-version" content="([^"]+)"/.exec(dev)[1];
+const INDEX = '<html><head>\n<meta name="app-version" content="1.51.16">\n<meta name="app-build" content="2026-11-18">\n</head></html>\n';
+const git = (dir, args) => execFileSync('git', ['-C', dir, '-c', 'user.email=test@example.invalid', '-c', 'user.name=test', ...args], { stdio: 'pipe' }).toString();
+const stamp = (dir, file, repo) => { execFileSync('sh', [script, file, repo], { stdio: 'pipe' }); return fs.readFileSync(file, 'utf8'); };
+const value = html => (html.match(/<meta name="app-source" content="([^"]*)"/) || [])[1];
 
-test('the published index.html names every script and style with ?v=<app version>; the development one is left alone', () => {
-  const r = run(); assert(r.ok, r.out); const h = html(), scripts = [...dev.matchAll(/<script src="([^"]+)">/g)].map(m => m[1]), links = [...dev.matchAll(/<link rel="stylesheet" href="([^"]+)">/g)].map(m => m[1]);
-  assert(scripts.length > 20 && links.length === 2); scripts.concat(links).forEach(f => assert(h.includes('"' + f + '?v=' + ver + '"'), f + ' is not stamped')); assert(!/(src|href)="[A-Za-z0-9_.-]+\.(js|css)"/.test(h), 'an unstamped file is left');
-  assert(!/\?v=/.test(dev), 'dev/app/index.html has no stamps'); assert.strictEqual(h.replace(/\?v=[^"]+/g, ''), dev, 'nothing else about the page changed');
+const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'stamp-nogit-'));
+test('with no git checkout the page says unknown, straight after the build tag', () => {
+  const f = path.join(plain, 'index.html'); fs.writeFileSync(f, INDEX);
+  const out = stamp(plain, f, plain); assert.strictEqual(value(out), 'unknown'); assert(/app-build[^\n]*\n<meta name="app-source"/.test(out), 'not after app-build');
 });
-test('scripts are minified with line 1 (the version) kept as written and still parse; the other files are copied as they are; a second run with nothing changed is clean', () => {
-  ['app.js', 'season.js', 'pace.js'].forEach(f => {
-    const d = fs.readFileSync(path.join(tmp, 'deploy', 'app', f), 'utf8'), v = fs.readFileSync(path.join(tmp, 'dev', 'app', f), 'utf8');
-    assert.strictEqual(d.split('\n')[0], v.split('\n')[0], f + ' line 1'); assert(d.length < v.length * 0.8, f + ' is not smaller: ' + d.length + ' vs ' + v.length); new (require('vm').Script)(d, { filename: f });
-  });
-  ['style.css', 'fonts.css'].forEach(f => assert.strictEqual(fs.readFileSync(path.join(tmp, 'deploy', 'app', f), 'utf8'), fs.readFileSync(path.join(tmp, 'dev', 'app', f), 'utf8'), f + ' is copied as it is'));
-  const r = run(); assert(r.ok && !/STOP/.test(r.out), r.out.slice(0, 200));
+
+const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'stamp-git-'));
+git(repo, ['init', '-q']);
+fs.mkdirSync(path.join(repo, 'dev', 'app'), { recursive: true }); fs.writeFileSync(path.join(repo, 'dev', 'app', 'app.js'), 'x = 1;\n');
+git(repo, ['add', '-A']); git(repo, ['commit', '-q', '-m', 'test']);
+const short = git(repo, ['rev-parse', '--short', 'HEAD']).trim();
+test('in a committed checkout the page names the short commit', () => {
+  const f = path.join(repo, 'page.html'); fs.writeFileSync(f, INDEX);
+  assert.strictEqual(value(stamp(repo, f, repo)), short);
 });
-test('a deploy copy made before minifying (the dev file itself) is not mistaken for a change', () => {
-  fs.copyFileSync(path.join(tmp, 'dev', 'app', 'csv.js'), path.join(tmp, 'deploy', 'app', 'csv.js')); const r = run(); assert(r.ok && !/STOP/.test(r.out), r.out.slice(0, 200));
+test('uncommitted changes under dev/app add +changes', () => {
+  fs.writeFileSync(path.join(repo, 'dev', 'app', 'app.js'), 'x = 2;\n');
+  const f = path.join(repo, 'page2.html'); fs.writeFileSync(f, INDEX);
+  assert.strictEqual(value(stamp(repo, f, repo)), short + '+changes');
 });
-test('a changed script that kept its version number is still refused, and so is a changed page', () => {
-  fs.appendFileSync(path.join(tmp, 'dev', 'app', 'app.js'), '\n;this.__edited = 1;\n');      // a comment-only edit does not change the minified file, so it is not a change let r = run(); assert(!r.ok && /STOP: changed but the version number was not bumped: app\.js/.test(r.out), r.out.slice(0, 200));
-  fs.writeFileSync(path.join(tmp, 'dev', 'app', 'app.js'), fs.readFileSync(path.join(root, 'dev', 'app', 'app.js'), 'utf8')); fs.appendFileSync(path.join(tmp, 'dev', 'app', 'index.html'), '\n<!-- edited -->\n'); r = run(); assert(!r.ok && /index\.html/.test(r.out), r.out.slice(0, 200));
+test('the stamp is one line, and the rest of the page is unchanged', () => {
+  const f = path.join(repo, 'page3.html'); fs.writeFileSync(f, INDEX);
+  const out = stamp(repo, f, repo); assert.strictEqual(out.split('app-source').length, 2, 'more than one app-source tag'); assert(out.includes('<meta name="app-version" content="1.51.16">'));
 });
-fs.rmSync(tmp, { recursive: true, force: true });
+fs.rmSync(plain, { recursive: true, force: true }); fs.rmSync(repo, { recursive: true, force: true });
 console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

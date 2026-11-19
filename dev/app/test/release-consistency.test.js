@@ -15,7 +15,8 @@ test('the Published line does not call the top version committed or live before 
   assert(!new RegExp(topVer.replace(/\./g, '\\.') + '[^.\\n]{0,40}(committed|live on)', 'i').test(pub) || /unreleased/.test(topNote) === false, 'Published line: ' + pub.slice(0, 160));
 });
 test('when the top entry says it is built in deploy/, deploy/ is that version, with the same script versions as dev', () => {
-  if (!/built/.test(topNote) || /unreleased/.test(topNote)) return 'skip';
+  // N9 point 1: AWANA_STRICT_DEPLOY (set in pages.yml) makes the check real whatever the CHANGELOG says: dev and deploy/ must match.
+  if (!process.env.AWANA_STRICT_DEPLOY && (!/built/.test(topNote) || /unreleased/.test(topNote))) return 'skip';
   assert(fs.existsSync(path.join(dep, 'index.html')), 'deploy/app/index.html is missing');
   assert.strictEqual(meta(read(path.join(dep, 'index.html')), 'app-version'), devVer, 'deploy/ page version');
   const bad = [];

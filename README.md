@@ -331,6 +331,12 @@ node test/not-awards.test.js                 # N23: Flight 3:16, Start Zone and 
 node test/no-book-warning.test.js            # N33: no no-book warning for a child with no progress
 node test/section-rules.test.js              # N9 point 6: every section has a make-test-data rule; drop sections are empty in TEST data
 node test/drive-errors.test.js               # N9 point 9: each Drive failure has a kind (signin, folder, busy, offline, other)
+node test/deploy-contents.test.js           # N9 point 1: the committed deploy/ folder holds only app files, invented TEST data, no secrets
+node test/deploy-stamp.test.js              # N9 point 7: the published page names its source commit (+changes when uncommitted)
+NODE_PATH=<dir with playwright> node test/bundles-club-night-browser.test.js  # N9 point 13: the Club night pack and the add-missing button
+NODE_PATH=<dir with playwright> node test/offline-chip-browser.test.js        # N9 point 8: the offline chip in the top bar, at both widths
+NODE_PATH=<dir with playwright> node test/debug-source-browser.test.js        # N9 point 7: the Debug tab shows Built from
+AWANA_STRICT_DEPLOY=1 node test/release-consistency.test.js                   # N9 point 1: deploy/ must match dev (the Pages test job sets this)
 NODE_PATH=<dir with playwright> node test/not-awards-browser.test.js     # N23 on the Awards tab and Progress sheet
 NODE_PATH=<dir with playwright> node test/announce-list-browser.test.js  # N29: the Announce page prints the club-night list
 NODE_PATH=<dir with playwright> node test/tnt-extra-credit-browser.test.js  # N32: the Silver and Gold heading on a T&T progress page

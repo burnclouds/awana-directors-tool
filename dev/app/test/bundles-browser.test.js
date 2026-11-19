@@ -16,7 +16,7 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   const tab = t => page.evaluate(x => document.querySelector('.tabs button[data-tab="' + x + '"]').click(), t);
   await tab('reports'); await page.waitForTimeout(500);
   await test('the Reports list has the Quarterly Printables bundle under "Print several at once"', async () => {
-    const o = await page.$$eval('#rSel optgroup option', e => e.map(x => x.textContent)); assert.deepStrictEqual(o, ['Quarterly Printables (bundle)', 'Coaches binder (bundle)', 'Class binder (bundle)']);
+    const o = await page.$$eval('#rSel optgroup option', e => e.map(x => x.textContent)); assert.deepStrictEqual(o, ['Quarterly Printables (bundle)', 'Coaches binder (bundle)', 'Class binder (bundle)', 'Club night pack (bundle)']);
   });
   await test('choosing it shows a quarter picker (the next quarter) and builds one document: attendance, class binders, color teams, the coaches binder', async () => {
     await page.selectOption('#rSel', 'bundle:0'); await page.waitForTimeout(500);
@@ -40,9 +40,9 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     assert.strictEqual(await page.$$eval('select[data-bitem^="0:"]', e => e.length), 5, 'five items');
     await page.click('button[data-bmove="0:4:-1"]'); await page.waitForTimeout(250); assert.strictEqual(await page.inputValue('select[data-bitem="0:3"]'), 'photos', 'moved up');
     await page.click('button[data-brem="0:3"]'); await page.waitForTimeout(250); assert.strictEqual(await page.$$eval('select[data-bitem^="0:"]', e => e.length), 4);
-    await tab('reports'); await page.waitForTimeout(400); assert.deepStrictEqual(await page.$$eval('#rSel optgroup option', e => e.map(x => x.textContent)), ['Start of quarter (bundle)', 'Coaches binder (bundle)', 'Class binder (bundle)']);
+    await tab('reports'); await page.waitForTimeout(400); assert.deepStrictEqual(await page.$$eval('#rSel optgroup option', e => e.map(x => x.textContent)), ['Start of quarter (bundle)', 'Coaches binder (bundle)', 'Class binder (bundle)', 'Club night pack (bundle)']);
     await tab('options'); await page.waitForTimeout(300); await page.click('#optBundleReset'); await page.waitForTimeout(300);
-    await tab('reports'); await page.waitForTimeout(400); assert.deepStrictEqual(await page.$$eval('#rSel optgroup option', e => e.map(x => x.textContent)), ['Quarterly Printables (bundle)', 'Coaches binder (bundle)', 'Class binder (bundle)']);
+    await tab('reports'); await page.waitForTimeout(400); assert.deepStrictEqual(await page.$$eval('#rSel optgroup option', e => e.map(x => x.textContent)), ['Quarterly Printables (bundle)', 'Coaches binder (bundle)', 'Class binder (bundle)', 'Club night pack (bundle)']);
     assert.strictEqual(await page.evaluate(() => App.season.config.bundles), undefined, 'nothing stored once back to standard');
   });
   await test('deleting a book in Options does not touch the bundles and throws no error (the book and bundle delete buttons are different buttons)', async () => {

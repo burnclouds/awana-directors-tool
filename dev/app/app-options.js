@@ -153,18 +153,22 @@
   }
   // Report bundles: named lists of reports that print as one job (Reports tab, "Print several at once"). Until the club edits them, the standard Quarterly Printables bundle is used and nothing is stored.
   const repTitle = id => ((Reports.LIST.find(r => r.id === id) || {}).title) || id + ' (not found)';
+  // N9 point 13: one line on what each standard bundle is for.
+  const BUNDLE_PURPOSE = { 'Quarterly Printables': 'Start of the quarter: attendance, class binders, color teams and the coaches list.', 'Coaches binder': 'The coaches\' binder: class and everyone-by-name pages, volunteers, color teams and notes.', 'Class binder': 'One class at a time: attendance, emergency pages, volunteers and progress sheets.', 'Club night pack': 'On the night: the awards to announce and the strips to hand out.' };
+  // N9 point 13: add each standard bundle this club does not have yet (by name). Existing bundles are not changed.
+  const addStandardBundles = () => { const c = App.season.config; c.bundles = Array.isArray(c.bundles) ? c.bundles : []; const have = new Set(c.bundles.map(b => b.name)); let n = 0; Reports.DEFAULT_BUNDLES().forEach(b => { if (!have.has(b.name)) { c.bundles.push(b); n++; } }); return n; };
   function bundlesHtml() {
     if (!App.season) return '';
     const bs = Reports.bundlesOf(App.season), custom = Array.isArray(App.season.config.bundles) && App.season.config.bundles.length;
     const opts = sel => Reports.LIST.map(r => '<option value="' + r.id + '"' + (r.id === sel ? ' selected' : '') + '>' + esc(r.title) + '</option>').join('');
     return '<section class="pcard" id="optBundles"><h3>Report bundles</h3><p class="status">A bundle prints several reports as one job: choose it on the Reports tab under <i>Print several at once</i>, pick the quarter (the next one is offered) and print. ' +
       'Attendance sheets and the medical pages by class make one page for each class. ' + (custom ? 'These are your own bundles.' : 'This is the standard bundle; change anything to make it yours.') + '</p>' +
-      bs.map((b, i) => '<div class="bundle" data-b="' + i + '"><p><label>Bundle name <input type="text" data-bname="' + i + '" value="' + esc(b.name) + '" size="26"></label> <button type="button" data-bundledel="' + i + '"' + (bs.length < 2 ? ' disabled' : '') + '>Delete bundle</button></p>' +
+      bs.map((b, i) => '<div class="bundle" data-b="' + i + '"><p><label>Bundle name <input type="text" data-bname="' + i + '" value="' + esc(b.name) + '" size="26"></label> <button type="button" data-bundledel="' + i + '"' + (bs.length < 2 ? ' disabled' : '') + '>Delete bundle</button></p>' + (BUNDLE_PURPOSE[b.name] ? '<p class="status">' + esc(BUNDLE_PURPOSE[b.name]) + '</p>' : '') +
         '<ol class="bitems">' + (b.items || []).map((it, j) => '<li><select data-bitem="' + i + ':' + j + '" aria-label="Report ' + (j + 1) + ' in ' + esc(b.name) + '">' + opts(it.report) + '</select> ' +
           '<button type="button" data-bmove="' + i + ':' + j + ':-1" aria-label="Move up"' + (j ? '' : ' disabled') + '>&uarr;</button><button type="button" data-bmove="' + i + ':' + j + ':1" aria-label="Move down"' + (j < b.items.length - 1 ? '' : ' disabled') + '>&darr;</button>' +
           '<button type="button" data-brem="' + i + ':' + j + '" aria-label="Remove from the bundle">&times;</button></li>').join('') + '</ol>' +
         '<p><select data-badd="' + i + '" aria-label="Add a report to ' + esc(b.name) + '"><option value="">Add a report&hellip;</option>' + opts('') + '</select></p></div>').join('') +
-      '<p><button type="button" id="optBundleNew">New bundle</button> <button type="button" id="optBundleReset">Back to the standard bundle</button></p></section>';
+      '<p><button type="button" id="optBundleNew">New bundle</button> <button type="button" id="optBundleReset">Back to the standard bundle</button>' + (custom ? ' <button type="button" id="optBundleAddStd">Add the standard bundles you do not have</button>' : '') + '</p></section>';
   }
   const editBundles = () => { const c = App.season.config; if (!Array.isArray(c.bundles) || !c.bundles.length) c.bundles = Reports.DEFAULT_BUNDLES(); return c.bundles; };
   // Starting next year's data file (the button's click is handled in app-season.js); it used to sit on the Attendance tab.
@@ -327,6 +331,7 @@
       App.touch(); render(); return;
     }
     if (t.id === 'optBundleNew' && App.season) { const bs = editBundles(); bs.push({ name: 'New bundle', items: [] }); App.touch(); render(); const f = $('optionsWrap').querySelector('input[data-bname="' + (bs.length - 1) + '"]'); if (f) { f.focus(); f.select(); } return; }
+    if (t.id === 'optBundleAddStd' && App.season) { const n = addStandardBundles(); if (n) App.touch(); render(); App.done(n ? 'Added ' + n + ' standard bundle' + (n === 1 ? '' : 's') + '. Your own bundles are unchanged.' : 'You already have every standard bundle.'); return; }
     if (t.id === 'optBundleReset' && App.season) { delete App.season.config.bundles; App.touch(); render(); App.done('The standard Quarterly Printables bundle is back. Your own bundles were removed.'); return; }
     if (t.id === 'optPastCount' && App.season) {
       let n = 0, kids = 0; Object.keys(App.season.progress).forEach(id => { const k = Season.pastYearAwards(App.season, id).length; if (k) { n += k; kids++; } });

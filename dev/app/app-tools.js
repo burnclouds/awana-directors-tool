@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.8.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.8.1';
 // Debug and Validate tabs. Debug: which version of every file is running, what is open, and the dates of the CSV/JSON files.
 // Validate: check a data file, Planning Center export or older CSV for problems without opening it into the app.
 (function () {
@@ -81,7 +81,7 @@
     const outside = src => /^(https?:)?\/\//i.test(src) && !src.includes(location.host);
     const scripts = tags.map(src => { const v = reg[src.split('/').pop().split('?')[0]]; return [esc(src), v ? '<b>' + esc(v) + '</b>' : outside(src) ? 'from another site (' + esc(src.split('/')[2]) + '), loaded when Google Drive is used' : '<span class="h-del" style="padding:1px 6px">not registered — the file did not load, or this is an old copy</span>']; });
     const S = typeof Season === 'undefined' ? null : Season, s = App.season, last = s && s.history[s.history.length - 1];
-    const state = [['This page (index.html)', esc(meta('app-version') + ' · built ' + meta('app-build'))], ['Data file format', S ? esc(S.FORMAT + ' version ' + S.VERSION) : '–']];
+    const state = [['This page (index.html)', esc(meta('app-version') + ' · built ' + meta('app-build'))], ['Built from', (() => { const v = meta('app-source'); return v ? esc(v.replace('+changes', ' (with changes not yet committed)')) : '–'; })()], ['Data file format', S ? esc(S.FORMAT + ' version ' + S.VERSION) : '–']];
     const open = s ? [['Club year', esc(s.year)], ['People on the roster', String(App.master ? App.master.people.length : 0)], ['Nights of attendance', String(Object.keys(s.attendance).length)],
       ['Versions in the history', String(s.history.length)], ['Last edit', last ? esc(new Date(last.t).toLocaleString()) : '–'],
       ['Planning Center data as of', esc((s.roster && s.roster.pcAsOf) || '–')], ['Unsaved changes', App.dirty() ? 'yes' : 'no'],

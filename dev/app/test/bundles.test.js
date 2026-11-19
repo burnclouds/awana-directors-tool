@@ -10,7 +10,7 @@ const season = Season.fromJson(fs.readFileSync(path.join(td, json), 'utf8'));
 const master = Model.fromRoster(season.roster);
 const calendar = season.calendar, settings = { quarter: 'Q1', club: 'Test club', motto: '', dates: '' };
 test('the standard bundles are Quarterly Printables (attendance, medical by class, color teams, medical for everyone) and a starting Coaches binder', () => {
-  const b = R.bundlesOf(null); assert.strictEqual(b.length, 3); assert.strictEqual(b[0].name, 'Quarterly Printables'); assert.strictEqual(b[1].name, 'Coaches binder'); assert.strictEqual(b[2].name, 'Class binder');
+  const b = R.bundlesOf(null); assert.strictEqual(b.length, 4); assert.strictEqual(b[0].name, 'Quarterly Printables'); assert.strictEqual(b[1].name, 'Coaches binder'); assert.strictEqual(b[2].name, 'Class binder'); assert.strictEqual(b[3].name, 'Club night pack');
   assert(b[1].items.every(i => i.report === 'statistics' || R.LIST.some(r => r.id === i.report)), 'Coaches binder items are real reports (Statistics is registered by the Statistics tab, in the browser)');
   assert.deepStrictEqual(b[0].items.map(i => i.report), ['attendance', 'binderClass', 'teams', 'binderAll']);
   assert(b[0].items.every(i => R.LIST.some(r => r.id === i.report)), 'every item is a real report');

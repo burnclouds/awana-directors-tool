@@ -27,7 +27,10 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
+      # N9 point 1: strict deploy check, so a stale deploy/ fails here whatever the CHANGELOG says (release-consistency.test.js).
       - run: sh dev/tools/run-tests.sh --node-only
+        env:
+          AWANA_STRICT_DEPLOY: 1
   deploy:
     needs: test
     runs-on: ubuntu-latest
@@ -37,6 +40,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # N9 point 7: a record of each deploy on the run's summary page: commit, version, build, the source the page was built from, and the test job's result.
+      - name: Record this deploy
+        env:
+          COMMIT: ${{ github.sha }}
+          TESTS: ${{ needs.test.result }}
+        run: |
+          {
+            echo "## Deploy record"
+            echo "- Commit: $COMMIT"
+            echo "- Version: $(sed -n 's/.*name="app-version" content="\([^"]*\)".*/\1/p' deploy/app/index.html | head -1)"
+            echo "- Build: $(sed -n 's/.*name="app-build" content="\([^"]*\)".*/\1/p' deploy/app/index.html | head -1)"
+            echo "- Built from: $(sed -n 's/.*name="app-source" content="\([^"]*\)".*/\1/p' deploy/app/index.html | head -1)"
+            echo "- Node tests (test job): $TESTS"
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: deploy
