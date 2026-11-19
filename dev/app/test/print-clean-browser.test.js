@@ -83,6 +83,13 @@ const pagesOf = buf => { const f = path.join(os.tmpdir(), 'awana-clean-' + proce
     assert(words.length >= 3, 'too few long theme words to judge: ' + words.join(','));
     const t = flat(await paper('noteSheets')); words.forEach(w => assert(t.includes(w.replace(/^["“(]+|["”),.]+$/g, '')), 'broken: ' + w));
   });
+  // F2: Books and end-of-year awards is grouped by class (a heading per class, no repeated Class column) and does not strand a lone row on the last page
+  await test('F2: Books and end-of-year awards groups by class instead of repeating a Class column', async () => {
+    const r = await paper('booksYear'), t = r.pages.join('\n');
+    assert(!/Name\s+Class\s+Books finished/.test(t), 'still has a Class column'); assert(/Name\s+Books finished\s+End-of-year awards earned/.test(t), 'no Name / Books finished / awards header');
+    const heads = t.split('\n').map(l => l.trim()).filter(l => /^Sparks [A-D] \(\d+\)$/.test(l)); assert(heads.length >= 3, 'class headings: ' + heads.join(', '));
+    if (r.pages.length > 1) { const rowsOnLast = r.pages[r.pages.length - 1].split('\n').filter(l => /none yet\s+none yet/.test(l)).length; assert(rowsOnLast >= 3, 'the last page holds only ' + rowsOnLast + ' child row(s)'); }
+  });
   await test('no script errors', async () => { assert.strictEqual(errs.length, 0, errs.join(' | ')); });
   await browser.close(); server.close();
   console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

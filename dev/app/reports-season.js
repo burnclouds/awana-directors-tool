@@ -234,7 +234,9 @@
       total.fin += fin.length; total.earned += aw.length; total.given += aw.filter(r => r.given).length;
       return [esc(M.fullName(p)), esc(M.room(p)), fin.length ? fin.map(b => esc(b.book) + (b.before ? ' (before)' : b.noDate ? ' ✓ (no date)' : ' ' + esc(paper(b.date)))).join(', ') : '<span class="status">none yet</span>',
         aw.length ? aw.map(r => esc(Season.awardLabel(season, id, r.award)) + ' \u2014 ' + (r.given === 'no date' ? '\u2713 given' : r.given ? 'given ' + esc(paper(r.given)) : 'not given')).join('<br>') : '<span class="status">none yet</span>']; });
-    const body = rows.length ? R.table(['Name', 'Class', 'Books finished', 'End-of-year awards earned'], rows, 'wrap') : '<p class="empty">No children in ' + esc(g) + '.</p>';
+    // N37 F2: grouped by class, with a heading per class, instead of repeating the class on every row (one class: no heading, and the title already names it).
+    const byRoom = []; rows.forEach((r, i) => { const rm = M.room(kids[i]); let x = byRoom.find(y => y.room === rm); if (!x) byRoom.push(x = { room: rm, rows: [] }); x.rows.push([r[0], r[2], r[3]]); });
+    const body = rows.length ? byRoom.map(x => (byRoom.length > 1 ? '<h3>' + esc(x.room || 'No class') + ' (' + x.rows.length + ')</h3>' : '') + R.table(['Name', 'Books finished', 'End-of-year awards earned'], x.rows, 'wrap')).join('') : '<p class="empty">No children in ' + esc(g) + '.</p>';
     return sheet('Books and end-of-year awards \u2014 ' + (opts.room || g), body, 'portrait', total.fin + ' book' + (total.fin === 1 ? '' : 's') + ' finished; ' + total.earned + ' end-of-year award' + (total.earned === 1 ? '' : 's') + ' earned, ' + total.given + ' given. <span class="noprint">Books come from Progress (every section dated) or the \u201cfinished before\u201d tick.</span>');      // N37 F10: the source note is screen help
   }
 
