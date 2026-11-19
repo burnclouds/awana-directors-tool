@@ -3,7 +3,7 @@
 // A page load is answered from the release's own cache (one release per page, never a mix); the update check's fetch of index.html
 // goes to the server, so it always sees the newest copy. The app's files are cached whole per release; cross-origin requests
 // (Google, sign-in) are not touched; data is never cached.
-const RELEASE = '1.51.15g+2026-11-17';
+const RELEASE = '1.51.16+2026-11-19';
 const SHELL = ["app-ask.js","app-drive.js","app-flagmarks.js","app-flagmode.js","app-flagpop.js","app-help.js","app-info.js","app.js","app-merge.js","app-options.js","app-person.js","app-search.js","app-season.js","app-stats.js","app-store.js","app-sw.js","app-teamgrid.js","app-todo.js","app-tools.js","app-topbar.js","app-trail.js","app-update.js","calendar.js","catalog.js","check.js","csv.js","datamerge.js","drive-config.js","drive.js","flagtrail.js","fonts.css","icon-192.png","icon-512.png","icon.svg","index.html","info.js","intake.js","manifest.json","model.js","pace.js","reports.js","reports-season.js","rotation.js","season.js","slides.js","stats.js","store.js","style.css","teamplan.js","teams.js","todo.js","validate.js"];
 const CACHE = 'awana-shell-' + RELEASE;
 const PREFIX = 'awana-shell-';
@@ -39,7 +39,8 @@ self.addEventListener('fetch', e => {
       return;
     }
     // Any other request for the page (the update check fetches index.html with a cache-busting query): the server's copy, so it always sees the newest release; the cached shell only when offline.
-    e.respondWith(fetch(req).catch(() => caches.match(base + 'index.html', { ignoreSearch: true, cacheName: CACHE })));
+    // Offline, the cached shell is returned with x-awana-offline, so the update check can say it could not reach the site instead of finding "the same version" in the cached copy (N7).
+    e.respondWith(fetch(req).catch(() => caches.match(base + 'index.html', { ignoreSearch: true, cacheName: CACHE }).then(hit => hit ? hit.blob().then(b => new Response(b, { status: 200, headers: { 'content-type': 'text/html', 'x-awana-offline': '1' } })) : hit)));
     return;
   }
   if (file.startsWith('try/')) return;      // the sample club is fetched as it is
