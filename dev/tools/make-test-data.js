@@ -19,6 +19,10 @@
 const fs = require('fs'), path = require('path');
 const Csv = require('../app/csv.js'), M = require('../app/model.js'), Season = require('../app/season.js'), V = require('../app/validate.js'), Intake = require('../app/intake.js');
 const pools = require('./name-pools.js'), AnonPc = require('./anon-pc.js');
+// N9 point 6: every section in Season.SECTIONS needs a rule (dev/tools/section-rules.js), and every rule must name a real section. Fail closed, before any file is written.
+const SECTION_RULES = require('./section-rules.js').RULES;
+{ const missing = Season.SECTIONS.filter(k => !SECTION_RULES[k]), stale = Object.keys(SECTION_RULES).filter(k => !Season.SECTIONS.includes(k));
+  if (missing.length || stale.length) throw new Error('make-test-data: section rules out of step with Season.SECTIONS. No rule for: ' + (missing.join(', ') || 'none') + '. Rule for a section that does not exist: ' + (stale.join(', ') || 'none') + '. Fix dev/tools/section-rules.js first.'); }
 const { C } = M;
 
 const args = process.argv.slice(2), flag = n => { const i = args.indexOf(n); return i < 0 ? null : args.splice(i, 2)[1]; };

@@ -4,6 +4,8 @@ const assert = require('assert'), fs = require('fs'), http = require('http'), pa
 const { chromium } = require('playwright');
 const app = path.join(__dirname, '..'), td = path.join(app, '..', 'test-data');
 const DATA = fs.readdirSync(td).find(f => /TEST.*\.json$/.test(f)), EXPORT = fs.readdirSync(td).filter(f => /TEST.*\.csv$/.test(f)).sort()[0];
+// N9 point 9: the failure dialog is announced a moment after the download, so wait for it (up to 5 s) before checking its text.
+const dialogSeen = async s => { for (let i = 0; i < 50 && !s.seen.dialogs.some(m => /Google Drive/.test(m)); i++) await s.p.waitForTimeout(100); return s.seen.dialogs.some(m => /Google Drive/.test(m)); };
 let passed = 0, failed = 0;
 async function test(name, fn) { try { await fn(); passed++; console.log('  ok   ' + name); } catch (e) { failed++; console.log('  FAIL ' + name + '\n       ' + String(e.message).split('\n')[0]); } }
 
@@ -42,6 +44,8 @@ const GAPI = `window.gapi={load:function(n,o){google.picker=(function(){
       if (r.request().method() === 'POST') {
         seen.posts.push({ url: u, body: r.request().postData() });
         const refuse = opts && opts.refuseFolder && seen.posts.at(-1).body.includes(opts.refuseFolder) && (!opts.once || (seen.refused = (seen.refused || 0) + 1) === 1);      // once: Google refuses until this person has picked the folder, then accepts
+        const busy = opts && opts.busyOnce && (seen.busy = (seen.busy || 0) + 1) === 1;      // N9 point 9: Google is busy once (503), then accepts
+        if (busy) return r.fulfill({ status: 503, contentType: 'application/json', body: '{"error":{"message":"Backend Error"}}' });
         return refuse ? r.fulfill({ status: 404, contentType: 'application/json', body: '{"error":{"message":"File not found"}}' }) : r.fulfill({ contentType: 'application/json', body: '{"id":"N1","name":"x","parents":[]}' });
       }
       if (/\/revisions/.test(u)) return r.fulfill({ contentType: 'application/json', body: JSON.stringify(r.request().method() === 'PATCH' ? {} : { revisions: ['R1', 'R2'].slice(0, seen.rev === 'R2' ? 2 : 1).map(id => ({ id, modifiedTime: '2026-10-29T21:48:15.000Z' })) }) });      // revisions: opts.revisions gives the opened file a head revision, so saving updates it in place
@@ -74,6 +78,20 @@ const GAPI = `window.gapi={load:function(n,o){google.picker=(function(){
     assert(b.includes('"parents":["P1"]'), 'folder'); assert(/"name":"awana-2026-27-TEST-\d{8}-\d{6}\.json"/.test(b), 'name'); assert(b.includes('"format"'), 'content');
     assert.strictEqual(seen.downloads, 0); assert.deepStrictEqual(seen.errors, []); await ctx.close();
   });
+  await test('Google busy once (503): a sentence and Try again; Try again saves with one more request, and the copy downloads once', async () => {
+    const s = await session({ busyOnce: true });
+    s.p.removeAllListeners('dialog'); const shown = [];      // this test answers the app's dialog itself: the first one is Try again (its primary button), any later one is closed
+    s.p.on('dialog', async d => { shown.push(d.message()); if (shown.length === 1) await d.accept(); else await d.dismiss(); });
+    await s.p.evaluate(() => { window.__pick = [{ id: 'F1' }, { id: 'F2' }]; window.__folder = [{ id: 'P2', name: 'Backups' }]; });
+    await s.p.click('#splashDrive'); await s.p.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent), null, { timeout: 8000 });
+    await s.p.evaluate(() => { document.getElementById('btnSeasonSave').click(); }); await s.p.evaluate(() => { document.getElementById('btnSeasonSave').click(); });      // test data: two presses
+    await s.p.waitForFunction(() => document.getElementById('driveStatus') && /saved/.test(document.getElementById('driveStatus').textContent), null, { timeout: 8000 });
+    assert(!(await s.p.$eval('#saveFloppy', e => e.classList.contains('on'))), 'the saving icon is off once the save has finished (N36)');
+    assert(shown.length >= 1, 'the failure dialog did not open');
+    assert(/busy right now \(it said 503\)/.test(shown[0]) && /Nothing was changed on Drive/.test(shown[0]), shown[0]);
+    assert.strictEqual(s.seen.posts.length, 2, 'the busy save, then Try again'); assert.strictEqual(s.seen.downloads, 1, 'one copy, on the first failure');
+    assert.deepStrictEqual(s.seen.errors, []); await s.ctx.close();
+  });
   await test('a folder Google refuses prompts for another folder and the save goes there; cancelling falls back to a normal download', async () => {
     let s = await session({ refuseFolder: '"P1"' });
     await s.p.evaluate(() => { window.__pick = [{ id: 'F1' }, { id: 'F2' }]; window.__folder = [{ id: 'P2', name: 'Backups' }]; });
@@ -86,7 +104,7 @@ const GAPI = `window.gapi={load:function(n,o){google.picker=(function(){
     await s.p.click('#splashDrive'); await s.p.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent), null, { timeout: 8000 });
     const dl = s.p.waitForEvent('download', { timeout: 8000 });
     await s.p.evaluate(() => { document.getElementById('btnSeasonSave').click(); }); await s.p.evaluate(() => { document.getElementById('btnSeasonSave').click(); }); const d = await dl;
-    assert(/TEST/.test(d.suggestedFilename())); assert(s.seen.dialogs.some(m => /Could not save to Google Drive/.test(m))); await s.ctx.close();
+    assert(/TEST/.test(d.suggestedFilename())); assert(await dialogSeen(s)); await s.ctx.close();
   });
   // The save style. The test above opens a file whose Drive head revision is unknown, so it is not "in place" and is saved as a new file; the cases below name the style and the file explicitly.
   const press = async p => { await p.evaluate(() => { document.getElementById('btnSeasonSave').click(); }); await p.evaluate(() => { document.getElementById('btnSeasonSave').click(); }); };      // test data: two presses
@@ -101,7 +119,7 @@ const GAPI = `window.gapi={load:function(n,o){google.picker=(function(){
     s = await session({ refuseFolder: '"P1"' });
     await opened(s, null); await s.p.evaluate(() => App.driveStyle.set('dated'));
     const dl = s.p.waitForEvent('download', { timeout: 8000 }); await press(s.p); const d = await dl;
-    assert(/TEST/.test(d.suggestedFilename())); assert(s.seen.dialogs.some(m => /Could not save to Google Drive/.test(m))); assert.strictEqual(s.seen.posts.length, 1, 'only the refused attempt reached Drive'); assert.strictEqual(s.seen.patches.length, 0); await s.ctx.close();
+    assert(/TEST/.test(d.suggestedFilename())); assert(await dialogSeen(s)); assert.strictEqual(s.seen.posts.length, 1, 'only the refused attempt reached Drive'); assert.strictEqual(s.seen.patches.length, 0); await s.ctx.close();
   });
   await test('in-place style, file opened from Drive: the file is updated where it is (no new file, no folder asked for), even when its folder is one Google refuses for new files', async () => {
     const s = await session({ refuseFolder: '"P1"', revisions: true });
@@ -109,7 +127,7 @@ const GAPI = `window.gapi={load:function(n,o){google.picker=(function(){
     await press(s.p); await saved(s.p);
     assert.strictEqual(s.seen.patches.length, 1, 'one update of the opened file'); assert(/\/files\/F1\?/.test(s.seen.patches[0].url), 'it is F1 that is updated'); assert(s.seen.patches[0].body.includes('"format"'), 'with the season content');
     assert.strictEqual(s.seen.posts.length, 0, 'no new file was created'); assert(!s.seen.patches[0].body.includes('"parents"'), 'an update names no folder'); assert.strictEqual(s.seen.downloads, 0);
-    assert(!s.seen.dialogs.some(m => /Could not save to Google Drive/.test(m))); assert.deepStrictEqual(s.seen.errors, []); await s.ctx.close();
+    assert(!s.seen.dialogs.some(m => /Google Drive/.test(m))); assert.deepStrictEqual(s.seen.errors, []); await s.ctx.close();
   });
   await test('in-place style, no file to update (opened from this computer): a folder Google refuses prompts for another folder and the save goes there; cancelling falls back to a normal download', async () => {
     const start = async (folder) => {
@@ -122,7 +140,7 @@ const GAPI = `window.gapi={load:function(n,o){google.picker=(function(){
     let s = await start([{ id: 'P2', name: 'Backups' }]); await press(s.p); await saved(s.p);
     assert.strictEqual(s.seen.posts.length, 2, 'refused once, then saved'); assert(s.seen.posts[1].body.includes('"parents":["P2"]'), 'saved in the folder picked instead'); assert.strictEqual(s.seen.patches.length, 0); assert.strictEqual(s.seen.downloads, 0); assert.deepStrictEqual(s.seen.errors, []); await s.ctx.close();
     s = await start(null); const dl = s.p.waitForEvent('download', { timeout: 8000 }); await press(s.p); const d = await dl;
-    assert(/TEST/.test(d.suggestedFilename())); assert(s.seen.dialogs.some(m => /Could not save to Google Drive/.test(m))); assert.strictEqual(s.seen.posts.length, 1, 'only the refused attempt reached Drive'); assert.strictEqual(s.seen.patches.length, 0); await s.ctx.close();
+    assert(/TEST/.test(d.suggestedFilename())); assert(await dialogSeen(s)); assert.strictEqual(s.seen.posts.length, 1, 'only the refused attempt reached Drive'); assert.strictEqual(s.seen.patches.length, 0); await s.ctx.close();
   });
   await test('with saving to Drive on, slide images (one PNG, or the ZIP) go to the same folder instead of being downloaded', async () => {
     const { p, seen, ctx } = await session(); seen.bin = [];

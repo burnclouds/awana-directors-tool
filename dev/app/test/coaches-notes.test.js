@@ -29,7 +29,7 @@ test('A4 heading has the date (M/D, no year) and the theme', () => {
 });
 test('A5 a night with no theme prints cleanly; A6 a theme is escaped', () => {
   const cal = [{ Date: '2026-09-13', Quarter: 'Q1', Type: 'Club', 'No Club': '', Theme: '' }, { Date: '2026-09-20', Quarter: 'Q1', Type: 'Club', 'No Club': '', Theme: '<b>Hats & Caps</b>' }];
-  const h = run('Q1', { calendar: cal }); assert(h.includes('<b>9/13</b></th>') && !/undefined/.test(h)); assert(h.includes('&lt;b&gt;Hats &amp; Caps&lt;/b&gt;') && !h.includes('<b>Hats'));
+  const h = run('Q1', { calendar: cal }); assert(h.includes('<b>9/13</b></div></th>') &&!/undefined/.test(h)); assert(h.includes('&lt;b&gt;Hats &amp; Caps&lt;/b&gt;') && !h.includes('<b>Hats'));
 });
 test('A7 column titles once; each night has its write-in rows (eight blank cells, plus the date cell on the first); no inputs', () => {
   for (const q of ['Q2', 'Q4']) {

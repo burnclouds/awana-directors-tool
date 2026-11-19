@@ -46,6 +46,7 @@
       add('handbook', 'Needs a handbook', 'check', 'Person tab, Progress: under the book\'s tab, enter the date received (the handbook box is on the Person tab too). Sparks need HG, WR or SS to land in the right slide column.',
         kids.filter(p => TEAM_GROUPS.includes(groupOf(p))).filter(p => {
           const code = Season.childBook(season, p[X.ID]);      // Sparks: worked out from the received dates and progress; the others: the handbook
+          if (!Season.hasProgress(season, p[X.ID])) return false;      // N33: no progress indicated, so no book is legitimate; no warning
           return groupOf(p) === 'Sparks' ? !['HG', 'WR', 'SS'].includes(code) : !code;
         }).map(p => { const h = season.handbooks[p[X.ID]]; return row(p, h ? 'Handbook "' + h + '" is not a Sparks book (HG, WR, SS).' : 'No book yet: type the book code here, then enter the date received on Progress.', { fields: ['handbook'], bookFix: '' }); }));      // bookFix: the book code can be typed on the row
       // A child who has a book but no day they received it (a "no date" tick counts: the book is received, the day just is not known).

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.95.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.97.0';
 // Season tabs: Attendance, Games, Awards, Progress, History. Talks to app.js through window.App.
 // The data JSON is the only file we write: season records, roster extras, calendar and rotation. Every edit goes through touchSeason().
 (function () {
@@ -587,7 +587,7 @@
       (rows.length ? '<p class="status">Earned, and not yet announced. The slides show these awards every time you draw them. <b>Mark all announced</b> records them as told to the group on ' + esc(MD(ui.awDate)) + ' and takes them off the slides. Tick <b>Hold</b> to keep an award off the slides until you untick it (a child who will be away); a held award is never marked announced. End-of-year awards are told to the group now and given at the end-of-year awards.</p>' +
         '<table class="roster"><thead><tr><th>Name</th><th>Class</th><th>Award</th><th>Earned</th><th>Hold</th><th>No date</th></tr></thead><tbody>' + rows.map(i => '<tr data-id="' + esc(i.id) + '" data-award="' + esc(i.award) + '"' + (i.held ? ' class="held"' : '') + '><td>' + nameCell(i.p) + '</td><td>' + roomCell(i.p) + '</td><td>' + esc(Season.awardLabel(season, i.id, i.award)) + (eoy(i.p, i.award) ? ' <span class="status">(end of year)</span>' : '') + '</td><td class="status">' + esc(i.noDate ? 'no date' : i.date ? MD(i.date) : '') + '</td>' +
           '<td><label title="' + (i.held ? 'Held off the slides (untick to release it)' : 'Tick to keep this award off the slides until you release it') + '"><input type="checkbox" data-hold="' + esc(i.award) + '"' + (i.held ? ' checked' : '') + ' aria-label="Hold: ' + esc(Season.awardLabel(season, i.id, i.award)) + ' for ' + esc(Model.fullName(i.p)) + '"> ' + (i.held ? 'held' : '') + '</label></td><td><button type="button" data-annnodate="' + esc(i.award) + '" data-aid="' + esc(i.id) + '" title="Count this award as told to the group, with no date, so it leaves this list and the slides">Told, no date</button></td></tr>').join('') + '</tbody></table>' +
-        '<p><button type="button" id="btnAnnounce" class="primary"' + (ready ? '' : ' disabled') + '>Mark all announced (' + ready + ')</button></p>' : '<p class="status">Nothing earned is waiting to be announced' + roomNote() + '.</p>') + '</section>';
+        '<p><button type="button" id="btnAnnounce" class="primary"' + (ready ? '' : ' disabled') + '>Mark all announced (' + ready + ')</button> <button type="button" id="btnAwAnnPrint">Print the list to read from</button></p>' : '<p class="status">Nothing earned is waiting to be announced' + roomNote() + '.</p>') + '</section>';
   }
   // 2. To hand out: everything earned and not given (told to the group or not), except the end-of-year awards. The count of each is what to have ready. Given is ticked on the child's Progress sheet.
   // The Given controls on a Hand out or Ceremony row: hand it over today, or hand it over with no date. Same record as Progress's Given box.
@@ -612,7 +612,7 @@
     const out = [], seen = new Set();
     kids.forEach(p => { const id = idOf(p), g = Model.groupOf(Model.room(p));
       Season.toHandOut(season, id, g, App.calendar).forEach(r => { seen.add(id + '|' + r.award); out.push({ id, award: r.award, date: r.earned || r.announced || '', status: r.announced ? 'announced ' + MD(r.announced) : 'earned, not announced' }); });
-      announceDue(p, g).forEach(d => { if (!seen.has(id + '|' + d.award) && !(season.given[id] || {})[d.award]) { seen.add(id + '|' + d.award); out.push({ id, award: d.award, date: d.date, status: 'earned, not announced' }); } }); });
+      announceDue(p, g).forEach(d => { if (!seen.has(id + '|' + d.award) && !(season.given[id] || {})[d.award] && !Season.jewelWaitsForWing(season, id, g, App.calendar, d.award)) { seen.add(id + '|' + d.award); out.push({ id, award: d.award, date: d.date, status: 'earned, not announced' }); } }); });
     return out;
   }
   const giveKids = () => App.master.people.filter(p => Model.isActive(p) && Model.isClubber(p) && ['Puggles', 'Cubbies', 'Sparks', 'T&T'].includes(Model.groupOf(Model.room(p))));
@@ -624,15 +624,17 @@
     $('awGroup').value = ui.awGroup; $('awSort').value = ui.awSort;
     const rooms = [...new Set(awKidsAll().filter(p => ui.awGroup === 'All' || grpOf(p) === ui.awGroup).map(Model.room))]; if (ui.awRoom && !rooms.includes(ui.awRoom)) ui.awRoom = '';
     const seen = new Set(), tc = {}, add = (id, a) => { const k = id + '|' + a; if (seen.has(k)) return; seen.add(k); const t = typeOf(a); tc[t] = (tc[t] || 0) + 1; };
-    awKids().forEach(p => { const g = grpOf(p), id = idOf(p), skip = (season.config.exclude || {})[g] || []; Season.pendingAwards(season, id, g, App.calendar).forEach(r => add(id, r.award)); Season.awardLedger(season, id, g, App.calendar).forEach(r => { if (!r.given && !skip.includes(r.award)) add(id, r.award); }); });
+    awKids().forEach(p => { const g = grpOf(p), id = idOf(p), skip = (season.config.exclude || {})[g] || []; Season.pendingAwards(season, id, g, App.calendar).filter(r => !eoy(p, r.award)).forEach(r => add(id, r.award)); Season.awardLedger(season, id, g, App.calendar).forEach(r => { if (!r.given && !skip.includes(r.award) && !eoy(p, r.award)) add(id, r.award); }); });      // end-of-year awards are on their own sub-tab, so they are not in the Type list
     if (ui.awType && !(ui.awType in tc)) ui.awType = '';
     $('awType').innerHTML = '<option value="">All types (' + seen.size + ')</option>' + Object.keys(tc).sort().map(t => '<option value="' + esc(t) + '"' + (t === ui.awType ? ' selected' : '') + '>' + esc(t) + ' (' + tc[t] + ')</option>').join('');
     $('awRoom').innerHTML = '<option value="">All classes</option>' + rooms.map(r => '<option' + (r === ui.awRoom ? ' selected' : '') + '>' + esc(r) + '</option>').join('');
     const kids = awKids();
     const nAnn = kids.reduce((n, p) => n + announceDue(p, grpOf(p)).length, 0), nHand = kids.reduce((n, p) => n + Season.toHandOut(season, idOf(p), grpOf(p), App.calendar).length, 0);
-    document.querySelectorAll('#awSubs button').forEach(b => { const on = b.dataset.awsub === ui.awSub; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); b.querySelector('.badge').textContent = (b.dataset.awsub === 'announce' ? nAnn : nHand) || ''; });
+    // End-of-year awards have their own sub-tab (N-new, 2026-11-18): tagged awards earned and not given, kept off Hand out and off the Type list.
+    const nCer = kids.reduce((n, p) => n + Season.awardLedger(season, idOf(p), grpOf(p), App.calendar).filter(r => eoy(p, r.award) && !r.given).length, 0);
+    document.querySelectorAll('#awSubs button').forEach(b => { const on = b.dataset.awsub === ui.awSub; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); b.querySelector('.badge').textContent = (b.dataset.awsub === 'announce' ? nAnn : b.dataset.awsub === 'ceremony' ? nCer : nHand) || ''; });
     ['awDateWrap', 'btnAwImages'].forEach(i => { $(i).hidden = ui.awSub !== 'announce'; });
-    el.innerHTML = ui.awSub === 'announce' ? announceSection(kids) : handOutSection(kids) + ceremonySection(kids);
+    el.innerHTML = ui.awSub === 'announce' ? announceSection(kids) : ui.awSub === 'ceremony' ? ceremonySection(kids) : handOutSection(kids);
   }
   // ---- the Awards tab's controls ----
   $('awardsBar').addEventListener('change', e => {
@@ -661,6 +663,7 @@
       const picks = [...$('awSecAnnounce').querySelectorAll('tbody tr[data-award]:not(.held)')].map(r => [r.dataset.id, r.dataset.award]);
       const n = Season.announce(season, ui.awDate, picks); if (n) { touchSeason(); App.flash('Marked ' + n + ' award' + (n === 1 ? '' : 's') + ' announced on ' + MD(ui.awDate) + '.', 'info'); } renderAwards(); return;
     }
+    if (id === 'btnAwAnnPrint') { App.showReport('announceList'); App.reportOptions({ group: ui.awGroup === 'All' ? '' : ui.awGroup, room: ui.awRoom }); return; }      // N29: the club-night list, for the group and class picked here
     if (id === 'btnAwHandPrint') { App.showReport('handOut'); App.reportOptions({ group: ui.awGroup === 'All' ? '' : ui.awGroup, room: ui.awRoom }); return; }      // All groups prints every group (the report has an All groups choice)
     if (id === 'btnAwCeremony') { App.reportOptions({ group: ui.awGroup === 'All' ? 'Sparks' : ui.awGroup, room: ui.awRoom }); App.showReport('ceremony'); if (ui.awGroup === 'All') App.flash('This list prints one group at a time: Sparks is showing. Change the Group above the report for the others.', 'info'); }
   });
@@ -799,10 +802,11 @@
     // The little flag is drawn only where something is flagged: yellow, and a click opens the note's popup (app-flagpop.js). New flags come from the top-bar Flag button and the To do "Add note" box.
     const flagBtn = (level, book, block, key, what) => { const here = flagsAtPlace(level, book, block, key); if (!here.length) return '';
       return '<button type="button" class="flagbtn on" tabindex="-1" data-flag="' + level + '" data-fids="' + esc(here.map(f => f.id).join(',')) + '" data-fbook="' + esc(book) + '" data-fblock="' + esc(block) + '" data-fkey="' + esc(key) + '" title="' + esc(here.map(f => f.note).join(' / ')) + '" aria-label="Note about ' + esc(what) + '">&#9873;</button>'; };
-    const cell = (b, scope, i, dates, label, what) => { const nd = Season.isSignNoDate(season, id, scope, b.key + '.' + i), v = nd ? '' : dates[b.key + '.' + i] || '', d = what || label;      // a no-date sign-off shows no date (its day is kept inside, see markSignsNoDate)
+    // N24 (2026-11-18): a block completed by hand (every box no-date) hides the "no date" line and Clear on each box; the boxes stay open for dates (typing one clears its mark).
+    const cell = (b, scope, i, dates, label, what) => { const nd = Season.isSignNoDate(season, id, scope, b.key + '.' + i), v = nd ? '' : dates[b.key + '.' + i] || '', d = what || label, wholeNd = nd && (b.items || []).every(x => Season.isSignNoDate(season, id, scope, b.key + '.' + x));      // a no-date sign-off shows no date (its day is kept inside, see markSignsNoDate)
       return '<span class="pcell' + (flagsAtPlace('box', scope, b.key, b.key + '.' + i).length ? ' flagged' : '') + '">' + flagBtn('box', scope, b.key, b.key + '.' + i, d) + '<label class="pitem">' + esc(label) + '<input type="date" data-scope="' + esc(scope) + '" data-key="' + esc(b.key + '.' + i) + '" value="' + esc(v) + '"></label>' +
-        (nd ? ' <span class="status" title="Finished when its award was given, with no date. No date is shown or printed.">no date</span> <button type="button" class="todaybtn" data-clearnd="1" tabindex="-1" title="Take the no-date mark off: this section is not finished again" aria-label="Clear the no-date mark on ' + esc(d) + '">Clear</button>' : '') +
-        (v || nd ? '' : '<button type="button" class="todaybtn" data-today="1" tabindex="-1" aria-label="Set ' + esc(d) + ' to today">Today</button>' + sameBtn(b, scope, i, dates, d)) + '</span>'; };
+        (nd && !wholeNd ? ' <span class="status" title="Finished when its award was given, with no date. No date is shown or printed.">no date</span> <button type="button" class="todaybtn" data-clearnd="1" tabindex="-1" title="Take the no-date mark off: this section is not finished again" aria-label="Clear the no-date mark on ' + esc(d) + '">Clear</button>' : '') +
+        (v || (nd && !wholeNd) ? '' : '<button type="button" class="todaybtn" data-today="1" tabindex="-1" aria-label="Set ' + esc(d) + ' to today">Today</button>' + sameBtn(b, scope, i, dates, d)) + '</span>'; };
     // "Same date" beside Today (every section row, and each jewel's review row): it fills this box, and every empty box before it back to the last dated one, with that last date. Press it on the last box to sign off the rest of the row at once.
     const sameBtn = (b, scope, i, dates, d) => {
       const list = b.items.includes(i) ? b.items : (b.review || []), at = list.indexOf(i), shown = Season.signsShown(season, id, scope); let j = at - 1; while (j >= 0 && !shown[b.key + '.' + list[j]]) j--;      // walk back over boxes with a REAL date: a no-date box has no date to copy (its hidden tick day must never be written into a real box); the fill below skips it too (it is already signed)
@@ -831,7 +835,7 @@
     const block = (b, scope) => {
       const dates = prog[scope] || {}, done = b.items.every(i => dates[b.key + '.' + i]), names = b.awards.map(a => fillName(a, scope)), er = earnedOf(b.key, scope);
       // Flight 3:16 has no award to hand out: the block just shows it is complete (green, with the day), with no Given / Announced / Hold boxes.
-      if (names.length && names.every(a => a === 'Flight 3:16')) return '<div class="pblock' + (done ? ' done' : '') + '"><span class="plabel">' + esc(b.label) + (done ? ' ✓' : '') + flagBtn('block', scope, b.key, '', b.label) + '</span>' +
+      if ((names.length && names.every(a => a === 'Flight 3:16')) || b.key === 'FLT') return '<div class="pblock' + (done ? ' done' : '') + '"><span class="plabel">' + esc(b.label) + (done ? ' ✓' : '') + flagBtn('block', scope, b.key, '', b.label) + '</span>' +
         b.items.map(i => cell(b, scope, i, dates, b.single ? 'Done' : i, b.label + ' ' + i)).join('') + '<span class="pawards">' + (done ? 'Complete' + (er && !er.noDate ? ' ' + esc(MD(er.date)) : '') : '') + '</span></div>';
       return '<div class="pblock' + (done ? ' done' : '') + '"><span class="plabel">' + esc(b.label) + (done ? ' ✓' : '') + flagBtn('block', scope, b.key, '', b.label) + '</span>' +
         b.items.map(i => cell(b, scope, i, dates, b.single ? 'Done' : i, b.label + ' ' + i)).join('') +
@@ -878,14 +882,16 @@
         slots.filter(s => s.home === book && (s.j || s.hasGiven)).map(s => '<span class="prow">' + givenBox([s.name], !!s.j) + '</span>').join('') + '</div>';
     };
     const flagbar = (myFlags.length ? '<p class="hbrow flagrow"></p>' : '') +
-      myFlags.map(f => '<p class="flagnote"><button type="button" class="flagbtn on" tabindex="-1" data-fids="' + esc(f.id) + '" aria-label="Note: ' + esc(flagWhere(f)) + '" title="Read, edit or clear this note">&#9873;</button> <b>' + esc(flagWhere(f)) + '</b>: ' + esc(f.note) + ' <span class="status">' + esc(MD(f.at)) + '</span> <button type="button" data-clearflag="' + esc(f.id) + '">Clear</button></p>').join('');
+      myFlags.map(f => '<p class="flagnote"><button type="button" class="flagbtn on" tabindex="-1" data-fids="' + esc(f.id) + '" aria-label="Note: ' + esc(flagWhere(f)) + '" title="Read, edit or clear this note">&#9873;</button> <b>' + esc(flagWhere(f)) + '</b>: ' + esc(f.note) + ' <span class="status">' + esc(MD(f.at)) + (Season.isFlagHidden(f) ? ' &middot; hidden on To do' : '') + '</span> <button type="button" data-hideflag="' + esc(f.id) + '" data-on="' + (Season.isFlagHidden(f) ? '' : '1') + '">' + (Season.isFlagHidden(f) ? 'Unhide' : 'Hide') + '</button> <button type="button" data-clearflag="' + esc(f.id) + '">Clear</button></p>').join('');
     // The sheet header: collapse (hides the sign-offs below it), Print, and the flag button with any flagged notes. Collapsed, only this header shows.
     const printBtn = bg === Model.groupOf(Model.room(p)) ? '<button id="btnPrPrint">Print record&hellip;</button>' : '';
     let h = '<p class="hbrow shhead"><button type="button" data-shcol aria-expanded="' + (ui.shCollapsed ? 'false' : 'true') + '">' + (ui.shCollapsed ? '&#9656; Show sheet' : '&#9662; Hide sheet') + '</button> ' + printBtn + ' <i class="info" data-info="progress.sheet"></i></p>' + flagbar;
     if (ui.shCollapsed) return h;
     h += recv + bd;
     if (Season.bookOrder(season, bg)[0] === book) h += t.common.map(b => block(b, 'common')).join('');
-    h += t.perBook.map(b => block(b, book)).join('');
+    // N32: on a T&T sheet the Silver and Gold extra-credit blocks sit under a visible heading (the regular sections above are unchanged). Keys SV1-4 and GD1-4 (catalog.js).
+    const isExtra = b => bg === 'T&T' && /^(SV|GD)\d$/.test(b.key), firstExtra = t.perBook.findIndex(isExtra);
+    h += t.perBook.map((b, i) => (i === firstExtra ? '<div class="pextra" role="heading" aria-level="3">Extra credit: Silver and Gold</div>' : '') + block(b, book)).join('');
     // The book-completion award (Alpha, 2nd Book, ...) gets the same Given / Announced boxes as a section award. It is offered only once the book is finished (all its sections dated, or ticked finished before).
     const bookAw = Season.completionAwards(season, id, bg).filter(x => x.book === book).map(x => x.award);
     if (bookAw.length) h += '<div class="pblock done bookaward"><span class="plabel">Book completed</span><span class="prow">' + givenBox(bookAw, true, { book, block: 'BOOKS', items: [] }) + '</span></div>';
@@ -934,7 +940,7 @@
   document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('button[data-fids]'); if (!b || !App.flagPop) return; e.preventDefault(); App.flagPop.show(b.dataset.fids.split(',').filter(Boolean), b); });
   // The Person tab picks the child (setKid); the sheet opens on the child's current book unless one was chosen for them (setBook).
   App.sheets = { html: sheetHtml, focus: (id, book) => { ui.prKid = id; ui.prBook = book; ui._lastKid = id; },
-    setKid: id => { ui.prKid = id; }, setBook: b => { ui.prBook = b; ui._lastKid = ui.prKid; } };
+    setKid: id => { ui.prKid = id; }, setBook: b => { ui.prBook = b; ui._lastKid = ui.prKid; }, book: () => ui.prBook };      // book: the book tab on screen (N20: a flag on a progress box is tied to it)
   // "+ Add sheet": another book's sheet for this child (kept in the file), beside the book tabs. It offers only books that have no tab yet.
   const addSheetMenu = codes => {
     const spare = [...new Set(['Cubbies', 'Sparks', 'T&T'].flatMap(x => Season.bookOrder(season, x)))].filter(c => !codes.includes(c) && season.config.books[c]);
@@ -1029,6 +1035,7 @@
   // A whole date typed or picked in a sign-off box (a four-digit year from 2000 on) is saved at once, so the earned awards, the badges and the block's check mark follow as you type; focus then moves to the next date box,
   // like Tab would. A date still being typed (year 0002...) or typed with a short year waits until you leave the box (see the focusout handler below and finishDateBox in app.js).
   onSheets('click', e => {      // Notes and flags: the flag buttons on boxes, blocks and the sheet, and Clear on a note
+    const hf = e.target.closest('button[data-hideflag]'); if (hf) { App.hideFlag(hf.dataset.hideflag, !!hf.dataset.on); redrawSheet(); return; }
     const cf = e.target.closest('button[data-clearflag]'); if (cf) { Season.clearFlag(season, cf.dataset.clearflag); touchSeason(); redrawSheet(); if (App.updateTodoBadge) App.updateTodoBadge(); }
   });
   const SIGN_BOX = 'input[type=date][data-key],input[type=date][data-gaward],input[type=date][data-aaward]';
@@ -1292,7 +1299,7 @@
     clearAbsenceNights: (personId, absId, dates) => { Season.clearAbsenceNights(season, personId, absId, dates); touchSeason(); },
     clearAbsence: (personId, absId) => { Season.clearAbsence(season, personId, absId); touchSeason(); },
     absenceList: () => (season ? Season.absenceList(season) : []) });
-  Object.assign(App, { addFlag: f => { const id = Season.addFlag(season, f); touchSeason(); return id; }, flagWhere, goFlag, clearFlag: id => { Season.clearFlag(season, id); touchSeason(); }, setFlagNote: (id, note) => { Season.setFlagNote(season, id, note); touchSeason(); }, setBugReply: (id, reply) => { Season.setBugReply(season, id, reply); touchSeason(); },
+  Object.assign(App, { addFlag: f => { const id = Season.addFlag(season, f); touchSeason(); return id; }, flagWhere, goFlag, clearFlag: id => { Season.clearFlag(season, id); touchSeason(); }, setFlagNote: (id, note) => { Season.setFlagNote(season, id, note); touchSeason(); }, hideFlag: (id, on) => { Season.setFlagHidden(season, id, !!on); touchSeason(); }, setBugStatus: (id, status) => { Season.setBugStatus(season, id, status); touchSeason(); }, addBugReply: (id, text, by) => { const rid = Season.addBugReply(season, id, text, by); touchSeason(); return rid; }, removeBugReply: (id, rid) => { Season.removeBugReply(season, id, rid); touchSeason(); },
     quarterNow, flagsChanged: () => { App.onRefresh.forEach(f => f()); const t = App.tabs && App.tabs[App.tab]; if (t && App.tab !== 'todo') t(); if (App.updateTodoBadge) App.updateTodoBadge(); }, addNote: text => { Season.addFlag(season, { level: 'general', note: text }); touchSeason(); }, nightList, quarterOf, markCols: MARK_COLS,
     awardsToGive: () => App.master && season ? toGive(giveKids(), App.today()) : [],
     awardsToAnnounce: () => App.master && season ? giveKids().reduce((n, p) => n + announceDue(p, Model.groupOf(Model.room(p)), App.today()).length, 0) : 0,      // earned and not announced yet: the number on the Awards tab

@@ -16,19 +16,19 @@ test('an award can be marked given before it is announced; announcing, giving an
   assert.throws(() => S.setGiven(s, 'k1', 'Red Jewel 1', 'tomorrow'), /Bad date/);
 });
 test('un-announcing an award leaves its Given date alone: Announced and Given are independent', () => {
-  const s = S.blank('2026-27'); S.addAward(s, '2026-10-21', 'k1', 'Flight 3:16'); S.setGiven(s, 'k1', 'Flight 3:16', '2026-10-28');
-  S.addAward(s, '2026-10-28', 'k1', 'Flight 3:16'); S.removeAward(s, '2026-10-21', 'k1', 'Flight 3:16'); assert.strictEqual((s.given.k1 || {})['Flight 3:16'], '2026-10-28');
-  S.removeAward(s, '2026-10-28', 'k1', 'Flight 3:16'); assert.strictEqual((s.given.k1 || {})['Flight 3:16'], '2026-10-28', 'still given after the last announcement is removed');
+  const s = S.blank('2026-27'); S.addAward(s, '2026-10-21', 'k1', 'Silver 1'); S.setGiven(s, 'k1', 'Silver 1', '2026-10-28');
+  S.addAward(s, '2026-10-28', 'k1', 'Silver 1'); S.removeAward(s, '2026-10-21', 'k1', 'Silver 1'); assert.strictEqual((s.given.k1 || {})['Silver 1'], '2026-10-28');
+  S.removeAward(s, '2026-10-28', 'k1', 'Silver 1'); assert.strictEqual((s.given.k1 || {})['Silver 1'], '2026-10-28', 'still given after the last announcement is removed');
 });
 test('a file from before the Given check opens with nothing given (Given is only ever entered by a person), and the next save writes the new version', () => {
-  const old = S.blank('2025-26'); old.version = 2; delete old.given; old.awards = { '2025-10-14': { a1: ['Flight 3:16', 'Red Jewel 1'] }, '2025-10-21': { a1: ['Green Jewel 1'], a2: ['Flight 3:16'] } };
+  const old = S.blank('2025-26'); old.version = 2; delete old.given; old.awards = { '2025-10-14': { a1: ['Silver 1', 'Red Jewel 1'] }, '2025-10-21': { a1: ['Green Jewel 1'], a2: ['Silver 1'] } };
   const s = S.fromJson(JSON.stringify(old)); assert.deepStrictEqual(s.given, {}, 'no given dates made up');
   assert.strictEqual(S.waitingToGive(s).length, 4, 'everything announced waits to be given'); assert.strictEqual(JSON.parse(S.toJson(s)).version, S.VERSION);
 });
 test('Given dates nobody entered are found from the History and can be cleared; ticked ones are kept', () => {
-  const s = S.blank('2026-27'); s.given = { a: { 'Red Jewel 1': '2026-10-28', 'Green Jewel 1': '2026-10-28' }, b: { 'Flight 3:16': '2026-10-21' } }; s.awards = { '2026-10-28': { a: ['Red Jewel 1', 'Green Jewel 1'] }, '2026-10-21': { b: ['Flight 3:16'] } };
+  const s = S.blank('2026-27'); s.given = { a: { 'Red Jewel 1': '2026-10-28', 'Green Jewel 1': '2026-10-28' }, b: { 'Silver 1': '2026-10-21' } }; s.awards = { '2026-10-28': { a: ['Red Jewel 1', 'Green Jewel 1'] }, '2026-10-21': { b: ['Silver 1'] } };
   const before = S.snapshot(s); S.setGiven(s, 'a', 'Red Jewel 1', '2026-11-03'); S.record(s, before);      // a person set this one: it is in the History
-  const list = S.assumedGiven(s).map(x => x.id + ':' + x.award).sort(); assert.deepStrictEqual(list, ['a:Green Jewel 1', 'b:Flight 3:16']);
+  const list = S.assumedGiven(s).map(x => x.id + ':' + x.award).sort(); assert.deepStrictEqual(list, ['a:Green Jewel 1', 'b:Silver 1']);
   const n = S.clearAssumedGiven(s); assert.strictEqual(n, 2); assert.deepStrictEqual(s.given, { a: { 'Red Jewel 1': '2026-11-03' } }); assert.strictEqual(S.waitingToGive(s).length, 2, 'the cleared ones wait to be given');
   const b2 = S.snapshot(s); S.setGiven(s, 'a', 'Red Jewel 1', ''); S.record(s, b2); S.setGiven(s, 'a', 'Red Jewel 1', '2026-11-04'); S.record(s, S.snapshot({ ...s, given: {} }));      // given, then un-given, then given again: still a person's entry
   assert.deepStrictEqual(S.assumedGiven(s), [], 'nothing left that nobody entered');

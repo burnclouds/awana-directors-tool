@@ -20,7 +20,7 @@ test('an older file (T&T under common, plain award names) opens with per-book T&
   assert.deepStrictEqual(s.config.progress['T&T'].common.map(b => b.key), ['SZ']); assert.strictEqual(s.config.progress['T&T'].perBook.length, 16);
   assert.deepStrictEqual(s.progress.a.common, { 'SZ.1': '2025-10-01', 'FLT.1': '2025-10-01' }, 'Start Zone (now one block, section 1) and Flight stay common');
   assert.deepStrictEqual(s.progress.a.AoG, { 'BE1.1.1': '2025-10-08', 'SV1.1.1': '2025-10-15' });
-  assert.deepStrictEqual(s.awards['2025-10-15'].a, ['AoG Blue Emblem 1']); assert.strictEqual(s.given.a['AoG Blue Emblem 1'], '2025-10-22'); assert.strictEqual(s.given.a['Start Zone 1'], '2025-10-08');
+  assert.deepStrictEqual(s.awards['2025-10-15'].a, ['AoG Blue Emblem 1']); assert.strictEqual(s.given.a['AoG Blue Emblem 1'], '2025-10-22'); assert(!('Start Zone 1' in (s.given.a || {})), 'a record of Start Zone is removed on open: it is not an award (N23)');
   assert.strictEqual(S.isGivenNoDate(s, 'a', 'AoG Blue Emblem 1'), true);
   assert(s.config.awardLists['T&T'].includes('AoG Blue Emblem 1') && s.config.awardLists['T&T'].includes('DoG Blue Emblem 1') && !s.config.awardLists['T&T'].includes('Blue Emblem 1'));
   assert(s.config.books.DoG && s.config.books.GiA && s.config.books.EoG && s.config.books.AS, 'the other books join');
@@ -125,7 +125,7 @@ test('Start Zone is one block of two sections with no award: an earlier file (tw
   const s = S.fromJson(JSON.stringify(old));
   assert.deepStrictEqual(s.config.progress['T&T'].common, [{ key: 'SZ', label: 'Start Zone', items: ['1', '2'], awards: [] }]);
   assert.deepStrictEqual(s.progress.a.common, { 'SZ.1': '2026-09-23', 'SZ.2': '2026-09-30' }); assert.deepStrictEqual(s.progress.b.common, { 'SZ.1': '2026-09-23' });
-  assert.deepStrictEqual(s.config.awardLists['T&T'], ['AoG Blue Emblem 1'], 'no longer award names to pick'); assert.strictEqual(s.given.a['Start Zone 1'], '2026-09-23', 'what was recorded stays');
+  assert.deepStrictEqual(s.config.awardLists['T&T'], ['AoG Blue Emblem 1'], 'no longer award names to pick'); assert(!('Start Zone 1' in ((s.given || {}).a || {})), 'a record of an award that is not one is removed on open (N23)');
   assert.deepStrictEqual(S.completedBlocks(s, 'a', 'T&T').map(b => [b.key, b.awards, b.date]), [['SZ', [], '2026-09-30']], 'finished on its last section, nothing to announce');
   assert.deepStrictEqual(S.completedBlocks(s, 'b', 'T&T'), [], 'one section is not finished');
   assert.deepStrictEqual(S.suggestedAwards(s, 'a', 'T&T'), []); const again = S.fromJson(S.toJson(s)); assert.deepStrictEqual(again.progress, s.progress);

@@ -51,8 +51,8 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
     const b = cases.find(c => /^B /.test(c.name)), row = tab.find(t => t.id === b.id); assert(row && /no date/i.test(row.earned) && !/10\/21|10\/20/.test(row.earned), 'Awards tab Earned: ' + (row && row.earned));
     const strip = strips.find(s => s.name === b.child); assert(strip && /no date/.test(strip.lines.join(' ')), 'strip: ' + (strip && strip.lines.join('|')));
   });
-  await test('E: the strips say how many end-of-year awards are waiting elsewhere; D and L (ignored awards) are not in the To have ready tally', async () => {
-    assert(/End-of-year awards are not on these strips: \d+ waiting/.test(note), note.slice(-160)); const tally = await page.$eval('#awSecHand p.status', e => e.textContent); assert(!/Flight 3:16/.test(tally) && !/Flight 3:16/.test(note), 'ignored awards are not in the tally');
+  await test('E (N27): the strips print no grey note (no tally, no end-of-year count); the ignored awards are on no strip', async () => {
+    assert(!note.trim(), 'a note is still printed: ' + note.slice(0, 120)); const tally = await page.$eval('#awSecHand p.status', e => e.textContent).catch(() => ''); assert(!/Flight 3:16/.test(tally), 'ignored awards in the tally');
   });
   await test('the weekly award slips are retired: no report of that name, no Night picker, showReport of it is harmless, a bundle naming it skips it', async () => {
     const before = errs.length; await page.evaluate(() => { App.showTab('reports'); App.showReport('weeklySlips'); }); await page.waitForTimeout(300);

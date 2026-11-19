@@ -31,4 +31,12 @@ test('the first filled column is still the one used, and markup in a value is es
   assert.strictEqual(text(c.phone), '555-0102'); assert(!/<b>/.test(c.email) && /&lt;b&gt;/.test(c.email), c.email);
 });
 
+test('N13 the list is ordered by class (the app\'s class order), then last name; a volunteer with no class comes after every class', () => {
+  const m = M.emptyMaster(); m.pcCols = M.TRACKED.slice();
+  [['Zed', 'Adams', 'T&T Boys (Group A)'], ['Amy', 'Young', 'Sparks A'], ['Bea', 'Zimmer', 'Puggles'], ['Cal', 'Baker', 'Sparks A'], ['Dee', 'Moore', 'Volunteers'], ['Eve', 'Allen', 'Cubbies']]
+    .forEach(([f, l, room], i) => M.addManualPerson(m, { 'First Name': f, 'Last Name': l, 'Assignment Area: Classes': room, 'Selection': 'Volunteer', 'Registration ID': '71000' + i }, '2026-10-01'));
+  const rows = [...render(m).matchAll(/<tr><td>([\s\S]*?)<\/td><td>([\s\S]*?)<\/td>/g)].map(r => [text(r[1]), text(r[2])]);
+  assert.deepStrictEqual(rows.map(r => r[0]), ['Zimmer, Bea', 'Allen, Eve', 'Baker, Cal', 'Young, Amy', 'Adams, Zed', 'Moore, Dee'], JSON.stringify(rows));
+});
+
 console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

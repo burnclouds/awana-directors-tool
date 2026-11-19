@@ -20,11 +20,11 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     ['1', '2', '3', '4'].forEach(i => S.setProgress(A.season, sp[1], 'HG', 'GJ1.' + i, '2026-10-30')); ['1.1', '1.2', '1.3'].forEach(i => S.setProgress(A.season, tt[1], 'AoG', 'BE1.' + i, '2026-10-30'));
     A.touch(); return { sp, tt }; });
   await tab('awards'); await page.waitForTimeout(500);
-  const sub = async id => { const w = /Hand|Ceremony/.test(id) ? 'hand' : 'announce'; await page.click('#awSubs button[data-awsub="' + w + '"]'); await page.waitForTimeout(150); };
+  const sub = async id => { const w = /Ceremony/.test(id) ? 'ceremony' : /Hand/.test(id) ? 'hand' : 'announce'; await page.click('#awSubs button[data-awsub="' + w + '"]'); await page.waitForTimeout(150); };
   const h = async id => { await sub(id); return page.evaluate(i => { const e = document.querySelector('#' + i + ' h3'); return e ? e.textContent.trim() : ''; }, id); };
   const T = async id => { await sub(id); return page.textContent('#' + id); };
   await test('the tab is three lists, with one filter and sort bar: group (all by default), class, sort, and the night to announce on', async () => {
-    assert(/Announce on/.test(await h('awSecAnnounce')) && /To hand out/.test(await h('awSecHand')) && /End-of-year awards/.test(await h('awSecCeremony')), 'Announce: to tell; Hand out: to hand out + end-of-year'); assert.strictEqual(await page.locator('#awSubs button').count(), 2);
+    assert(/Announce on/.test(await h('awSecAnnounce')) && /To hand out/.test(await h('awSecHand')) && /End-of-year awards/.test(await h('awSecCeremony')), 'Announce: to tell; Hand out: to hand out; End of year: the ceremony list'); assert.strictEqual(await page.locator('#awSubs button').count(), 3);
     assert.strictEqual(await page.inputValue('#awGroup'), 'All'); assert.deepStrictEqual(await page.$$eval('#awSort option', o => o.map(x => x.value)), ['class', 'award', 'earned']); assert(/Announce on/.test(await page.textContent('#awDateWrap')));
   });
   await test('the night to announce on defaults to the next club night on or after today (and can be changed)', async () => {

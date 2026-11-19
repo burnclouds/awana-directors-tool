@@ -28,7 +28,8 @@ function master() {
 }
 const render = (id, m) => Reports.LIST.find(r => r.id === id).render({ master: m, settings: { quarter: 'Q2', club: 'AWANA Club' }, calendar: [], opts: {} });
 // the table row of one child: text of its Emergency contact cell
-const cellOf = (html, first) => { const row = html.split('<tr').find(r => r.includes('>' + first + ' Test<')) || ''; const tds = row.split('<td'); return (tds[2] || '').replace(/<br>/g, ' | ').replace(/<[^>]+>/g, '').replace(/&nbsp;|&#160;/g, ' ').trim(); };
+// the Emergency contact cell is found by its column heading, not by a fixed position: a Sparks or T&T class page has a Color Team column before it (N30)
+const cellOf = (html, first) => { const row = html.split('<tr').find(r => r.includes('>' + first + ' Test<')) || ''; const heads = [...html.matchAll(/<th>([^<]*)<\/th>/g)].map(m => m[1]), at = heads.indexOf('Emergency contact') + 1, tds = row.split('<td'); return (tds[at] || '').replace(/<br>/g, ' | ').replace(/<[^>]+>/g, '').replace(/&nbsp;|&#160;/g, ' ').trim(); };
 const cellOfClass = cellOf;
 const FOOT = /registration contact.s number/i, WARN = /NO PHONE ON FILE/, PARENT_NOTE = /primary phone number a parent gave/i;
 

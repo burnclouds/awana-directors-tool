@@ -32,21 +32,23 @@ const server = http.createServer((req, res) => {
   };
   const empties = (page, c) => page.evaluate(([i, b, k, list]) => Season.unsignedIn(App.season, i, b, k, list).length, [c.id, c.book, c.block, c.list]);
 
-  await test('a no-date sign-off has a Clear button; pressing it makes the section unfinished again', async () => {
+  // N24 (decided 2026-11-18): a block completed by hand hides the "no date" line and Clear on each box; the boxes stay open, and typing a date in one makes it a real date.
+  await test('a fully no-date block shows no per-box Clear or "no date" line, but its boxes take a typed date', async () => {
     const { page, errs } = await open(), c = await setup(page); assert(c, 'a Given box on the sheet');
     await page.check('#progressWrap input[data-gnodate="' + c.award + '"]'); await page.waitForTimeout(400);
     assert.strictEqual(await empties(page, c), 0, 'every sign-off in the section is filled (no date)');
-    const n = await page.locator('#progressWrap button[data-clearnd]').count(); assert(n >= c.list.length, 'a Clear button on each no-date sign-off, found ' + n);
-    await page.locator('#progressWrap button[data-clearnd]').first().click(); await page.waitForTimeout(400);
-    assert.strictEqual(await empties(page, c), 1, 'one sign-off is empty again'); assert.strictEqual(await page.locator('#progressWrap button[data-clearnd]').count(), n - 1, 'its Clear button is gone');
+    assert.strictEqual(await page.locator('#progressWrap button[data-clearnd]').count(), 0, 'no per-box Clear');
+    assert(await page.locator('#progressWrap .pblock .status:text-is("no date")').count() === 0, 'no per-box "no date" line');
+    await page.fill('#progressWrap input[data-scope="' + c.book + '"][data-key="' + c.block + '.' + c.list[0] + '"]', '2026-11-04'); await page.waitForTimeout(400);
+    assert.strictEqual(await empties(page, c), 0, 'the typed date is kept as a real one (the box is filled, not empty)');
     assert.deepStrictEqual(errs, []); await page.close();
   });
-  await test('clearing every no-date sign-off leaves no no-date marks and the section is not complete', async () => {
+  await test('typing a date in every box clears the no-date marks', async () => {
     const { page } = await open(), c = await setup(page);
     await page.check('#progressWrap input[data-gnodate="' + c.award + '"]'); await page.waitForTimeout(400);
-    for (let i = 0; i < c.list.length; i++) { await page.locator('#progressWrap button[data-clearnd]').first().click(); await page.waitForTimeout(250); }
-    assert.strictEqual(await empties(page, c), c.list.length, 'all empty'); assert.strictEqual(await page.evaluate(([i, b]) => Season.noDateSigns(App.season, i, b).length, [c.id, c.book]), 0, 'no no-date marks left');
-    const done = await page.evaluate(([i, k]) => Season.completedBlocks(App.season, i, 'T&T').some(b => b.key === k), [c.id, c.block]); assert.strictEqual(done, false, 'the block is not completed'); await page.close();
+    for (const i of c.list) { await page.fill('#progressWrap input[data-scope="' + c.book + '"][data-key="' + c.block + '.' + i + '"]', '2026-11-04'); await page.waitForTimeout(150); }
+    assert.strictEqual(await page.evaluate(([i, b]) => Season.noDateSigns(App.season, i, b).length, [c.id, c.book]), 0, 'no no-date marks left');
+    await page.close();
   });
   await test('unticking the Given no-date box takes back the sign-offs it marked no date; the section is unfinished', async () => {
     const { page } = await open(), c = await setup(page);

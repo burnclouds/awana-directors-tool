@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-flagmode.js'] = '1.2.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-flagmode.js'] = '1.3.0';
 // Flag anything: the Flag button in the top bar turns on flag mode; click any part of any tab to leave a note about it. The note is saved in the data file and listed on To do, with Go.
 // The flag stores a trail of labels (flagtrail.js), not a screen position. Esc or the Flag button again leaves the mode.
 (function () {
@@ -29,12 +29,28 @@
     return '';
   }
   const rowOf = el => { const tr = el.closest('tr'); return tr ? FT.short(cellText(tr.cells[0])) : ''; };
-  function infoOf(el) {
+  // N20: the view the flag is made in, read from the tab's own state (the same App.places the Recent places list uses) plus what that does not hold (the book tab). Only non-empty parts are returned.
+  // The Person tab's part is the one SHOWN (App.personSub), not the one the leader last chose: a volunteer's Registration page opened as a fallback is Registration.
+  // The Color teams grid and the Awards filters are not scoped here (their cells are told apart by the row's child and the column's quarter in the trail), so those flags match as they always did.
+  function scopeNow() {
+    const out = {}, add = (k, v) => { if (v) out[k] = String(v); };
+    const pl = App.places && App.places[App.tab], st = pl && pl.get ? (pl.get() || {}).state || {} : {};
+    if (App.tab === 'person') { add('kid', st.id); add('sub', App.personSub ? App.personSub() : st.sub); if (out.sub === 'progress' && App.sheets && App.sheets.book) add('book', App.sheets.book()); }
+    else if (App.tab === 'attend') { add('date', st.date); add('room', st.room); }
+    else if (App.tab === 'awards' || (App.tab === 'games' && App.sub !== 'teams')) add('date', st.date);
+    return out;
+  }
+  App.flagScope = scopeNow;
+  // The view check leaves the child out: a flag's child is compared element by element (FT.find, and the dialog below), because most tabs (Attendance, Awards, Uniforms) show many children at once.
+  const viewOk = (f, sc) => FT.scopeOk(Object.assign({}, f, { kid: '' }), sc);
+  function infoOf(el, sc) {
     const tr = el.closest('tr'); let rowIndex = 0;
     if (tr) { const rows = [...tr.closest('table').querySelectorAll('tr')], names = rows.map(r => FT.short(cellText(r.cells[0]))); rowIndex = FT.rowIndexOf(names, rows.indexOf(tr)); }
     // A row that names a child (data-id, as on Uniforms and Roster) gives the flag that child (S14): the child goes in the Child column, not in the Where trail.
-    const kid = tr && tr.dataset && tr.dataset.id ? tr.dataset.id : '';
-    return { kid, trail: FT.build({ tab: tabName(App.tab), heading: headingOf(el), row: kid ? '' : rowOf(el), label: labelOf(el) }), rowIndex, label: labelOf(el) };
+    // (the Color teams grid names its child in data-kid: a separate attribute, because data-id rows have their own handlers)
+    const rowKid = tr && tr.dataset ? tr.dataset.id || tr.dataset.kid || '' : '', scope = sc || scopeNow(), kid = rowKid || scope.kid || '';
+    // The trail leaves out the row name only when the ROW names the child (as before), so a flag made earlier still compares; a child found from the page's own state goes in kid, not in the trail.
+    return { kid, scope, trail: FT.build({ tab: tabName(App.tab), heading: headingOf(el), row: rowKid ? '' : rowOf(el), label: labelOf(el) }), rowIndex, label: labelOf(el) };
   }
   // ---- flag mode ----
   // kind is 'flag' (a note on To do) or 'bug' (a bug report or feature request, kept on the Debug tab). Both pick a spot the same way.
@@ -47,7 +63,7 @@
   function dialog(el) {
     const season = App.season, info = infoOf(el), dlg = $('dlg');
     const bug = kind === 'bug', lvl = bug ? 'bug' : 'element';
-    const here = Season.flagList(season).filter(f => f.level === lvl && f.tab === App.tab && FT.same(f.trail, info.trail) && (f.rowIndex || 0) === info.rowIndex);
+    const here = Season.flagList(season).filter(f => f.level === lvl && f.tab === App.tab && FT.same(f.trail, info.trail) && (f.rowIndex || 0) === info.rowIndex && viewOk(f, info.scope) && (!f.kid || f.kid === info.kid));
     dlg.innerHTML = '<h3 style="margin-top:0">' + (bug ? 'Bug report: ' : '&#9873; Flag: ') + esc(info.label || 'this') + '</h3><p class="status">' + esc(FT.readable(info.trail)) + (info.rowIndex ? ' (row ' + (info.rowIndex + 1) + ' of that name)' : '') + (bug
       ? '<br>This goes on the Debug tab, not To do, where it can be answered. Describe the problem or the feature you would like. Do not write a child\'s name; to report about one child\'s record, click that child\'s row.</p>'
       : '<br>The note shows on the To do tab, with a Go button to come back here, until you clear it.</p>') +
@@ -57,7 +73,7 @@
     // Save leaves flag mode: the page stays where it is, so Save and the other buttons work at once. Another note is one more press of the Flag button.
     $('flSave').onclick = () => {
       const ver = (document.querySelector('meta[name="app-version"]') || {}).content || '';
-      try { App.addFlag({ level: lvl, kid: info.kid || undefined, tab: App.tab, trail: info.trail, label: info.label, rowIndex: info.rowIndex, note: $('flNote').value, ver: bug ? ver : undefined }); } catch (err) { App.flash(err.message, 'error'); return; }
+      try { App.addFlag(Object.assign({}, info.scope, { level: lvl, kid: info.kid || undefined, tab: App.tab, trail: info.trail, label: info.label, rowIndex: info.rowIndex, note: $('flNote').value, ver: bug ? ver : undefined })); } catch (err) { App.flash(err.message, 'error'); return; }
       dlg.close(); setMode(false);
       if (bug) { if (App.renderDebug) App.renderDebug(); App.flash('Bug report added. It is on the Debug tab (Options, then Debug).', 'info'); }      // a bug report never touches the To do badge
       else { if (App.updateTodoBadge) App.updateTodoBadge(); App.flash('Flag added. It is on the To do tab.', 'info'); }
@@ -82,14 +98,23 @@
   // The Bug button shows only when the Options switch is on (config.bugButton); off hides the button and leaves every report where it is.
   App.syncBugButton = () => { const b = $('btnBugMode'); if (!b) return; const show = !!(App.season && App.season.config && App.season.config.bugButton === true); b.hidden = !show; if (!show && on && kind === 'bug') setMode(false); };
   // ---- Go: open the tab, rebuild the trails there, and find the one that matches ----
-  const candidates = () => { const cands = []; root().querySelectorAll('*').forEach(el => { if (pickTarget(el) !== el || !el.offsetParent) return; const i = infoOf(el); cands.push({ trail: i.trail, rowIndex: i.rowIndex, ref: el }); }); return cands; };
-  function locate(f) { const hit = FT.find(f, candidates()); return hit && hit.ref; }
+  const candidates = () => { const cands = [], sc = scopeNow(); root().querySelectorAll('*').forEach(el => { if (pickTarget(el) !== el || !el.offsetParent) return; const i = infoOf(el, sc); cands.push({ trail: i.trail, rowIndex: i.rowIndex, kid: i.kid, ref: el }); }); return cands; };
+  // A flag is looked for only in the view it was made in (FT.scopeOk): the same box on another child, book, sub-tab, night or class is not it.
+  function locate(f) { if (!viewOk(f, scopeNow())) return null; const hit = FT.find(f, candidates()); return hit && hit.ref; }
   // Every flag's element at once (the candidates are rebuilt once): Map of flag id -> element, for the flags the open tab can place. Used by the yellow marks (app-flagmarks.js).
-  App.flagLocateAll = flags => { const m = new Map(), c = candidates(); flags.forEach(f => { const hit = FT.find(f, c); if (hit) m.set(f.id, hit.ref); }); return m; };
+  App.flagLocateAll = flags => { const m = new Map(), c = candidates(), sc = scopeNow(); flags.forEach(f => { if (!viewOk(f, sc)) return; const hit = FT.find(f, c); if (hit) m.set(f.id, hit.ref); }); return m; };
+  // Go opens the view the flag was made in, with the same place setters the Recent places list and Update now use: the child and the part of the Person tab (and the book), the night and class.
+  function restoreView(f) {
+    try {
+      if (f.tab === 'person' && f.kid && App.showPerson) { if (f.book && App.sheets && App.sheets.focus) App.sheets.focus(f.kid, f.book); App.showPerson(f.kid, f.sub ? { sub: f.sub } : undefined); }
+      else if ((f.date || f.room) && App.places && App.places[f.tab] && App.places[f.tab].set && App.places[f.tab].get) { const cur = (App.places[f.tab].get() || {}).state || {}; App.places[f.tab].set(Object.assign({}, cur, f.date ? { date: f.date } : {}, f.room ? { room: f.room } : {})); }
+    } catch (e) { /* a view that cannot be restored leaves the tab as it is: the spot is then looked for there */ }
+  }
   App.goElement = f => {
     missing.delete(f.id);
     if (!document.querySelector('.tabs button[data-tab="' + f.tab + '"]')) { App.flash('That tab no longer exists: ' + FT.readable(f.trail || []) + '.', 'warn'); return; }      // showTab would throw on a tab that is gone
-    App.showTab(f.tab);
+    restoreView(f);
+    if (App.tab !== f.tab) App.showTab(f.tab);
     setTimeout(() => {
       const el = locate(f);
       if (!el) { missing.add(f.id); App.flash('Spot not found: ' + FT.readable(f.trail) + '. The tab is open; the label or row may have changed.', 'warn'); if (App.tab === 'todo' && App.tabs && App.tabs.todo) App.tabs.todo(); return; }

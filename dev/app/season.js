@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.68.1';
+(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.72.0';
 // Season store: everything recorded during one club year, kept in one JSON file keyed by person ID
 // (attendance, games, awards, handbooks, section-by-section progress, the roster) plus the lists and templates they use.
 //
@@ -135,6 +135,8 @@
     if (isObj(o.roster)) o.roster = unpackRoster(o.roster);
     if (isObj(o.roster)) s.roster = Object.assign({}, o.roster, { cols: Array.isArray(o.roster.cols) ? o.roster.cols : [], people: isObj(o.roster.people) ? o.roster.people : {} });
     ['calendar', 'rotation', 'history'].forEach(k => { if (Array.isArray(o[k])) s[k] = o[k]; });
+    // N2: Puggles # and Puggles Title become one Puggles Lesson column. Done here, BEFORE the upgrade snapshot, so it is not logged: a rename of two columns is not worth a whole-calendar History entry (diff treats a list as one value, so it would write the calendar twice, about 25 KB). A row without the old keys is the same object, so a current file changes nothing.
+    if (Array.isArray(s.calendar)) s.calendar = s.calendar.map(Calendar.tidy);
     // A top-level key this app does not know (a newer tool's, or a hand-added one) is kept as it is and written back, never dropped (R17). Not a section, so History does not track it.
     { const unknown = Object.keys(o).filter(k => !KNOWN_TOP.includes(k)); if (unknown.length) { s.unknownKeys = {}; unknown.forEach(k => { s.unknownKeys[k] = o[k]; }); } }
     const beforeUpgrade = snapshot(s);
@@ -290,7 +292,11 @@
     const people = s.roster && isObj(s.roster.people) ? s.roster.people : {};
     Object.keys(people).forEach(id => { const v = isObj(people[id]) && people[id].v; if (isObj(v) && v.x_ClubberID === id) delete v.x_ClubberID; });
     upgradeTeamColors(s);
+    upgradeBugStatus(s);
+    upgradeNotAwards(s);
   }
+  // N18: 'answered' is retired (a reply is not a resolution, and replies are a conversation now). An old file's answered report opens as open; fixed and open stay. Logged by the one File upgrade entry.
+  function upgradeBugStatus(s) { Object.keys(s.flags || {}).forEach(id => { const f = s.flags[id]; if (isObj(f) && f.level === 'bug' && f.status === 'answered') f.status = 'open'; }); }
   // A team color typed in other capitals or with spaces in an old file ('red', 'RED', 'Red ') is the color it names (Fable review T2): the old audit read it that way and the planner and the grid did not, so a child
   // could look hand-set (pinned) and the sizes looked uneven. Opening the file writes the canonical spelling, in the roster's quarter colors (team:Q1, team:2025-26:Q1) and in dated moves.
   // Every screen that sets a color offers only the four, and the file check rejects anything else, so this is the one way such a value gets in. Text that is not one of the four colors is left alone.
@@ -334,6 +340,20 @@
     plan.forEach(x => { const dates = s.progress[x.id][x.scope]; x.from.forEach(k => delete dates[k]); x.to.forEach(k => { dates[k] = x.date; }); });
     s.config.progress.Cubbies = fresh; if (mode === 'section') s.config.cubbiesDetail = 'section'; else delete s.config.cubbiesDetail;
     return { changed: plan.length };
+  }
+  // N23: Flight 3:16, Start Zone (and its older "Start Zone 1" / "Start Zone 2") and Apple Acres are booklets and entrance blocks the child finishes; none of them is an award, so none is ever announced, listed to hand out, put on a slide or counted.
+  // The sign-off boxes stay on the Progress sheet and still count toward the book; only an AWARD of that name is refused: awardLedger leaves such a row out (so every list that reads the ledger agrees), and opening a file deletes any record of one
+  // (an older file, or an older copy of the app, may still carry them), logged by the one "File upgrade" entry.
+  const NOT_AWARDS = ['Flight 3:16', 'Start Zone', 'Start Zone 1', 'Start Zone 2', 'Apple Acres'];
+  const notAnAward = a => NOT_AWARDS.includes(a);
+  function upgradeNotAwards(s) {
+    const keep = a => !notAnAward(a);
+    if (isObj(s.awards)) Object.keys(s.awards).forEach(d => { const day = s.awards[d]; if (!isObj(day)) return; Object.keys(day).forEach(id => { if (!Array.isArray(day[id])) return; day[id] = day[id].filter(keep); if (!day[id].length) delete day[id]; }); if (!Object.keys(day).length) delete s.awards[d]; });
+    if (isObj(s.given)) Object.keys(s.given).forEach(id => { const g = s.given[id]; if (!isObj(g)) return; Object.keys(g).forEach(a => { if (!keep(a)) delete g[a]; }); if (!Object.keys(g).length) delete s.given[id]; });
+    ['givenNoDate', 'announcedNoDate'].forEach(k => { if (!isObj(s[k])) return; Object.keys(s[k]).forEach(id => { if (!Array.isArray(s[k][id])) return; s[k][id] = s[k][id].filter(keep); if (!s[k][id].length) delete s[k][id]; }); });
+    if (isObj(s.held)) Object.keys(s.held).forEach(id => { const h = s.held[id]; if (!isObj(h)) return; Object.keys(h).forEach(a => { if (!keep(a)) delete h[a]; }); if (!Object.keys(h).length) delete s.held[id]; });
+    ['awardLists', 'exclude', 'completion', 'endOfYear'].forEach(k => { const c = s.config[k]; if (isObj(c)) Object.keys(c).forEach(g => { if (Array.isArray(c[g])) c[g] = c[g].filter(keep); }); });
+    const sp = s.config.progress && s.config.progress.Sparks; if (sp) (sp.common || []).forEach(b => { if (b && b.key === 'FLT' && Array.isArray(b.awards) && b.awards.some(notAnAward)) b.awards = b.awards.filter(keep); });
   }
   // Start Zone used to be two blocks of one section each, "Start Zone 1" and "Start Zone 2", each with an award. It is one block of two sections with no award (finishing it is how a child earns the book).
   // The two dates move to its sections; awards already recorded under the old names stay in the file as they were.
@@ -416,7 +436,7 @@
     const hb = bookKey(s, parseHandbook(s.handbooks[id]).code);
     if (!hb || bookGroup(s, hb) === 'Sparks') { const d = sparksCurrent(s, id); if (d) return d; }
     if (hb) return hb;
-    return yearBook(s, 'Sparks') || '';
+    return hasProgress(s, id) ? (yearBook(s, 'Sparks') || '') : '';      // N26: a child with no progress has no current book (the year's book is only the guess once something is recorded)
   }
   // The books of a group in the order they are worked (Cubbies AS, HC; Sparks HG, WR, SS; T&T in the book list's order), and the progress sheets a child has: the book for their class (Sparks: worked out;
   // Cubbies and T&T: the handbook, else this year's book, else the first), the handbook's book, every book with a date entered and every book marked finished before. Nothing is stored: it is all worked out.
@@ -434,6 +454,14 @@
     (codes || []).forEach(c => { if (!all.includes(c)) throw new Error('"' + c + '" is not a T&T book.'); });
     const next = Object.assign({}, s.config.bookOrder); if (codes && codes.length) next[group] = codes.slice(); else delete next[group];
     if (Object.keys(next).length) s.config.bookOrder = next; else delete s.config.bookOrder;
+  }
+  // N33: has any progress been indicated for this child? A date or a sign-off in any book, a book marked finished, a book received, or a handbook code. A child with none of these has no book, and that is legitimate: no "no book" warning.
+  function hasProgress(s, id) {
+    const kid = s.progress[id] || {};
+    if (Object.keys(kid).some(c => c !== 'common' && kid[c] && Object.keys(kid[c]).length)) return true;
+    if (Object.keys((s.received || {})[id] || {}).length) return true;
+    if (((s.doneBooks || {})[id] || []).length) return true;
+    return !!s.handbooks[id];
   }
   function sheetsOf(s, id, group) {
     const set = new Set(), kid = s.progress[id] || {}, hb = bookKey(s, parseHandbook(s.handbooks[id]).code);
@@ -532,8 +560,8 @@
       const all = ((s.blueWings || {})[id] || []).slice().concat(blueWingPlan(s, id, s.calendar || [], { yearEnded: true }).placed.map(p => ({ book: p.book, slot: p.slot, n: p.n, threshold: p.threshold, earned: p.earned, date: p.date, year: p.year, override: p.override, note: p.note || '' })));
       if (all.length) { n.blueWings = n.blueWings || {}; n.blueWings[id] = all; }
     });
-    // Bug reports and feature requests are about the app, not the year: the ones not yet fixed come forward (a fixed one stays with the closed year).
-    Object.keys(s.flags || {}).forEach(id => { const f = s.flags[id]; if (f && f.level === 'bug' && f.status !== 'fixed') { n.flags = n.flags || {}; n.flags[id] = clone(f); } });
+    // Bug reports and feature requests are about the app, not the year: the open ones come forward (a fixed or dropped one stays with the closed year).
+    Object.keys(s.flags || {}).forEach(id => { const f = s.flags[id]; if (f && f.level === 'bug' && bugStatusOf(f) === 'open') { n.flags = n.flags || {}; n.flags[id] = clone(f); } });
     Object.keys(n.roster.people || {}).forEach(id => {                 // last year's one-off decisions must not hide this year's: pending Planning Center changes and the uniform order/receive/give record
       const v = (n.roster.people[id] || {}).v || {};
       Object.keys(v).forEach(k => { if (k.startsWith('ov:') || YEAR_BOUND.includes(k)) delete v[k]; });
@@ -846,7 +874,7 @@
     Object.keys(s.given[id] || {}).forEach(a => { row(a).given = isGivenNoDate(s, id, a) ? 'no date' : s.given[id][a]; });
     // carried: every date this award has (earned, announced night, the day it was given) is before this season's cut, so it is an earlier year's award carried forward (newSeason). It is still listed (it may still need handing out),
     // but it is not this season's earning: earnedAwards (store points, statistics) and the season reports leave it out.
-    return [...rows.values()].filter(r => r.announced || r.annNoDate || r.given || !cut || !r.earned || r.earned >= cut).map(r => { const ds = [r.earned, r.announced, (s.given[id] || {})[r.award]].filter(Boolean); return Object.assign(r, { status: r.given ? 'Given' : 'Earned, not given', carried: !!cut && ds.length > 0 && ds.every(d => d < cut) }); })
+    return [...rows.values()].filter(r => !notAnAward(r.award) && (r.announced || r.annNoDate || r.given || !cut || !r.earned || r.earned >= cut)).map(r => { const ds = [r.earned, r.announced, (s.given[id] || {})[r.award]].filter(Boolean); return Object.assign(r, { status: r.given ? 'Given' : 'Earned, not given', carried: !!cut && ds.length > 0 && ds.every(d => d < cut) }); })
       .sort((a, b) => (a.announced || a.earned || '') < (b.announced || b.earned || '') ? -1 : 1);
   }
   // Every award a child has earned this season: worked out from Progress and attendance, plus any recorded by hand (announced or given) since an award you record is one you say they earned.
@@ -854,7 +882,16 @@
   // Earned this season (from Progress or attendance) or recorded by hand, or earned in an earlier year and announced; and not Given (a date or the "no date" tick both count as given); not on the group's ignored list (config.exclude);
   // and not an end-of-year award (those wait for the ceremony list). Holds and announcing do not matter.
   // One rule for the Awards tab's To hand out list, its badge and the Awards to hand out strips, so they always agree.
-  function toHandOut(s, id, group, calRows) { const skip = (s.config.exclude || {})[group] || []; return awardLedger(s, id, group, calRows).filter(r => !r.given && !skip.includes(r.award) && !isEndOfYear(s, group, r.award)); }
+  // N28: a Sparks Blue Jewel is not handed out until the child has the book's Pilot Wing (earned, announced or given), even though attendance earns the jewel first.
+  // The same rule for the Awards badge (toGive in app-season.js), so the number and the list agree.
+  function jewelWaitsForWing(s, id, group, calRows, award) {
+    const m = /^([A-Z0-9]+) Blue Jewel \d+$/.exec(award || ''); if (!m) return false;
+    return !awardLedger(s, id, group, calRows).some(x => x.award === m[1] + ' Pilot Wing' && (x.earned || x.announced || x.given));
+  }
+  function toHandOut(s, id, group, calRows) {
+    const skip = (s.config.exclude || {})[group] || [];
+    return awardLedger(s, id, group, calRows).filter(r => !r.given && !skip.includes(r.award) && !isEndOfYear(s, group, r.award) && !jewelWaitsForWing(s, id, group, calRows, r.award));
+  }
   function earnedAwards(s, id, group, calRows) { return awardLedger(s, id, group, calRows).filter(r => !r.carried).map(r => ({ award: r.award, earned: r.earned })); }
   // ---- Earned -> Announced -> Given ----
   // Earned is worked out (suggestedAwards, blueJewels); Announced is awards[date][id]; Given is a date per child and award, set on the Progress record or the Awards tab. Given does not wait for Announced: an award can be handed over on another night, and the inventory wants the day it left the shelf.
@@ -884,7 +921,7 @@
   // These add optional fields to a flag (date, room, quarter, group, color, field); a flag without them reads as before.
   // 'element' (Flag anything, any tab): tab (the tab id), trail (a breadcrumb of labels, tab name first: where the element is, not a screen position), label (the element's own label) and rowIndex (which of several same-named rows). Not about one child.
   // 'bug' is a bug report or feature request about the app (not about a child or the club). It lives in the flags section with an id that starts with b, has a status and a reply, and is listed on the Debug tab, never on To do.
-  const FLAG_LEVELS = ['general', 'child', 'sheet', 'block', 'box', 'attend', 'team', 'field', 'element', 'bug'], FLAG_NO_KID = ['general', 'attend', 'team', 'element', 'bug'], FLAG_EXTRA = ['date', 'room', 'quarter', 'group', 'color', 'field'], BUG_STATUS = ['open', 'answered', 'fixed'];
+  const FLAG_LEVELS = ['general', 'child', 'sheet', 'block', 'box', 'attend', 'team', 'field', 'element', 'bug'], FLAG_NO_KID = ['general', 'attend', 'team', 'element', 'bug'], FLAG_EXTRA = ['date', 'room', 'quarter', 'group', 'color', 'field', 'sub'], BUG_STATUS = ['open', 'fixed', 'dropped'], BUG_BY = ['leader', 'developer'];
   function addFlag(s, f, now) {
     if (!f || (!f.kid && !FLAG_NO_KID.includes(f.level))) throw new Error('A flag needs a child.');
     if (!FLAG_LEVELS.includes(f.level)) throw new Error('Unknown flag level "' + f.level + '".');
@@ -907,16 +944,30 @@
   }
   function setFlagNote(s, id, note) { const f = (s.flags || {})[id], t = String(note || '').trim(); if (!f) throw new Error('No such flag.'); if (!t) throw new Error('Write a note for the flag.'); f.note = t; }
   function clearFlag(s, id) { if (s.flags) delete s.flags[id]; }
-  // The reply to a bug report: a status (open, answered, fixed) and reply text. A new non-empty reply stamps replyAt with today; an empty reply removes both; a status change alone leaves replyAt as it is.
-  function setBugReply(s, id, reply, now) {
-    const f = (s.flags || {})[id]; if (!f || f.level !== 'bug') throw new Error('No such bug report.');
-    const st = reply && reply.status !== undefined ? String(reply.status) : f.status || 'open'; if (!BUG_STATUS.includes(st)) throw new Error('Unknown status "' + st + '".');
-    f.status = st;
-    if (reply && reply.reply !== undefined) {
-      const t = String(reply.reply || '').trim();
-      if (!t) { delete f.reply; delete f.replyAt; }
-      else if (t !== f.reply) { const d = now || new Date(); f.reply = t; f.replyAt = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
-    }
+  // A bug report is a conversation (N17): replies are an object keyed by reply id, replies[rid] = { at: 'YYYY-MM-DD', by: 'leader' | 'developer', text }. An object, not a list, so two leaders who each add a reply
+  // to one report each add a different key and a merge keeps both (a list is one value to the merge). The ids start with r (flags 'f', bugs 'b', absences 'a'); there is no date in them.
+  // The older single reply (reply + replyAt, written by 1.51.15 and earlier) stays where it is and reads as the first reply, by the developer, so an older copy of the app still shows it.
+  // Status is Open, Fixed or Dropped (N18); a reply never changes it. An unknown word in a file (an older or newer copy's, or the retired 'answered') reads as open.
+  const isoOf = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const bugStatusOf = f => BUG_STATUS.includes(f && f.status) ? f.status : 'open';
+  function bugOf(s, id) { const f = (s.flags || {})[id]; if (!f || f.level !== 'bug') throw new Error('No such bug report.'); return f; }
+  function setBugStatus(s, id, status) { const f = bugOf(s, id), st = String(status); if (!BUG_STATUS.includes(st)) throw new Error('Unknown status "' + st + '".'); f.status = st; }
+  function addBugReply(s, id, text, by, now) {
+    const f = bugOf(s, id), t = String(text || '').trim(), b = String(by || 'leader'); if (!t) throw new Error('Write a reply.'); if (!BUG_BY.includes(b)) throw new Error('A reply is by a leader or the developer.');
+    const d = now || new Date(), rid = 'r' + d.getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36).padStart(2, '0');
+    if (!isObj(f.replies)) f.replies = {}; f.replies[rid] = { at: isoOf(d), by: b, text: t }; return rid;
+  }
+  // The replies in the order they were written: the older single reply first, then the rest by date and id.
+  function bugThread(f) {
+    const out = []; if (f && f.reply) out.push({ id: 'legacy', at: f.replyAt || '', by: 'developer', text: f.reply });
+    if (f && isObj(f.replies)) Object.keys(f.replies).forEach(rid => { const r = f.replies[rid]; if (isObj(r)) out.push({ id: rid, at: r.at || '', by: r.by || 'leader', text: r.text || '' }); });
+    return out.sort((a, b) => (a.id === 'legacy' ? -1 : b.id === 'legacy' ? 1 : a.at < b.at ? -1 : a.at > b.at ? 1 : a.id < b.id ? -1 : 1));
+  }
+  function removeBugReply(s, id, rid) {
+    const f = bugOf(s, id);
+    if (rid === 'legacy') { delete f.reply; delete f.replyAt; return; }
+    if (!isObj(f.replies) || !f.replies[rid]) throw new Error('No such reply.');
+    delete f.replies[rid]; if (!Object.keys(f.replies).length) delete f.replies;      // a record that becomes empty is deleted (DATA-FORMAT section 2.4)
   }
   // ---- Volunteer absences (S11). Kept with the person: absences[personId][absId] = { reason, at, nights: { 'YYYY-MM-DD': 1 } }.
   // Only club nights are stored; the caller passes the club nights from the calendar, and any other date is refused.
@@ -982,7 +1033,15 @@
   }
   const flagList = s => Object.keys(s.flags || {}).map(id => Object.assign({ id }, s.flags[id])).sort((a, b) => a.at < b.at ? -1 : a.at > b.at ? 1 : a.id < b.id ? -1 : 1);
   const noteList = s => flagList(s).filter(f => f.level !== 'bug');      // notes and flags (To do, a child's sheet): never bug reports
-  const bugList = s => { const rank = { open: 0, answered: 1, fixed: 2 }; return flagList(s).filter(f => f.level === 'bug').sort((a, b) => (rank[a.status] == null ? 0 : rank[a.status]) - (rank[b.status] == null ? 0 : rank[b.status]) || (a.at < b.at ? -1 : a.at > b.at ? 1 : a.id < b.id ? -1 : 1)); };
+  const bugList = s => { const rank = { open: 0, fixed: 1, dropped: 2 }; return flagList(s).filter(f => f.level === 'bug').sort((a, b) => rank[bugStatusOf(a)] - rank[bugStatusOf(b)] || (a.at < b.at ? -1 : a.at > b.at ? 1 : a.id < b.id ? -1 : 1)); };
+  // Hiding a note or flag on To do (N19): flag.hidden = 1 while hidden, the key deleted on Unhide (a record never stores an empty value). Only the To do card leaves a hidden note out of its list and count: the child's sheet, the yellow flags,
+  // the popups and History still show it. Any truthy 1 or true reads as hidden. A bug report is never listed on To do, so it cannot be hidden.
+  const isFlagHidden = f => !!f && (f.hidden === 1 || f.hidden === true);
+  function setFlagHidden(s, id, on) {
+    const f = (s.flags || {})[id]; if (!f) throw new Error('No such flag.'); if (f.level === 'bug') throw new Error('A bug report is not listed on To do, so it cannot be hidden there.');
+    if (on) f.hidden = 1; else delete f.hidden;
+  }
+  const todoNotes = s => { const all = noteList(s); return { open: all.filter(f => !isFlagHidden(f)), hidden: all.filter(isFlagHidden) }; };
   const flagsOf = (s, kid) => noteList(s).filter(f => f.kid === kid);
   const flagsAt = (s, kid, book, key) => flagsOf(s, kid).filter(f => f.book === (book || '') && f.key === (key || ''));
   // The flags at one Attendance, Color teams or Person-field place: every named part of the place must match (a team flag with no color is the whole group).
@@ -1354,10 +1413,12 @@
         if (/^b/.test(String(p[1] || ''))) {      // a bug report (id starts with b)
           if (p.length === 2 && isObj(f)) return 'Bug report · ' + (has(c.n) ? 'added' : 'deleted') + ': ' + (f.note || '');
           if (p[2] === 'status') return 'Bug report · status: ' + (has(c.n) ? c.n : 'cleared');
+          if (p[2] === 'replies') { const one = x => isObj(x) && x.text !== undefined ? x : null; const r = p.length === 3 ? (isObj(f) ? Object.keys(f).map(k => one(f[k])).find(Boolean) : null) : p.length === 4 ? one(f) : null; return 'Bug report · ' + (p.length >= 5 ? 'reply changed' : has(c.n) ? 'reply added' + (r ? ': ' + r.text : '') : 'reply removed'); }
           if (p[2] === 'reply') return 'Bug report · ' + (has(c.n) ? 'reply written: ' + c.n : 'reply removed');
           if (p[2] === 'replyAt') return 'Bug report · reply dated ' + (has(c.n) ? MDATE(c.n) : 'removed');
           return 'Bug report · changed';
         }
+        if (p[2] === 'hidden') return 'Notes and flags · ' + (has(c.n) ? 'hidden from To do' : 'shown on To do again');
         if (p.length === 2 && isObj(f)) return (f.kid ? nm(f.kid) : 'Note') + ' · ' + (has(c.n) ? (f.kid ? 'flagged' : 'added') : (f.kid ? 'flag cleared' : 'cleared')) + ': ' + (f.note || '');
         return 'Notes and flags ' + (has(c.n) ? 'changed' : 'cleared');
       }
@@ -1446,8 +1507,8 @@
     return { keep, skipped: items.filter(it => it !== keep) };
   }
   const api = { SECTIONS, KNOWN_TOP, nightStatus, volunteerNights, volunteerExpected, addAbsence, clearAbsenceNights, clearAbsence, absenceList, FLAG_LEVELS, FLAG_NO_KID, shiftDates, freshenFake, FORMAT, VERSION, fileName, MARKS, QUARTERS, TEAMS, blank, toJson, fromJson, isRealDate, badDates, guessDate, dateClashes, fixDates, newSeason, turnoutCounts, addPastYear, addEarlierYear, seasonStart, sectionsThisSeason, defaultYear, setMark, hasNight, heldNights, newest, totals, blueJewels,
-    toHandOut, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
+    toHandOut, jewelWaitsForWing, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
     setProgress, addExtraSheet, blueWingPlan, sparkJewels, heldGems, grantBlue, dropBlue, isAnnNoDate, setAnnNoDate, noDateSigns, isSignNoDate, signShown, signsShown, unsignedIn, markSignsNoDate, baseAward, jewelName, awardLabel, childBook, sparksCurrent, receivedOf, receivedShown, isReceivedNoDate, setReceived, completedBlocks, finishedBooks, bookStatus, completionAwards, setBookDone, suggestedAwards, firstNight, pastYearAwards, markPastYearsGiven, counted,
-    normDriveDirs, isGivenNoDate, givenShown, isHeld, setHold, addFlag, setFlagNote, clearFlag, setBugReply, BUG_STATUS, noteList, bugList, flagList, flagsOf, flagsAt, flagsAtPlace, renameAward, snapshot, diff, merge3, applyChanges, record, labelOf, at, replayDiff, reconcile, tag, restoreTo, compare, kindOf, describe, MERGE_MINUTES };
+    normDriveDirs, isGivenNoDate, givenShown, isHeld, setHold, addFlag, setFlagNote, clearFlag, setFlagHidden, isFlagHidden, todoNotes, notAnAward, NOT_AWARDS, upgradeNotAwards, setBugStatus, addBugReply, removeBugReply, bugThread, bugStatusOf, BUG_STATUS, BUG_BY, noteList, bugList, flagList, flagsOf, flagsAt, flagsAtPlace, renameAward, snapshot, diff, merge3, applyChanges, record, labelOf, at, replayDiff, reconcile, tag, restoreTo, compare, kindOf, describe, MERGE_MINUTES };
   if (typeof module !== 'undefined') module.exports = api; else root.Season = api;
 })(this);

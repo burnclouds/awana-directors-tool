@@ -245,6 +245,18 @@ NODE_PATH=<dir with playwright> node test/drive-autosave-browser.test.js   # aut
 NODE_PATH=<dir with playwright> node test/attend-steps-browser.test.js   # Attendance: previous / next buttons beside the night and room pickers
 node test/attendance-fill-print.test.js       # the attendance sheet prints the recorded marks and leaves the rest blank
 NODE_PATH=<dir with playwright> node test/attendance-landscape-browser.test.js   # the attendance report prints on letter landscape
+NODE_PATH=<dir with playwright> node test/attendance-n8-n11-browser.test.js   # attendance sheet: heading centered (none for Puggles), 20 rows a page, room at the top for the punch holes (N8, N11)
+node test/flag-hide.test.js                       # hide a note or flag on To do: the hidden field, merge, History, the file check, older copy (N19)
+NODE_PATH=<dir with playwright> node test/flag-hide-browser.test.js   # Hide, Show hidden (remembered), Unhide on To do, the child's sheet and the popup (N19)
+node test/flag-spot.test.js                   # a flag is tied to the view it was made in: scopeOk, find, the stored fields, the file check (N20)
+NODE_PATH=<dir with playwright> node test/flag-spot-browser.test.js   # a flag shows only on its child, book, sub-tab, night and class; Go opens that view (N20)
+node test/calendar-lessons.test.js               # lessons by week, data side: one lesson column per group, the older Puggles columns joined, config.lessons, its file check, the report (N2)
+NODE_PATH=<dir with playwright> node test/calendar-lessons-browser.test.js   # the Calendar tab Lessons by week view: groups on and off, typing a lesson, the report (N2)
+NODE_PATH=<dir with playwright> node test/coaches-notes-long-themes-browser.test.js   # the coaches notes sheet stays on one page with long themes (N16)
+NODE_PATH=<dir with playwright> node test/emergency-widths-browser.test.js   # Emergency, Medical and Photos: the same column widths on every class (N15)
+NODE_PATH=<dir with playwright> node test/person-default-sub-browser.test.js   # a volunteer or Puggle opens on Registration, a child on Progress (N6)
+NODE_PATH=<dir with playwright> node test/progress-reviews-bottom-browser.test.js   # the printed Sparks sheet: review rows after the last jewel, bands recomputed (N12)
+NODE_PATH=<dir with playwright> node test/splash-update-line-browser.test.js   # the start screen says when updates were last checked, or that it is offline (N7)
 NODE_PATH=<dir with playwright> node test/binders-dialog-browser.test.js   # the Binders dialog: eleven boxes, one document for the ticked ones
 NODE_PATH=<dir with playwright> node test/binders-paper-browser.test.js   # the Binders button sets the paper from the first sheet and shows the page ticks (B3)
 NODE_PATH=<dir with playwright> node test/blue-hand-browser.test.js   # Blue Jewels by hand on the Progress sheet: grant and drop
@@ -315,6 +327,14 @@ NODE_PATH=<dir with playwright> node test/todo-date-entry-browser.test.js   # To
 NODE_PATH=<dir with playwright> node test/told-no-date-browser.test.js   # "Announced, no date" on the Progress sheet
 NODE_PATH=<dir with playwright> node test/unchecked-features-browser.test.js   # To do Ignore, and two other features that had no test
 node test/ceremony-list.test.js            # the end-of-year awards list: every group, sorted Sparks, T&T, Cubbies
+node test/not-awards.test.js                 # N23: Flight 3:16, Start Zone and Apple Acres are not awards
+node test/no-book-warning.test.js            # N33: no no-book warning for a child with no progress
+node test/section-rules.test.js              # N9 point 6: every section has a make-test-data rule; drop sections are empty in TEST data
+node test/drive-errors.test.js               # N9 point 9: each Drive failure has a kind (signin, folder, busy, offline, other)
+NODE_PATH=<dir with playwright> node test/not-awards-browser.test.js     # N23 on the Awards tab and Progress sheet
+NODE_PATH=<dir with playwright> node test/announce-list-browser.test.js  # N29: the Announce page prints the club-night list
+NODE_PATH=<dir with playwright> node test/tnt-extra-credit-browser.test.js  # N32: the Silver and Gold heading on a T&T progress page
+NODE_PATH=<dir with playwright> node test/sticky-headers-browser.test.js   # sticky headers on the report tables, no horizontal scroll
 node test/reports-season.test.js <export.csv> <calendar.csv> <season.json>
 NODE_PATH=<dir with playwright> node test/browser.test.js <export.csv> <calendar.csv> <season.json> <old-master.csv>   # real Chromium, optional
 # (the one-time migration tools and tests, migrate.test.js and migrate-db.test.js, are retired: see dev/retired/migration/README.md)

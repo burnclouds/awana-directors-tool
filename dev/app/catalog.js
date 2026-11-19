@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['catalog.js'] = '1.16.1';
+(this.AwanaVersions = this.AwanaVersions || {})['catalog.js'] = '1.17.0';
 // Defaults for a new season file: award lists, slide exclusions, book codes, jewel thresholds and the
 // progress-record templates (from the Sparks and T&T Achievement Record forms and the Weekly Awards workbook).
 // Everything here is copied into the season file, so each season can edit its own lists.
@@ -7,7 +7,7 @@
   const sub = (n, count) => range(1, count).map(i => n + '.' + i);
 
   function awardLists() {
-    const sparks = ['Flight 3:16'].concat([].concat(...['HG', 'WR', 'SS'].map(k => range(1, 4, k + ' Blue Jewel '))),
+    const sparks = [].concat([].concat(...['HG', 'WR', 'SS'].map(k => range(1, 4, k + ' Blue Jewel '))),
       ['HG Green Emblem', 'WR Blue Emblem', 'SS Red Emblem', 'HG Pilot Wing', 'WR Pilot Wing', 'SS Pilot Wing'],
       [].concat(...['HG', 'WR', 'SS'].map(k => [1, 2, 3, 4].reduce((a, n) => a.concat([k + ' Red Jewel ' + n, k + ' Green Jewel ' + n]), []))),
       ['HG Review Emblem - Green', 'WR Review Emblem - Blue', 'SS Review Emblem - Red',
@@ -37,7 +37,7 @@
       jewels.push({ key: 'GJ' + n, label: 'Green Jewel ' + n, items: ['1', '2', '3', '4'], review: ['5', '6', '7', '8'], awards: ['{book} Green Jewel ' + n] });
     });
     return {
-      common: [{ key: 'FLT', label: 'Flight 3:16 Booklet', items: range(1, 6), awards: ['Flight 3:16'] }],
+      common: [{ key: 'FLT', label: 'Flight 3:16 Booklet', items: range(1, 6), awards: [] }],      // N23: a booklet, not an award: the six boxes stay, nothing is announced or given
       perBook: [{ key: 'R', label: 'Rank', items: range(1, 8), awards: ['{book} {emblem} Emblem'] }].concat(jewels),
       // Earned when every section and every review of the eight jewel blocks in the book is dated (Rank has no reviews and is not part of it).
       bookReview: { label: 'Book Review', awards: ['{book} Review Emblem - {emblem}'] },
@@ -87,7 +87,7 @@
       todoIgnored: [],                                   // To do items accepted as they are (kept so they stay hidden next week)
       teamsOk: { repeats: [], uneven: [] },              // color team warnings accepted for good: children allowed a repeated color, quarters allowed uneven teams
       awardLists: awardLists(),
-      exclude: { Sparks: ['Flight 3:16'] },
+      exclude: {},      // awards everybody gets and that are not listed (none today: Flight 3:16 is not an award any more, N23)
       // group = whose handbook it is (Sparks books get a tab on the Progress screen); codes are matched on their first two letters, so AoG is AO.
       books: { HG: { name: 'Hangglider', emblem: 'Green', group: 'Sparks' }, WR: { name: 'Wingrunner', emblem: 'Blue', group: 'Sparks' }, SS: { name: 'SkyStormer', emblem: 'Red', group: 'Sparks' },
         HC: { name: 'HoneyComb', emblem: 'Red', group: 'Cubbies' }, AS: { name: 'Appleseed', emblem: 'Green', group: 'Cubbies' },

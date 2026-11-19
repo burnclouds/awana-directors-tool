@@ -1,16 +1,18 @@
-(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.2.0';
+(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.3.0';
 // Club calendar: one row per club night or event. Stored as its own CSV so it can be rolled forward each year.
 (function (root) {
   const Csv = root.Csv || (typeof require !== 'undefined' ? require('./csv.js') : null);
 
-  const COLS = ['Date', 'Type', 'Quarter', 'Theme', 'Notes', 'No Club', 'Cubbies Lesson', 'Puggles #', 'Puggles Title', 'Sparks Lesson', 'T&T Lesson'];
+  // One lesson column per group, named after the group, in the order Puggles, Cubbies, Sparks, T&T (N2: the old layout had Puggles in two columns, Puggles # and Puggles Title, and the lessons were filed two columns off).
+  const COLS = ['Date', 'Type', 'Quarter', 'Theme', 'Notes', 'No Club', 'Puggles Lesson', 'Cubbies Lesson', 'Sparks Lesson', 'T&T Lesson'];
+  const GROUPS = ['Puggles', 'Cubbies', 'Sparks', 'T&T'], lessonCol = g => g + ' Lesson';
   const TYPES = ['Club night', 'Event'];
   const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
 
   function load(text) {
     const { cols, records } = Csv.toRecords(Csv.parse(text));
     if (!cols.includes('Date') || !cols.includes('Quarter')) throw new Error('Not a calendar CSV: needs Date and Quarter columns.');
-    const rows = records.map(r => { const o = {}; COLS.forEach(c => { o[c] = r[c] || ''; }); return o; });
+    const rows = records.map(r => { const o = {}; COLS.forEach(c => { o[c] = r[c] || ''; }); if (!o['Puggles Lesson']) o['Puggles Lesson'] = [r['Puggles #'], r['Puggles Title']].filter(Boolean).join(' '); return o; });      // an older CSV with Puggles # and Puggles Title joins them
     rows.forEach(r => { if (!/^\d{4}-\d{2}-\d{2}$/.test(r.Date)) throw new Error('Bad date "' + r.Date + '" (use YYYY-MM-DD).'); });
     return sort(rows);
   }
@@ -48,6 +50,21 @@
   const blank = () => { const o = {}; COLS.forEach(c => { o[c] = ''; }); o.Type = 'Club night'; o.Quarter = 'Q1'; return o; };
   const quartersIn = rows => QUARTERS.filter(q => rows.some(r => r.Quarter === q));
 
-  const api = { COLS, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, quartersIn, DAYS, weekday, dayName, offDay, offDays };
+  // An old row (1.51.15 and earlier) has Puggles # and Puggles Title: they join into Puggles Lesson (a space between, empty parts dropped) and both keys go. A row that has neither key is returned as it is (the same object), so a current file is not changed.
+  // If Puggles Lesson already has text (typed in a newer copy), it wins and the old pair is added to Notes as "Puggles: ...", so nothing is lost. The other old lesson values stay where they are, as typed lessons.
+  function tidy(row) {
+    if (!row || typeof row !== 'object' || (!('Puggles #' in row) && !('Puggles Title' in row))) return row;
+    const out = {}; Object.keys(row).forEach(k => { if (k !== 'Puggles #' && k !== 'Puggles Title') out[k] = row[k]; });
+    const joined = [row['Puggles #'], row['Puggles Title']].filter(x => typeof x === 'string' && x !== '').join(' ');
+    if (!out['Puggles Lesson']) out['Puggles Lesson'] = joined; else if (joined) out.Notes = (out.Notes ? out.Notes + ' \u00b7 ' : '') + 'Puggles: ' + joined;
+    return out;
+  }
+  // Lessons by week: config.lessons = { on: bool, groups: { Puggles: { on }, ... } }. A missing key reads as: on when any lesson cell is filled in, else off; every group on. The key is written when a setting is changed.
+  const hasLessons = rows => (rows || []).some(r => GROUPS.some(g => r && (r[lessonCol(g)] || '') !== ''));
+  function lessonSettings(config, rows) {
+    const L = config && config.lessons && typeof config.lessons === 'object' && !Array.isArray(config.lessons) ? config.lessons : null, out = { on: L && typeof L.on === 'boolean' ? L.on : hasLessons(rows), groups: {} };
+    GROUPS.forEach(g => { const o = L && L.groups && L.groups[g]; out.groups[g] = { on: !(o && o.on === false) }; }); return out;
+  }
+  const api = { COLS, GROUPS, lessonCol, tidy, lessonSettings, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, quartersIn, DAYS, weekday, dayName, offDay, offDays };
   if (typeof module !== 'undefined') module.exports = api; else root.Calendar = api;
 })(this);

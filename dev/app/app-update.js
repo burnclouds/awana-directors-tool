@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-update.js'] = '1.6.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-update.js'] = '1.7.0';
 // App updates and auto-save.
 //  Updates: every few minutes (10 by default) the page asks the site for its index.html and compares the version in it with the one running. A newer one shows a bar with Update now / Later; nothing happens until you choose.
 //  Update now: anything held on a tab is settled, an unsaved data file is SAVED FIRST (the Save button's way: this computer or Drive), the open session is put in this tab's sessionStorage, the page reloads, and the new version
@@ -17,7 +17,7 @@
   // The two timers' settings live in the data file (config.autoUpdate, config.autoSave). Before a file is open, the code defaults apply; App.fileSettingsLoaded runs when a file opens.
   const fromFile = (key, def) => Object.assign({}, def, (App.season && App.season.config && App.season.config[key]) || {});
   const hhmm = () => new Date().toTimeString().slice(0, 5);
-  const U = { cfg: fromFile('autoUpdate', DEF_U), found: null, last: null, error: '', hidden: '', checking: false, timer: 0 };
+  const U = { cfg: fromFile('autoUpdate', DEF_U), found: null, last: null, error: '', hidden: '', checking: false, offline: false, pending: null, timer: 0 };
   const A = { cfg: fromFile('autoSave', DEF_A), last: '', busy: false, timer: 0 };
   // A change made on Options is a change to the shared file: it is recorded like any other (History, Undo) and the file is marked unsaved.
   const storeInFile = (key, cfg) => { if (App.season && App.season.config) { App.season.config[key] = { on: !!cfg.on, minutes: +cfg.minutes || 0 }; App.commitScope(() => App.changed()); } };
@@ -28,16 +28,24 @@
     const bar = $('updateBar'), f = U.found;
     bar.hidden = !f || U.hidden === f.version + '|' + f.build;
     if (f) $('updateText').textContent = (f.version ? 'A new version of Gonkulator is available: ' + f.version + ' (you are on ' + RUN.version + ')' : 'A new version of Gonkulator is ready') + '. Updating keeps your open data: it is saved first if needed and carried through the reload.';
+    if (App.splashUpdate) App.splashUpdate();      // N7: the start screen says when the last check was
     const o = $('optionsWrap'); if (o && !$('tab-options').hidden && App.tabs.options && !(o.contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName))) App.tabs.options();
   }
-  async function check() {
-    if (!web || U.checking) return; U.checking = true;
+  // One check at a time, and a second caller (the splash screen's own click while the launch check is still running) waits for that same check and reads its real result (N7).
+  function check() {
+    if (!web) return Promise.resolve();
+    if (U.pending) return U.pending;
+    U.checking = true; redraw();
+    return (U.pending = run().finally(() => { U.pending = null; }));
+  }
+  async function run() {
     try {
       const r = await fetch(base + 'index.html?_=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw new Error('the site answered ' + r.status);
+      if (r.headers.get('x-awana-offline')) { const e = new Error('offline'); e.offline = true; throw e; }      // the service worker could not reach the site and handed back its cached copy of the page: that says nothing about a newer version
       const d = new DOMParser().parseFromString(await r.text(), 'text/html'), v = meta(d, 'app-version'), b = meta(d, 'app-build'); if (!v) throw new Error('that is not the app');
       if (App.swCheck) App.swCheck();      // have the new release's worker installing by the time Update now is pressed (it shows the bar itself when it is waiting)
-      U.error = ''; U.found = newerVersion(v, RUN.version) || (v === RUN.version && b && RUN.build && b !== RUN.build) ? { version: v, build: b } : null;
-    } catch (e) { U.error = e.message || String(e); } finally { U.checking = false; U.last = new Date(); redraw(); }
+      U.error = ''; U.offline = false; U.found = newerVersion(v, RUN.version) || (v === RUN.version && b && RUN.build && b !== RUN.build) ? { version: v, build: b } : null;
+    } catch (e) { U.offline = !!e.offline || e instanceof TypeError; U.error = U.offline ? 'offline' : e.message || String(e); } finally { U.checking = false; U.last = new Date(); redraw(); }
   }
   function schedule() {
     clearTimeout(U.timer); if (!U.cfg.on || !web) return;
@@ -102,7 +110,7 @@
 
   // ---------- for the Options tab ----------
   App.updates = {
-    run: RUN, web, state: () => ({ found: U.found, last: U.last && U.last.toTimeString().slice(0, 5), error: U.error, checking: U.checking, on: U.cfg.on, minutes: U.cfg.minutes }),
+    run: RUN, web, state: () => ({ found: U.found, last: U.last && U.last.toTimeString().slice(0, 5), lastDay: U.last && U.last.toLocaleDateString('en-CA'), offline: U.offline, error: U.error, checking: U.checking, on: U.cfg.on, minutes: U.cfg.minutes }),
     set(on, minutes) { U.cfg.on = !!on; if (minutes) U.cfg.minutes = +minutes; storeInFile('autoUpdate', U.cfg); schedule(); },
     check, apply,
   };

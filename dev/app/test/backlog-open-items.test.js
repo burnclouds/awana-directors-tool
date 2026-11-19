@@ -30,7 +30,7 @@ check('B2', 'Puggles attendance sheet has mark cells under the dates', () => {
   const dates = (h.match(/<th colspan="\d+" class="date">/g) || []).length, bodyCells = (h.split('<tbody>')[1] || '').split('</tr>')[0].match(/<td/g) || [];
   assert(dates > 0, 'no date headings');
   assert.strictEqual(bodyCells.length, 1 + dates, dates + ' dates but ' + bodyCells.length + ' cells in the first body row (name + one box per date expected)');
-  assert(/class="mark"><span class="rot">Attendance<\/span>/.test(h), 'no Attendance mark heading under the dates');
+  assert(!/class="mark"/.test(h), 'N8 (1.51.16): one box a night, so the date alone heads the column (no rotated Attendance word)');
   // the box is filled from the record (key a): mark the first kid present on the first night of the quarter and the sheet shows a tick
   const night = require('../calendar.js').nights(x.calendar, 'Q2')[0];
   Season.setMark(x.s, night.Date, p[M.X.ID], 'a', true, 'Puggles');

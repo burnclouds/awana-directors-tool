@@ -28,7 +28,7 @@ function season() {
 // The slides draw from "earned and not announced". This fixture lists awards under one night in season.awards, so a stand-in for Season.pendingAwards reads them from there
 // (applying the same left-off-the-slide list). Real earning from Progress is covered by the last slide test and by pending.test.js.
 const realBuild = Slides.buildSlides;
-const standIn = (s, id, g) => ((s.awards[D] || {})[id] || []).filter(a => !((s.config.exclude || {})[g] || []).includes(a)).map(a => ({ award: a, earned: D, held: Season.isHeld(s, id, a) }));
+const standIn = (s, id, g) => ((s.awards[D] || {})[id] || []).filter(a => !((s.config.exclude || {})[g] || []).includes(a) && !Season.notAnAward(a)).map(a => ({ award: a, earned: D, held: Season.isHeld(s, id, a) }));
 Slides.buildSlides = (s, m, d, o) => realBuild(s, m, d, Object.assign({ pending: standIn }, o));
 const bySlide = (r, id) => r.slides.find(x => x.id === id);
 const flat = list => list.map(e => e.n + ' | ' + e.a);
@@ -44,7 +44,7 @@ test('Sparks split into columns by handbook code', () => {
   assert.deepStrictEqual(flat(sp.WR), ['Ben R. | Blue Rank']);
   assert.deepStrictEqual(flat(sp.SS), ['Cal M. | Blue Jewel 1']);
 });
-test('the slide exclusions apply (Flight 3:16 is left off)', () => {
+test('the slide exclusions apply (Flight 3:16 is not an award, so it is left off: N23)', () => {
   const r = Slides.buildSlides(season(), master, D);
   assert(!flat(bySlide(r, 'sparks').entries.HG).some(l => /Flight/.test(l)));
   assert.deepStrictEqual(flat(bySlide(r, 'tt').entries.tt), ['Eli P. | Blue Emblem 1']);

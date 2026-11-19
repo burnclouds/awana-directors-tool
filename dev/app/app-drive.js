@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-drive.js'] = '1.19.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app-drive.js'] = '1.20.1';
 // Google Drive buttons (optional). Stays completely inactive unless drive-config.js has a client ID and API key: then there is no button,
 // no Google script is loaded and every file is opened and saved locally exactly as before.
 (function () {
@@ -193,12 +193,27 @@
       }
       return r;
   }
+  // N9 point 9: one plain sentence for each kind of failure, shown with Try again. The raw text stays in the log (err.message).
+  const explain = err => {
+    const msg = String((err && err.message) || ''), kind = (err && err.kind) || (/keeps changing/.test(msg) ? 'changing' : 'other');
+    if (kind === 'signin') return 'Google asked you to sign in again. Press Try again to sign in; your changes are still here.';
+    if (kind === 'busy') return 'Google Drive is busy right now (it said ' + ((err && err.status) || 'busy') + '). Nothing was changed on Drive. Press Try again in a moment.';
+    if (kind === 'offline') return 'This computer could not reach Google Drive. Check the connection, then press Try again. Nothing was changed on Drive.';
+    if (kind === 'folder') return 'Google Drive will not let this app save to that folder. Choose the folder again, then press Try again.';
+    if (kind === 'changing') return 'Someone else is saving the same file right now. Wait a minute and press Try again; their changes will be merged with yours.';
+    return 'Google Drive reported a problem (' + msg + ').';
+  };
   App.driveSave = {
+    explain,
     active: () => st.save,
     waiting: () => st.wait ? { kind: st.wait.kind, at: st.wait.at } : null,
     go: (name, text, type, opts) => queue(async () => {
+      // N36: a small floppy icon beside the save button shows while a save runs and fades when it ends (success or error).
+      const flop = on => { const el = document.getElementById('saveFloppy'); if (el) el.classList.toggle('on', on); };
+      flop(true);
       try { return await goRun(name, text, type, opts); }
-      catch (err) { if (opts && opts.auto && !err.auto) wait('error', err.message); throw err; }      // any failure of an automatic save is quiet: it is shown on the status line and tried again
+      catch (err) { if (opts && opts.auto && !err.auto) wait('error', err.message); throw err; }
+      finally { flop(false); }      // any failure of an automatic save is quiet: it is shown on the status line and tried again
     }),
   };
   // For the Options tab: the same settings as this dialog.

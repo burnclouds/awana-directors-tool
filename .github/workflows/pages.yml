@@ -1,5 +1,5 @@
 # Publishes deploy/ (built by make-deploy.sh and committed) to GitHub Pages.
-# Nothing is built here: the committed deploy/ folder is the site.
+# Nothing is built here: the committed deploy/ folder is the site. The node tests run first (see the test job).
 name: Deploy to GitHub Pages
 
 on:
@@ -17,7 +17,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # N9.1: the node tests run before the site is published. continue-on-error keeps this a warning for now: it was proven in a clean copy of the repository (97 ok, 0 failed with --node-only) but not yet on GitHub's own runner. After the first green run, delete the continue-on-error line and it becomes a gate. The browser (Playwright) tests are not run here.
+  test:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: sh dev/tools/run-tests.sh --node-only
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     environment:
       name: github-pages

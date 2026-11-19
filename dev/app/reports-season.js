@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports-season.js'] = '1.34.0';
+(this.AwanaVersions = this.AwanaVersions || {})['reports-season.js'] = '1.35.0';
 // Print reports built from the season file. Added to Reports.LIST; ctx = { master, settings, calendar, season, opts }.
 // opts: group ('Sparks' | 'T&T' | 'Cubbies' | 'Puggles'), kid (Unique ID or ''), room.
 (function (root) {
@@ -93,23 +93,28 @@
     Season.completionAwards(s, id, g).forEach(x => L.earned.set(x.award, { date: x.date, noDate: false }));
     const jewels = g === 'Sparks' ? Season.sparkJewels(s, id, ctx.calendar).filter(j => j.book === book) : [];
     jewels.forEach(j => L.earned.set(book + ' Blue Jewel ' + j.n, { date: j.date, noDate: false }));
-    const rows = [];
+    const rows = [], revRows = [];      // N12: a jewel's review rows are collected and printed after the last jewel, not under each jewel
     const addBlock = (b, scope) => {
       const shown = Season.signsShown(s, id, scope), nds = Season.noDateSigns(s, id, scope), code = scope === 'common' ? '' : scope, names = b.awards.filter(a => a !== NO_AWARD).map(a => fillName(a, code, emblem));
       const mine = []; [{ keys: b.items, rev: false }].concat((b.review || []).length ? [{ keys: b.review, rev: true }] : []).forEach(sg => chunk4(sg.keys).forEach((ks, ci) => {
         const row = newRow(b.key), n = ks.length; row.boxes = ks.map((i, k) => { const key = b.key + '.' + i; return soCell(b.single ? '' : sg.rev ? ci * 4 + k + 1 : i, shown[key], nds.includes(key), sg.rev); }).join('') + (n < 4 ? '<td class="nb" colspan="' + (4 - n) + '"></td>' : '');
         mine.push({ row, rev: sg.rev }); }));
       const e0 = mine.filter(m => !m.rev).length, r1 = mine.length - e0;
-      if (r1) { mine[0].row.name = '<td class="nm" rowspan="' + e0 + '"><b>' + esc(b.label) + '</b></td>'; mine[e0].row.name = '<td class="nm rvn" rowspan="' + r1 + '">review</td>'; mine.forEach((m, i) => { if (i && i !== e0) m.row.name = ''; }); }
+      if (r1) { mine[0].row.name = '<td class="nm" rowspan="' + e0 + '"><b>' + esc(b.label) + '</b></td>'; mine[e0].row.name = '<td class="nm rvn" rowspan="' + r1 + '">' + esc(b.key) + ' review</td>'; mine.forEach((m, i) => { if (i && i !== e0) m.row.name = ''; }); }
       else { mine[0].row.name = '<td class="nm" rowspan="' + mine.length + '"><b>' + esc(b.label) + '</b></td>'; mine.slice(1).forEach(m => { m.row.name = ''; }); }
       if (names.length) { mine[0].row.br = '<td class="br" rowspan="' + e0 + '"></td>'; mine.slice(1, e0).forEach(m => { m.row.br = ''; }); }
       if (names.length === 1) { mine[0].row.rail = awardTds(recName(names[0], code, emblem), recState(L, names[0]), e0); mine.slice(1, e0).forEach(m => { m.row.rail = ''; }); }
       else names.forEach((nm, j) => { if (mine[j]) mine[j].row.rail = awardTds(recName(nm, code, emblem), recState(L, nm), 1); });
-      mine.forEach(m => rows.push(m.row));
+      mine.forEach(m => { m.row.rv = m.rev; (m.rev ? revRows : rows).push(m.row); });
     };
     const textRow = (key, label, text, award) => { const r = newRow(key); r.name = '<td class="nm"><b>' + esc(label) + '</b></td>'; r.boxes = '<td class="txt" colspan="4">' + esc(text) + '</td>'; if (award) r.rail = awardTds(recName(award, book, emblem), recState(L, award), 1); rows.push(r); };
     if (common) t.common.forEach(b => addBlock(b, 'common'));
     t.perBook.forEach(b => addBlock(b, book));
+    revRows.forEach(r => rows.push(r));
+    if (g === 'Sparks' && t.bookReview) {
+      const rb = t.perBook.filter(b => (b.review || []).length), all = [].concat(...rb.map(b => b.items.concat(b.review).map(i => b.key + '.' + i))), shown = Season.signsShown(s, id, book), nds = Season.noDateSigns(s, id, book);
+      textRow('BR', 'Review Emblem', all.filter(k => shown[k] || nds.includes(k)).length + ' of ' + all.length + ' signed: every box in the band at left, reviews too', fillName(t.bookReview.awards[0], book, emblem));
+    }
     if (g === 'Sparks') {      // Blue Jewels: four cells in two rows (earned from nights present; then Given)
       const weeks = s.config.blueJewelWeeks || [], r1 = newRow('BJ'), r2 = newRow('BJ'); r1.name = '<td class="nm"><b>Blue Jewels</b></td>'; r2.name = '<td class="nm rvn">given</td>';
       r1.boxes = r2.boxes = '';
@@ -118,17 +123,14 @@
         r2.boxes += '<td class="so bg' + (st.state === 'earned' ? ' e' : '') + '"><i class="n">' + n + '</i><span class="ini"></span><span class="dt">' + (st.state === 'given' ? esc(mdShort(st.date)) : st.state === 'nodate' ? '✓' : '') + '</span></td>'; });
       rows.push(r1, r2);
     }
-    if (g === 'Sparks' && t.bookReview) {
-      const rb = t.perBook.filter(b => (b.review || []).length), all = [].concat(...rb.map(b => b.items.concat(b.review).map(i => b.key + '.' + i))), shown = Season.signsShown(s, id, book), nds = Season.noDateSigns(s, id, book);
-      textRow('BR', 'Review Emblem', all.filter(k => shown[k] || nds.includes(k)).length + ' of ' + all.length + ' signed: every box in the band at left, reviews too', fillName(t.bookReview.awards[0], book, emblem));
-    }
     if (g === 'T&T') TNT_PENDING_AWARDS.forEach(x => textRow('PEND', x.label, x.note || '', fillName(x.award, book, emblem)));
     const ba = bookAwardFor(s, id, g, book);
     textRow('BA', 'Book award', g === 'Sparks' ? 'Rank and all 8 jewels signed (reviews not needed)' : g === 'T&T' ? 'All 8 emblem blocks signed (Silver and Gold not needed)' : 'Trail and all 6 units signed', ba);
-    // The left bands: what earns what. Outer = Book award; inner (Sparks) = Review Emblem.
-    const bands = g === 'Sparks' ? [[1, 'R', 'GJ4', 'BOOK AWARD: every unshaded box'], [2, 'RJ1', 'GJ4', 'REVIEW EMBLEM: every box in this band']]
-      : g === 'T&T' ? [[1, 'BE1', 'YE2', 'BOOK AWARD: all 8 emblems']] : [[1, 'TR', 'U6', 'BOOK AWARD: Trail and all 6 units']];
-    bands.forEach(([col, from, to, text]) => { const a = rows.findIndex(r => r.bk === from), z = rows.map(r => r.bk).lastIndexOf(to); if (a < 0 || z < a) return;
+    // The left bands: what earns what. Outer = Book award (Sparks: from Rank to the last jewel box, reviews not needed); inner (Sparks) = Review Emblem: the review rows and the Review Emblem row. Found by row flag, not by key (a review row shares its jewel's key).
+    const first = pred => rows.findIndex(pred), lastOf = pred => { for (let i = rows.length - 1; i >= 0; i--) if (pred(rows[i])) return i; return -1; };
+    const bands = g === 'Sparks' ? [[1, first(r => r.bk === 'R'), lastOf(r => r.bk === 'GJ4' && !r.rv), 'BOOK AWARD: every unshaded box'], [2, first(r => r.rv), first(r => r.bk === 'BR'), 'REVIEW EMBLEM: every jewel box and every review']]
+      : g === 'T&T' ? [[1, first(r => r.bk === 'BE1'), lastOf(r => r.bk === 'YE2'), 'BOOK AWARD: all 8 emblems']] : [[1, first(r => r.bk === 'TR'), lastOf(r => r.bk === 'U6'), 'BOOK AWARD: Trail and all 6 units']];
+    bands.forEach(([col, a, z, text]) => { if (a < 0 || z < a) return;
       rows[a]['b' + col] = '<td class="band" rowspan="' + (z - a + 1) + '"><div class="bt">' + esc(text) + '</div></td>'; for (let i = a + 1; i <= z; i++) rows[i]['b' + col] = ''; });
     const today = /^\d{4}-\d{2}-\d{2}$/.test(ctx.today || '') ? ctx.today : new Date().toLocaleDateString('en-CA'), bname = bk.name || '________';
     const recv = Season.isReceivedNoDate(s, id, book) ? '✓ no date' : mdyShort(Season.receivedShown(s, id, book));
@@ -177,9 +179,22 @@
   // ---------- hand-out strips: one narrow strip per child (about 4.5 inches wide, for the distribution box), cut apart; two columns on landscape Letter ----------
   // A strip: the child's name and class, then each award earned and not yet given (Season.toHandOut, the same rule as the Awards tab) with a tick box and a box for the leader's initials. Children with nothing to give get no strip.
   // Pages are built here, not by CSS columns: a row of two strips is as tall as the taller one, rows fill a page up to PAGE_IN inches, and each page is one sheet (so one printed page, and "Choose pages" names it).
-  const STRIP_FIRST_IN = 6.5, STRIP_NEXT_IN = 7.0;      // inches of strips that fit under the page 1 heading and the tally, and on the pages after it
+  const STRIP_FIRST_IN = 7.0, STRIP_NEXT_IN = 7.0;      // inches of strips that fit on a page. N27: page 1 has no heading or tally now, so it is as full as the rest (the heading is hidden by CSS; "Choose pages" still names it)
   // Estimated height of a strip: the name line, each award line (a label about 26 characters or more, with its earned text, wraps to a second line), and padding. A strip never splits, so a child with a long list continues on a second strip when this passes STRIP_MAX_IN.
   const STRIP_MAX_IN = 6.0, awardIn = r => 0.3 + 0.17 * (Math.ceil((r.label.length + (r.earned ? r.earned.length + 8 : 0)) / 26) - 1), stripIn = rows => 0.32 + 0.15 + rows.reduce((h, r) => h + awardIn(r), 0) + 0.1;
+  // N29: the list to read from on club night: every earned award not yet announced and not held, by group, one line per child and award (the same list as the Announce page, without the boxes).
+  function announceList(ctx) {
+    const { master, season, calendar, opts } = ctx; if (!season) return need;
+    const groups = opts.group ? [opts.group] : GROUPS;
+    const out = groups.map(g => {
+      const lines = [];
+      inGroup(master, g).filter(p => !opts.room || M.room(p) === opts.room).sort(M.byRoomThenName).forEach(p => {
+        Season.pendingAwards(season, idOf(p), g, calendar).filter(r => !r.held).forEach(r => lines.push([esc(M.fullName(p)), esc(M.room(p)), esc(Season.awardLabel(season, idOf(p), r.award)), esc(earnedText(r, paper))]));
+      });
+      return lines.length ? sheet(g + ' awards to announce', R.table(['Name', 'Class', 'Award', 'Earned'], lines, 'wrap'), 'portrait', '') : '';
+    }).join('');
+    return out || '<p class="empty">Nothing earned is waiting to be announced' + (opts.room ? ' in ' + esc(opts.room) : opts.group ? ' in ' + esc(opts.group) : '') + '.</p>';
+  }
   function handOut(ctx) {
     const { master, season, calendar, opts } = ctx; if (!season) return need;
     const groups = opts.group ? [opts.group] : GROUPS, tally = {}, strips = []; let eoyN = 0;      // eoyN: end-of-year awards waiting (they are on their own list, not on the strips)
@@ -196,9 +211,8 @@
     const pages = []; let page = null, used = 0, row = [];
     const flush = () => { if (!row.length) return; const h = Math.max(...row.map(s => stripIn(s.rows))), cap = pages.length > 1 ? STRIP_NEXT_IN : STRIP_FIRST_IN; if (!page || (used + h > cap && page.rows.length)) { page = { rows: [] }; pages.push(page); used = 0; } page.rows.push(row); used += h; row = []; };
     strips.forEach(s => { row.push(s); if (row.length === 2) flush(); }); flush();
-    const note = 'To have ready: ' + Object.keys(tally).sort().map(a => tally[a] + ' × ' + esc(a)).join(', ') + '. Cut the strips apart. Mark each award Given on the child’s Person record (Progress sub-tab) when it is handed over.' + (eoyN ? ' End-of-year awards are not on these strips: ' + eoyN + ' waiting (see End-of-year awards (list)).' : '');
     return pages.map((pg, i) => { const all = [].concat(...pg.rows), a = all[0].room, b = all[all.length - 1].room;
-      return sheet('Awards to hand out, page ' + (i + 1) + ' of ' + pages.length + ': ' + (a === b ? a : a + ' to ' + b), pg.rows.map(r => '<div class="striprow">' + r.map(html).join('') + '</div>').join(''), 'landscape strips', i === 0 ? note : ''); }).join('');
+      return sheet('Awards to hand out, page ' + (i + 1) + ' of ' + pages.length + ': ' + (a === b ? a : a + ' to ' + b), pg.rows.map(r => '<div class="striprow">' + r.map(html).join('') + '</div>').join(''), 'landscape strips', ''); }).join('');      // N27: no grey note on page 1 (the tally, cutting and Given instructions); the heading is in the page for "Choose pages" but not printed
   }
 
   // ---------- dates attended, by class: one row per child, the nights they were marked present (attendance mark 'a') ----------
@@ -287,6 +301,7 @@
   R.LIST.push(
     { id: 'booksYear', title: 'Books and end-of-year awards (by group)', render: booksYear, opts: ['group', 'room'] },
     { id: 'handOut', title: 'Awards to hand out (a strip per child)', render: handOut, opts: ['groupAll', 'room'] },
+    { id: 'announceList', title: 'Awards to announce (read from on club night)', render: announceList, opts: ['groupAll', 'room'] },
     { id: 'ceremony', title: 'End-of-year awards (list)', render: ceremony, opts: ['group', 'room'] },
     { id: 'awardsByChild', title: 'Awards earned (one page per child)', render: awardsByChild, opts: ['group', 'room', 'kid'] },
     { id: 'achievement', title: 'Achievement records (Cubbies, Sparks, T&T)', render: achievement, opts: ['group', 'room', 'kid'] },

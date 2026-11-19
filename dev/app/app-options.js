@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-options.js'] = '1.23.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-options.js'] = '1.23.1';
 // Options tab: the list of books, the club settings in one place (including the team color order, this year's T&T book, game points, the store settings and the Drive folders), and the data checks. Changes to the books are held as a draft like the other record-editing tabs (Apply changes / Discard).
 // The club settings here are the same settings as on the Reports and Calendar tabs (this tab changes those controls), so nothing is stored twice.
 (function () {
@@ -87,7 +87,7 @@
     if (!App.season) return '';
     const on = App.season.config.bugButton === true, n = Season.bugList(App.season).length;
     return '<section class="pcard" id="optBugs"><h3>Bug reports and feature requests</h3><p><label><input type="checkbox" id="optBugOn"' + (on ? ' checked' : '') + '> Show the Bug button (report a problem with the app, or ask for a feature)</label></p>' +
-      '<p class="status">The Bug button sits beside Flag. A report goes on the Debug tab (Options, then Debug), where it can be answered; it never goes on To do. Turning this off only hides the button: the ' + n + ' report' + (n === 1 ? '' : 's') + ' in this file stay. Everyone who opens this file sees the same setting and the same reports.</p></section>';
+      '<p class="status">The Bug button sits beside Flag. A report goes on the Debug tab (Options, then Debug), where it can be replied to; it never goes on To do. Turning this off only hides the button: the ' + n + ' report' + (n === 1 ? '' : 's') + ' in this file stay. Everyone who opens this file sees the same setting and the same reports.</p></section>';
   }
   // Start on (config.startTab): which tab opens after a data file is opened. Absent = Roster. Kept in the data file, so every leader of that file gets it.
   function startHtml() {

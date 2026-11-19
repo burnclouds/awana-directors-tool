@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.74.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.75.1';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -68,7 +68,15 @@
       // opts.local: a copy to this computer, even while Drive is on.
       if (App.driveSave && /json|image\/png|zip|csv/.test(type || '') && App.driveSave.active() && !(opts && opts.local)) {
         // Resolves 'drive' when Drive has it, 'copy' when a save you pressed failed and a copy was downloaded instead. An automatic save that fails is quiet: no alert, no download (it rejects, and tries again next time). (R11)
-        return App.driveSave.go(final, text, type, opts).then(() => 'drive', err => { if (opts && opts.auto) throw err; App.ask.alert('Could not save to Google Drive (' + err.message + '). The file is being downloaded to this computer instead.'); local(); return 'copy'; });
+        // N9 point 9: a pressed save that fails gets a plain sentence and Try again. The copy downloads once, on the first failure; a retry never overwrites a newer Drive revision (saveInPlace merges), so it is safe to press again.
+        let copied = false;
+        const attempt = () => App.driveSave.go(final, text, type, opts).then(() => 'drive', err => {
+          if (opts && opts.auto) throw err;
+          if (!copied) { local(); copied = true; }
+          return App.ask.choose(App.driveSave.explain(err) + ' A copy is downloaded to this computer.', { title: 'Google Drive save', buttons: [{ id: 'again', label: 'Try again', primary: true }, { id: 'close', label: 'Close' }], cancel: 'close' })
+            .then(id => id === 'again' ? attempt() : 'copy');
+        });
+        return attempt();
       }
       // Test data (TEST files) always downloads: automated browsers cannot answer the Save as box, and no leader opens test files.
       if (opts && opts.single && window.showSaveFilePicker && !testFiles.size) return saveOver(final, text, type, local);
@@ -790,7 +798,7 @@
   // Reports, then the club's report bundles (several reports printed as one job; defined on Options). Rebuilt when the data changes because the bundles live in the data file.
   function fillReportSel() {
     const keep = sel.value, bs = Reports.bundlesOf(App.season);
-    sel.innerHTML = Reports.LIST.map(r => '<option value="' + r.id + '">' + esc(r.title) + '</option>').join('') + '<optgroup label="Print several at once">' + (binderSel ? '<option value="bundle:picked">Your binders: ' + esc(binderSel.name) + '</option>' : '') + bs.map((b, i) => '<option value="bundle:' + i + '">' + esc(b.name) + ' (bundle)</option>').join('') + '</optgroup>';
+    sel.innerHTML = Reports.LIST.map(r => '<option value="' + r.id + '">' + esc(r.title) + '</option>').join('') + '<optgroup label="Print several at once">' + (binderSel ? '<option value="bundle:picked">Last made in Print class binders: ' + esc(binderSel.name) + '</option>' : '') + bs.map((b, i) => '<option value="bundle:' + i + '">' + esc(b.name) + ' (bundle)</option>').join('') + '</optgroup>';
     sel.value = [...sel.options].some(o => o.value === keep) ? keep : (Reports.LIST[0] || {}).id;
     rsub = subOf(sel.value); applySub();
   }
@@ -815,7 +823,7 @@
     if (perClass && master) { const rs = $('oRoomSel'), cur = rs.value, rl = Reports.roomsOf(Reports.kids(master)); rs.innerHTML = '<option value="">All classes</option>' + rl.map(r => '<option>' + esc(r) + '</option>').join(''); rs.value = rl.includes(cur) ? cur : ''; }
     const items = bundleItems(b);
     const nights = Calendar.nights(calendar, bundleQ).length;
-    $('bNote').textContent = (b === binderSel ? b.name + ' · ' : '') + (b === binderSel ? '' : items.length + ' report' + (items.length === 1 ? '' : 's') + ' in one print job') + (calendar.length ? (b === binderSel ? '' : ' · ') + nights + ' club nights in ' + bundleQ : '');
+    $('bNote').textContent = (b === binderSel ? 'Made in Print class binders (press it again to change): ' + b.name + ' · ' : '') + (b === binderSel ? '' : items.length + ' report' + (items.length === 1 ? '' : 's') + ' in one print job') + (calendar.length ? (b === binderSel ? '' : ' · ') + nights + ' club nights in ' + bundleQ : '');
     if (!master) { $('report').innerHTML = '<p class="status">Load a roster first.</p>'; return; }
     $('report').innerHTML = Reports.runBundle({ master, settings, calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, bk) => App.sheets.html(p, bk), opts: { order: $('oOrderSel').value, group: $('oGroupSel').value } }, Object.assign({}, b, { items }), bundleQ) || '<p class="status">This bundle has no reports. Add some on the Options tab.</p>';
     setPageStyle();
@@ -909,7 +917,7 @@
     const ks = $('oKidSel'), kcur = ks.value;
     ks.innerHTML = '<option value="">Everyone in the ' + (rs.value && o.includes('room') ? 'class' : 'group') + '</option>' + master.people.filter(p => Model.isActive(p) && Model.isClubber(p) && Model.groupOf(Model.room(p)) === $('oGroupSel').value && (!rs.value || !o.includes('room') || Model.room(p) === rs.value))
       .sort(Model.byRoomThenName).map(p => '<option value="' + esc(p[X.ID]) + '">' + esc(Model.room(p) + ' \u2014 ' + Model.fullName(p)) + '</option>').join(''); ks.value = kcur;
-    const html = def.render({ master, settings, calendar, rotation, season: App.season, progressSheet: (p, book) => App.sheets.html(p, book), opts: { room: rs.value, order: $('oOrderSel').value, group: $('oGroupSel').value, kid: ks.value, noBook: o.includes('noBook') && $('oNoBookChk').checked } });      // the night only counts for reports that show the Night box
+    const html = def.render({ master, settings, calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, book) => App.sheets.html(p, book), opts: { room: rs.value, order: $('oOrderSel').value, group: $('oGroupSel').value, kid: ks.value, noBook: o.includes('noBook') && $('oNoBookChk').checked } });      // the night only counts for reports that show the Night box
     // Contact and medical details come from the last Planning Center export; say how old it is.
     $('report').innerHTML = ['binderClass', 'binderAll', 'volunteers', 'photos'].includes(def.id) && master && master.pcAsOf ?
       html.replace(/<\/h2>/g, '</h2><p class="sub asof">Planning Center data as of ' + esc(master.pcAsOf) + '</p>') : html;
@@ -1226,22 +1234,47 @@
     $('calStatus').className = 'status' + (App.dirty() ? ' dirty' : '');
     $('calDayWarn').textContent = off ? '\u26a0 ' + off + ' club night' + (off === 1 ? ' is' : 's are') + ' not on a ' + Calendar.DAYS[clubDay()] : '';
   }
-  const CAL_TEXT = ['Theme', 'Notes', 'Cubbies Lesson', 'Puggles #', 'Puggles Title', 'Sparks Lesson', 'T&T Lesson'];
+  const CAL_TEXT = ['Theme', 'Notes', 'Puggles Lesson', 'Cubbies Lesson', 'Sparks Lesson', 'T&T Lesson'];
+  let calSub = 'dates';      // N2: the Calendar tab has two views of the same rows: Dates (everything about a night) and Lessons by week (the lesson for each group, night by night)
   function renderCalendar() {
     if (applyQuarter()) { renderRoster(); renderReport(); }
     renderCalStatus();
     $('calClubDay').innerHTML = Calendar.DAYS.map((d, i) => '<option value="' + i + '"' + (i === clubDay() ? ' selected' : '') + '>' + d + '</option>').join('');
     $('calClubDay').disabled = !App.season;
+    document.querySelectorAll('#calSubs button').forEach(b => { const on = b.dataset.calsub === calSub; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
     if (!calendar.length) { $('calWrap').innerHTML = '<p style="padding:16px" class="status">Import your data file (Import\u2026) or add dates to start a calendar.</p>'; return; }
+    if (calSub === 'lessons') { $('calWrap').innerHTML = lessonsGrid(); return; }
     const opt = (list, v) => list.map(x => '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>').join('');
     $('calWrap').innerHTML = '<table class="roster"><thead><tr><th>Date</th><th>Day</th><th>Type</th><th>Quarter</th><th>No club</th>' + CAL_TEXT.map(c => '<th>' + esc(c) + '</th>').join('') + '<th></th></tr></thead><tbody>' +
       calendar.map((r, i) => '<tr data-i="' + i + '"><td><input type="date" data-c="Date" value="' + esc(r.Date) + '"></td>' +
         (Calendar.offDay(r, clubDay()) ? '<td class="dow-off" title="Club meets on ' + Calendar.DAYS[clubDay()] + 's">\u26a0 ' : '<td>') + (/^\d{4}-\d{2}-\d{2}$/.test(r.Date) ? Calendar.dayName(Calendar.weekday(r.Date)) : '') + '</td>' +
         '<td><select data-c="Type">' + opt(Calendar.TYPES, r.Type) + '</select></td><td><select data-c="Quarter">' + opt(Calendar.QUARTERS, r.Quarter) + '</select></td>' +
         '<td><input type="checkbox" data-c="No Club"' + (r['No Club'] === '1' ? ' checked' : '') + '></td>' +
-        CAL_TEXT.map(c => '<td><input type="text" data-c="' + esc(c) + '" value="' + esc(r[c]) + '" size="' + (c === 'Theme' || c === 'Notes' || c.includes('Title') ? 26 : 12) + '"></td>').join('') +
+        CAL_TEXT.map(c => '<td><input type="text" data-c="' + esc(c) + '" value="' + esc(r[c]) + '" size="' + (c === 'Theme' || c === 'Notes' ? 26 : 14) + '"></td>').join('') +
         '<td><button data-del="' + i + '">Delete</button></td></tr>').join('') + '</tbody></table>';
   }
+  // Lessons by week (N2): one row for each club night (events are left out), the theme to read, and a box for the lesson of each group that is switched on. A planned No Club night shows NO CLUB and takes no lesson.
+  // The boxes are the calendar's own lesson cells, so typing here is the same as typing on Dates (commitCal), and the Lessons by week report reads them. The switches are the file's config.lessons.
+  function lessonsGrid() {
+    const L = Calendar.lessonSettings(App.season && App.season.config, calendar);
+    if (!App.season) return '<p style="padding:16px" class="status">Open a data file first: the lessons settings are kept in it.</p>';
+    if (!L.on) return '<div style="padding:16px"><p class="status">Lessons by week are off. Turn them on to type the lesson for each group, night by night (Puggles, for example, have a lesson number each week). The Lessons by week report prints them.</p><p><button type="button" id="btnLessonsOn" class="primary">Turn on lessons by week</button></p></div>';
+    const groups = Calendar.GROUPS.filter(g => L.groups[g].on);
+    const bar = '<div class="bar" style="margin:6px 0">Groups with a lesson each week: ' + Calendar.GROUPS.map(g => '<label><input type="checkbox" data-lg="' + esc(g) + '"' + (L.groups[g].on ? ' checked' : '') + '> ' + esc(g) + '</label>').join(' ') + ' <button type="button" id="btnLessonsOff">Turn off lessons by week</button></div>' +
+      '<p class="status" style="margin:0 0 6px">Type each night\u2019s lesson, for example 1.1 God Made the Light. A group that works through its books in turn (Sparks) has no lesson by week: switch it off and it leaves this grid and the report. Changes are kept with Apply, like the other Calendar changes.</p>';
+    if (!groups.length) return bar + '<p class="status">Every group is switched off.</p>';
+    const rows = calendar.map((r, i) => r.Type === 'Event' ? '' : '<tr data-i="' + i + '"><td>' + esc(Calendar.short(r.Date)) + '</td><td>' + (/^\d{4}-\d{2}-\d{2}$/.test(r.Date) ? Calendar.dayName(Calendar.weekday(r.Date)) : '') + '</td><td>' + esc(r.Theme) + '</td>' +
+      (r['No Club'] === '1' ? '<td colspan="' + groups.length + '" class="status"><b>NO CLUB</b>' + (r.Notes ? ' \u00b7 ' + esc(r.Notes) : '') + '</td>' : groups.map(g => '<td><input type="text" data-c="' + esc(Calendar.lessonCol(g)) + '" value="' + esc(r[Calendar.lessonCol(g)]) + '" size="16" aria-label="' + esc(g + ' lesson, ' + Calendar.short(r.Date)) + '"></td>').join('')) + '</tr>').join('');
+    return bar + '<table class="roster lessonsgrid"><thead><tr><th>Date</th><th>Day</th><th>Theme</th>' + groups.map(g => '<th>' + esc(g) + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+  const setLessons = fn => {
+    if (!App.season) return; const cur = Calendar.lessonSettings(App.season.config, calendar); fn(cur);
+    App.commitScope(() => { App.season.config.lessons = { on: cur.on, groups: Object.fromEntries(Calendar.GROUPS.map(g => [g, { on: cur.groups[g].on }])) }; App.changed(); });
+    renderCalendar(); renderReport();
+  };
+  $('calSubs').addEventListener('click', e => { const b = e.target.closest('button[data-calsub]'); if (b && b.dataset.calsub !== calSub) { calSub = b.dataset.calsub; renderCalendar(); } });
+  $('calWrap').addEventListener('click', e => { if (e.target.id === 'btnLessonsOn') setLessons(c => { c.on = true; }); else if (e.target.id === 'btnLessonsOff') setLessons(c => { c.on = false; }); });
+  $('calWrap').addEventListener('change', e => { if (e.target.dataset && e.target.dataset.lg) setLessons(c => { c.groups[e.target.dataset.lg].on = e.target.checked; }); });
   // A date box fires "change" as soon as what is typed is a valid date (typing "1" in the month already is), which would re-sort the row and move you away mid-typing. So a date is committed
   // when you leave the box or press Enter; every other box commits as before. A year outside 2000 to 2100 is treated as not finished and is put back.
   const plausibleDate = v => { const y = +String(v).slice(0, 4); return v === '' || (y >= 2000 && y <= 2100); };

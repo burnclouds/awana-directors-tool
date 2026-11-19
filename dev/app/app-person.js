@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-person.js'] = '1.25.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app-person.js'] = '1.26.1';
 // Person tab: pick one person and see or edit everything held about them (Planning Center fields, club record, uniform,
 // attendance, awards, progress summary, change history). Reuses the edits the other tabs make; nothing here has its own storage.
 (function () {
@@ -6,6 +6,9 @@
   const App = window.App, esc = App.esc, $ = id => document.getElementById(id);
   const ui = { role: 'all', group: 'All', cls: 'All', id: '', q: '', inactive: 'active', attn: '', sub: 'progress', sort: 'first' };      // sub = progress | attendance | registration; sort = first | last name      // attn = the person we arrived at from the To do tab, whose open items are highlighted
   const idOf = p => p[X.ID];
+  // N6: a person with no progress sheet (a volunteer, a Puggle) opens on Registration, not on an empty Progress page. ui.sub keeps the leader's own choice; this only picks what is shown. Clicking the Progress button for that person counts as a choice (ui.subPickedFor), so it still shows the "no progress sheet" message.
+  const hasSheet = p => Model.isClubber(p) && ['Cubbies', 'Sparks', 'T&T'].includes(Model.groupOf(Model.room(p)));
+  const shownSub = p => ui.sub === 'progress' && p && !hasSheet(p) && ui.subPickedFor !== idOf(p) ? 'registration' : ui.sub;
   const MD = Model.md;      // shared with the reports (model.js)
   const UNI_FIELDS = [['SIZE_VERIFIED', 'Size'], ['ORDERED', 'Ordered'], ['SIZE_ORDERED', 'Size ordered', 1], ['RECEIVED', 'Received'], ['GIVEN', 'Given out'], ['SIZE_GIVEN', 'Size given', 1], ['NOTES', 'Uniform notes']];      // the older size boxes (flag 1) show only where this child has one
   const PC_FIELDS = [C.FIRST, C.LAST, C.ROOM, C.GRADE, C.BDAY, C.SELECTION, C.MED, C.ALLERGY, C.EMERG];
@@ -130,8 +133,7 @@
   function awardsTab(p, g, season) {
     const id = idOf(p), rows = Season.awardLedger(season, id, g, App.calendar), skip = (season.config.exclude || {})[g] || [], nights = App.nightList().map(n => n.date);
     const night = nights.includes(ui.awNight) ? ui.awNight : App.nextNight(), waiting = rows.filter(r => r.earned && !r.announced && !r.held && !skip.includes(r.award));
-    // Flight 3:16 is not handed out: it only has to be complete before the Sparks book, so it has no Given.
-    const given = r => r.award === 'Flight 3:16' ? '—' : r.given === 'no date' ? 'Given, no date' : r.given ? 'Given ' + MD(r.given) : 'not yet';
+    const given = r => r.given === 'no date' ? 'Given, no date' : r.given ? 'Given ' + MD(r.given) : 'not yet';      // (Flight 3:16 is not an award, so it is never a row here: N23)
     const told = r => r.announced ? MD(r.announced) : r.annNoDate ? '<span class="status">Announced, no date</span>' :skip.includes(r.award) ? '<span class="status">not announced (everyone gets it)</span>' : !r.earned ? '<span class="status">not yet</span>' : r.held ? '<span class="status">Held</span>' :
       '<button type="button" data-peann="' + esc(r.award) + '">Announce on ' + esc(MD(night)) + '</button>';
     return '<section class="pcard peawards"><h3>Awards earned</h3>' +
@@ -172,11 +174,12 @@
     if (ui.peFor !== idOf(p)) ui.peFor = idOf(p);
     // Progress sheets: the book tabs and the + Add sheet menu beside them are drawn by the progress renderer (app-season.js).
     if (!['progress', 'attendance', 'awards', 'registration'].includes(ui.sub)) ui.sub = 'progress';
+    const sub = shownSub(p);
     const subs = [['progress', 'Progress'], ['attendance', 'Attendance'], ['awards', 'Awards'], ['registration', 'Registration']];
     const head = '<h2 style="margin:0 0 8px">' + esc(Model.fullName(p)) + ' <span class="status">' + esc(Model.room(p)) + ' · ' + (kid ? 'Clubber' : 'Volunteer') + (Model.isActive(p) ? '' : ' · inactive') + '</span></h2>';
-    const subNav = '<nav class="awsubs" role="tablist" aria-label="Part of this person\'s record">' + subs.map(([k, l]) => '<button type="button" role="tab" data-sub="' + k + '" aria-selected="' + (ui.sub === k) + '" class="' + (ui.sub === k ? 'on' : '') + '">' + l + '</button>').join('') + '</nav>';
+    const subNav = '<nav class="awsubs" role="tablist" aria-label="Part of this person\'s record">' + subs.map(([k, l]) => '<button type="button" role="tab" data-sub="' + k + '" aria-selected="' + (sub === k) + '" class="' + (sub === k ? 'on' : '') + '">' + l + '</button>').join('') + '</nav>';
     $('peSub').hidden = false; $('peSub').innerHTML = head + subNav;
-    if (ui.sub === 'progress') {
+    if (sub === 'progress') {
       // The sheet is drawn by the progress renderer (book tabs, pace, the sheet); it reads the child from ui.prKid, which is set here.
       el.hidden = true; $('progressWrap').hidden = false;
       App.sheets.setKid(idOf(p));
@@ -184,10 +187,10 @@
       return;
     }
     el.hidden = false; $('progressWrap').hidden = true;
-    if (ui.sub === 'attendance') {
+    if (sub === 'attendance') {
       el.innerHTML = full ? secAttend(p, g, season) :
         (season && Model.isVolunteer(p) ? secVolunteerNights(p) + secAbsences(p) : kid && !season ? '<p class="status">Open or start a data file to see attendance.</p>' : '<p class="status">Volunteers have no attendance record here.</p>');
-    } else if (ui.sub === 'awards') {
+    } else if (sub === 'awards') {
       // The ledger above is the award list; the older chips list with its remove and record-due links sits behind "Fix awards" so it cannot be mistaken for a second list.
       if (g === 'Puggles') { el.innerHTML = '<p class="status">Puggles do not earn awards.</p>'; applyAttention(p); return; }      // no Puggles awards
       el.innerHTML = full ? (PR.includes(g) ? awardsTab(p, g, season) : '') + '<details class="pcard"><summary>Fix announced dates (un-announce one)</summary>' + secAwards(p, g, season) + '</details>' :
@@ -198,7 +201,7 @@
     applyAttention(p);
   }
   // The sub-tab choices sit above both panes (the Add sheet menu is beside the book tabs: app-season.js).
-  $('peSub').addEventListener('click', e => { const b = e.target.closest('button[data-sub]'); if (b) { ui.sub = b.dataset.sub; render(); } });
+  $('peSub').addEventListener('click', e => { const b = e.target.closest('button[data-sub]'); if (b) { ui.sub = b.dataset.sub; ui.subPickedFor = ui.id; render(); } });
 
   // ---------- from the To do tab: what still needs attention for this person ----------
   // The list is worked out again on every draw from the To do rules, so a field stops being highlighted as soon as what was wrong with it is fixed.
@@ -237,13 +240,13 @@
     if (t.id === 'peRole') { ui.role = t.value; ui.cls = 'All'; ui.id = ''; }
     if (t.id === 'peGroup') { ui.group = t.value; ui.cls = 'All'; ui.id = ''; }
     if (t.id === 'peClass') { ui.cls = t.value; ui.id = ''; }
-    if (t.id === 'pePerson') ui.id = t.value;
+    if (t.id === 'pePerson') { ui.id = t.value; ui.subPickedFor = ''; }
     if (t.id === 'peInactive') ui.inactive = t.value;
     if (t.id === 'peSort') ui.sort = t.value;
     render();
   });
   // Previous / Next person in the list the pickers and search leave (also used by the foot buttons on the Progress sub-tab).
-  App.personStep = d => { const k = list(), i = k.findIndex(p => idOf(p) === ui.id); if (k[i + d]) { ui.id = idOf(k[i + d]); render(); } };
+  App.personStep = d => { const k = list(), i = k.findIndex(p => idOf(p) === ui.id); if (k[i + d]) { ui.id = idOf(k[i + d]); ui.subPickedFor = ''; render(); } };
   $('btnPePrev').addEventListener('click', () => App.personStep(-1)); $('btnPeNext').addEventListener('click', () => App.personStep(1));
 
   // Leaving the Date received box with a half-typed year (0020-09-23): check it now, say so, and put the saved date back.
@@ -311,7 +314,7 @@
   document.querySelector('.tabs').addEventListener('click', e => { if (!e.target.closest('[data-tab="person"]')) ui.back = ''; if (stale) { stale = false; App.refresh(); } }, true);
   // The place is the child and the sub-tab (S13): a live update or a Recent places jump returns to the same child on the same sub-tab.
   App.places.person = { get: () => ui.id && person() ? { key: ui.id, label: 'Person \u00b7 ' + Model.fullName(person()), state: { id: ui.id, sub: ui.sub } } : null,
-    set: s => { ui.role = 'all'; ui.group = 'All'; ui.cls = 'All'; ui.q = ''; ui.id = s.id; ui.attn = ''; ui.back = ''; if (s.sub) ui.sub = s.sub; } };      // for the Recent places list (app-trail.js) and the live-update handoff (app-update.js)
+    set: s => { ui.role = 'all'; ui.group = 'All'; ui.cls = 'All'; ui.q = ''; ui.id = s.id; ui.subPickedFor = ''; ui.attn = ''; ui.back = ''; if (s.sub) ui.sub = s.sub; } };      // for the Recent places list (app-trail.js) and the live-update handoff (app-update.js)
   $('personWrap').addEventListener('click', e => { const u = e.target.closest('button[data-utoday]'), pp = person(); if (u && pp) { pp[u.dataset.utoday] = App.today(); changed(false); render(); } });
   // Volunteer absences on the Attendance sub-tab (S11): clear one night, the whole absence, or the remaining nights; add a new one.
   $('personWrap').addEventListener('click', e => {
@@ -330,7 +333,7 @@
   App.onRefresh.push(() => { if (!$('tab-person').hidden) render(); });
   // opts.attention: arrived from a To do item, so highlight what still needs doing for this person.
   // opts.sub: which sub-tab opens. Progress is the default; a To do item (opts.attention) opens Registration, where its field highlights are.
-  App.showPerson = (id, opts) => { ui.back = opts && opts.back || ''; ui.role = 'all'; ui.group = 'All'; ui.cls = 'All'; ui.q = ''; ui.id = id; ui.sub = opts && opts.sub || (opts && opts.attention ? 'registration' : 'progress'); ui.attn = opts && opts.attention ? id : ''; ui.attnScroll = !!ui.attn; App.showTab('person'); };
-  App.progressShowing = () => !!ui.id && ui.sub === 'progress' && !$('tab-person').hidden;
-  App.personSub = () => ui.sub;      // read by the view rules (app.js viewOf): Progress is live, the other sub-tabs are drafts
+  App.showPerson = (id, opts) => { ui.back = opts && opts.back || ''; ui.role = 'all'; ui.group = 'All'; ui.cls = 'All'; ui.q = ''; ui.id = id; ui.subPickedFor = ''; ui.sub = opts && opts.sub || (opts && opts.attention ? 'registration' : 'progress'); ui.attn = opts && opts.attention ? id : ''; ui.attnScroll = !!ui.attn; App.showTab('person'); };
+  App.personSub = () => { const p = ui.id && person(); return p ? shownSub(p) : ui.sub; };
+  App.progressShowing = () => !!ui.id && App.personSub() === 'progress' && !$('tab-person').hidden;      // read by the view rules (app.js viewOf): Progress is live, the other sub-tabs are drafts
 })();

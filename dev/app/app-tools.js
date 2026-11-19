@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.7.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.8.0';
 // Debug and Validate tabs. Debug: which version of every file is running, what is open, and the dates of the CSV/JSON files.
 // Validate: check a data file, Planning Center export or older CSV for problems without opening it into the app.
 (function () {
@@ -16,11 +16,19 @@
     const U = App.updates, msg = $('splashUpdMsg'), go = $('splashUpdApply'); go.hidden = true;
     if (!U) { msg.textContent = 'Updates cannot be checked right now.'; return; }
     if (!U.web) { msg.textContent = 'Updates are checked only when the app is opened from its website, not from a file on this computer.'; return; }
-    msg.textContent = 'Checking…'; await U.check(); const st = U.state();
-    if (st.error) msg.textContent = 'Could not check: ' + st.error + '.';
-    else if (st.found) { msg.textContent = 'Version ' + st.found.version + ' is available (you are on ' + U.run.version + ').'; go.hidden = false; }
-    else msg.textContent = 'You are on the latest version (' + U.run.version + ').';
+    msg.textContent = 'Checking…'; await U.check(); App.splashUpdate();
   });
+  // N7: the line under the version on the start screen always says where the update check stands: Checking..., when it last checked, or why it could not. It is redrawn by app-update.js whenever a check starts or ends (the launch check too), so it is right without a click.
+  App.splashUpdate = () => {
+    const U = App.updates, msg = $('splashUpdMsg'), go = $('splashUpdApply'); if (!msg || !U || !U.web) return;
+    const st = U.state(); go.hidden = true;
+    if (st.checking) msg.textContent = 'Checking for updates…';
+    else if (st.offline) msg.textContent = 'Could not check for updates (offline).' + (st.last ? ' Last tried at ' + st.last + '.' : '');
+    else if (st.error) msg.textContent = 'Could not check: ' + st.error + '.';
+    else if (st.found) { msg.textContent = 'Version ' + st.found.version + ' is available (you are on ' + U.run.version + ').'; go.hidden = false; }
+    else if (st.last) msg.textContent = 'Checked for updates at ' + st.last + (st.lastDay && st.lastDay !== new Date().toLocaleDateString('en-CA') ? ' on ' + Model.md(st.lastDay) : '') + ': you are on the latest version (' + U.run.version + ').';
+  };
+  setTimeout(() => App.splashUpdate && App.splashUpdate(), 0);      // a check that is already running (or has finished) when this file loads shows at once
   $('splashUpdApply').addEventListener('click', () => { if (App.updates) App.updates.apply(); });
   // Clicking the version checks for a new version right now (Shift-click opens the Debug tab, which lists every file's version).
   $('verLink').addEventListener('click', e => {
@@ -46,25 +54,25 @@
       '<p><button type="button" id="dbgAssumedClear" class="primary">Clear these ' + assumed.n + ' Given dates</button> <button type="button" id="dbgAssumedCount">Count again</button></p>';
   }
   // ---- Bug reports and feature requests (flag level "bug"): listed here, never on To do. Each has a status and a reply, kept in the data file so every leader sees the same list. ----
-  let bugFilter = 'open', bugEditing = '';
-  const STATUS_WORD = { open: 'Open', answered: 'Answered', fixed: 'Fixed' };
+  let bugFilter = 'open', bugEditing = '', bugBy = 'leader';
+  const STATUS_WORD = { open: 'Open', fixed: 'Fixed', dropped: 'Dropped' }, BY_WORD = { leader: 'Leader', developer: 'Developer' };
   function bugsHtml() {
     const s = App.season; if (!s) return '<h3>Bug reports and feature requests</h3><p class="status">Open a data file: bug reports are kept in it.</p>';
-    const all = Season.bugList(s), openN = all.filter(f => f.status === 'open' || !f.status).length, list = all.filter(f => bugFilter === 'all' || (f.status || 'open') === bugFilter);
+    const all = Season.bugList(s), openN = all.filter(f => Season.bugStatusOf(f) === 'open').length, list = all.filter(f => bugFilter === 'all' || Season.bugStatusOf(f) === bugFilter);
     const FT = window.FlagTrail, name = id => { const p = App.master && App.master.people.find(x => x[Model.X.ID] === id); return p ? Model.fullName(p) : '(no longer on the roster)'; };
     const rows = list.map(f => {
       const where = f.trail && FT ? esc(FT.readable(f.trail)) + (App.flagMissing && App.flagMissing.has(f.id) ? ' <span class="status">(spot not found)</span>' : '') : '<span class="status">No spot</span>';
       const edit = bugEditing === f.id;
-      return '<tr data-bug="' + esc(f.id) + '"><td>' + esc(STATUS_WORD[f.status || 'open']) + '</td><td>' + where + '</td><td>' + (f.kid ? esc(name(f.kid)) : '<span class="status">&mdash;</span>') + '</td><td>' + esc(f.note) + '</td>' +
+      // The status is a pick on every row (saved when it changes); the replies are a conversation, oldest first, each with who wrote it and when; Reply opens a box to add one (N17, N18).
+      const st = Season.bugStatusOf(f), thread = Season.bugThread(f);
+      const talk = thread.map(r => '<div class="bugreply"><span class="bugtext">' + esc(r.text) + '</span> <span class="status">' + esc(BY_WORD[r.by] || r.by) + (r.at ? ', ' + esc(Model.md(r.at)) : '') + '</span> <button type="button" class="linklike" data-bugrm="' + esc(f.id) + '|' + esc(r.id) + '" aria-label="Remove this reply">Remove</button></div>').join('');
+      return '<tr data-bug="' + esc(f.id) + '"><td><select data-bugstatus="' + esc(f.id) + '" aria-label="Status">' + Season.BUG_STATUS.map(x => '<option value="' + x + '"' + (st === x ? ' selected' : '') + '>' + STATUS_WORD[x] + '</option>').join('') + '</select></td><td>' + where + '</td><td>' + (f.kid ? esc(name(f.kid)) : '<span class="status">&mdash;</span>') + '</td><td>' + esc(f.note) + '</td>' +
         '<td>' + esc(Model.md(f.at)) + (f.ver ? ' <span class="status">v' + esc(f.ver) + '</span>' : '') + '</td>' +
-        '<td>' + (edit
-          ? '<div class="bugedit"><label>Status <select data-bugstatus>' + Season.BUG_STATUS.map(x => '<option value="' + x + '"' + ((f.status || 'open') === x ? ' selected' : '') + '>' + STATUS_WORD[x] + '</option>').join('') + '</select></label><label>Reply <textarea data-bugtext rows="3">' + esc(f.reply || '') + '</textarea></label></div>'
-          : (f.reply ? esc(f.reply) + ' <span class="status">' + esc(Model.md(f.replyAt)) + '</span>' : '<span class="status">&mdash;</span>')) + '</td>' +
-        '<td>' + (edit ? '<div class="bugedit"><button type="button" data-bugsave="' + esc(f.id) + '" class="primary">Save reply</button><button type="button" data-bugcancel>Cancel</button></div>'
-          : (f.tab ? '<button type="button" data-buggo="' + esc(f.id) + '">Go</button> ' : '') + '<button type="button" data-bugreply="' + esc(f.id) + '">Reply</button> <button type="button" data-bugdel="' + esc(f.id) + '">Delete</button>') + '</td></tr>';
+        '<td>' + (talk || '<span class="status">&mdash;</span>') + (edit ? '<div class="bugedit"><label>Your reply <textarea data-bugtext rows="3"></textarea></label><label>By <select data-bugby><option value="leader"' + (bugBy === 'leader' ? ' selected' : '') + '>Leader</option><option value="developer"' + (bugBy === 'developer' ? ' selected' : '') + '>Developer</option></select></label><button type="button" data-bugadd="' + esc(f.id) + '" class="primary">Add reply</button><button type="button" data-bugcancel>Cancel</button></div>' : '') + '</td>' +
+        '<td>' + (f.tab ? '<button type="button" data-buggo="' + esc(f.id) + '">Go</button> ' : '') + (edit ? '' : '<button type="button" data-bugreply="' + esc(f.id) + '">Reply</button> ') + '<button type="button" data-bugdel="' + esc(f.id) + '">Delete</button></td></tr>';
     }).join('');
-    return '<h3 id="dbgBugs">Bug reports and feature requests (' + openN + ' open)</h3><p class="status">Added with the Bug button (turn it on under Options). They are kept in the data file, so every leader sees the same list and the same replies. They never appear on To do.</p>' +
-      '<p class="bugfilter" role="group" aria-label="Show">' + [['all', 'All'], ['open', 'Open'], ['answered', 'Answered'], ['fixed', 'Fixed']].map(([k, l]) => '<button type="button" data-bugfilter="' + k + '" aria-pressed="' + (bugFilter === k ? 'true' : 'false') + '"' + (bugFilter === k ? ' class="on"' : '') + '>' + l + '</button>').join(' ') + '</p>' +
+    return '<h3 id="dbgBugs">Bug reports and feature requests (' + openN + ' open)</h3><p class="status">Added with the Bug button (turn it on under Options). They are kept in the data file, so every leader sees the same list and the same conversation: reply to a report as often as you like, and mark it Open, Fixed or Dropped. They never appear on To do.</p>' +
+      '<p class="bugfilter" role="group" aria-label="Show">' + [['all', 'All'], ['open', 'Open'], ['fixed', 'Fixed'], ['dropped', 'Dropped']].map(([k, l]) => '<button type="button" data-bugfilter="' + k + '" aria-pressed="' + (bugFilter === k ? 'true' : 'false') + '"' + (bugFilter === k ? ' class="on"' : '') + '>' + l + '</button>').join(' ') + '</p>' +
       (list.length ? '<div class="scroll" style="max-height:none"><table class="roster"><thead><tr><th>Status</th><th>Where</th><th>Child</th><th>Report</th><th>Reported</th><th>Reply</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<p class="status">' + (all.length ? 'None with that status.' : 'No bug reports yet.') + '</p>');
   }
   function renderDebug() {
@@ -92,16 +100,16 @@
   App.renderDebug = renderDebug;
   if (App.onRefresh) App.onRefresh.push(() => { if ($('debugWrap').offsetParent) renderDebug(); });      // another leader's report or reply arrives with a merge
   $('debugWrap').addEventListener('click', e => {
-    const t = e.target.closest('[data-bugfilter],[data-bugreply],[data-bugsave],[data-bugcancel],[data-bugdel],[data-buggo]'); if (!t || !App.season) return;
+    const t = e.target.closest('[data-bugfilter],[data-bugreply],[data-bugadd],[data-bugcancel],[data-bugdel],[data-buggo],[data-bugrm]'); if (!t || !App.season) return;
     if (t.dataset.bugfilter) { bugFilter = t.dataset.bugfilter; renderDebug(); return; }
     if (t.dataset.bugreply) { bugEditing = t.dataset.bugreply; renderDebug(); return; }
     if (t.hasAttribute('data-bugcancel')) { bugEditing = ''; renderDebug(); return; }
-    if (t.dataset.bugsave) {
-      const row = t.closest('tr'), status = row.querySelector('[data-bugstatus]').value, reply = row.querySelector('[data-bugtext]').value;
-      try { App.setBugReply(t.dataset.bugsave, { status, reply }); } catch (err) { App.flash(err.message, 'error'); return; }
-      if (bugFilter !== 'all' && bugFilter !== status) bugFilter = status;      /* the saved report stays in view: the list follows its new status */
-      bugEditing = ''; renderDebug(); return;
+    if (t.dataset.bugadd) {
+      const row = t.closest('tr'), text = row.querySelector('[data-bugtext]').value, by = row.querySelector('[data-bugby]').value;
+      try { App.addBugReply(t.dataset.bugadd, text, by); } catch (err) { App.flash(err.message, 'error'); return; }
+      bugBy = by; bugEditing = ''; renderDebug(); return;      /* the same row stays in view: a reply does not change the status */
     }
+    if (t.dataset.bugrm) { const [id, rid] = t.dataset.bugrm.split('|'); try { App.removeBugReply(id, rid); } catch (err) { App.flash(err.message, 'error'); return; } renderDebug(); App.done('Reply removed.'); return; }
     if (t.dataset.bugdel) { App.clearFlag(t.dataset.bugdel); renderDebug(); App.done('Bug report deleted.'); return; }      /* one Undo step: done at once, with an Undo message (UX-20) */
     if (t.dataset.buggo) { const f = Season.bugList(App.season).find(x => x.id === t.dataset.buggo); if (f && App.goElement) App.goElement(f); return; }
   });
@@ -112,6 +120,10 @@
     const n = Season.clearAssumedGiven(s); assumed = null; App.touch(); renderDebug(); App.done(n + ' Given date' + (n === 1 ? '' : 's') + ' that nobody entered cleared. The awards stay announced and wait under "Announced, not yet given".');
   });
   $('debugWrap').addEventListener('change', async e => {
+    if (e.target.dataset && e.target.dataset.bugstatus && App.season) {      /* a status pick is saved at once; the list follows it so the report stays in view */
+      const st = e.target.value; try { App.setBugStatus(e.target.dataset.bugstatus, st); } catch (err) { App.flash(err.message, 'error'); return; }
+      if (bugFilter !== 'all' && bugFilter !== st) bugFilter = st; renderDebug(); return;
+    }
     if (e.target.id !== 'dbgFiles') return;
     const files = [...e.target.files]; e.target.value = '';
     for (const f of files) App.noteOpened(f.name, await f.text(), f.lastModified);

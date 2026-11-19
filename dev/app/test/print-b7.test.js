@@ -16,16 +16,17 @@ const subs = h => [...h.matchAll(/<p class="sub">([^<]*)<\/p>/g)].map(m => m[1])
 for (const id of ['binderClass', 'binderAll', 'binderTeams']) {
   test(id + ': every page says "Printed 11/14/26" when the day is given, once, and nothing when it is not', () => {
     const h = run(id, '2026-11-14'), n = sheets(h); assert(n >= 1, 'has pages');
-    assert.strictEqual(subs(h).filter(s => /^Printed 11\/14\/26$/.test(s)).length, n, id + ': one Printed line per page: ' + subs(h).join(' | '));
+    assert.strictEqual(subs(h).filter(s => /^Printed 11\/14\/26( \u00b7 .*)?$/.test(s)).length, n, id + ': one Printed line per page (a page with a Color Team column adds the teams note after it, N30): ' + subs(h).join(' | '));
     assert(!/Printed/.test(run(id, undefined)), 'no day, no Printed line'); assert(!/Printed/.test(run(id, 'yesterday')), 'a bad day prints nothing');
   });
 }
 test('the Printed line comes after the Planning Center "as of" line in a binder, and sheets that need no date are unchanged', () => {
   const pc = Object.assign({}, master, { pcAsOf: '2026-10-28' }), ctx = { master: pc, season, calendar: [], settings: { quarter: 'Q2' }, today: '2026-11-14', opts: {} };
   const h = R.runBundle(ctx, { items: [{ report: 'binderClass', room: 'Sparks A' }, { report: 'volunteers' }] }, 'Q2');
-  assert(/Planning Center data as of 2026-10-28<\/p><p class="sub">Printed 11\/14\/26<\/p>/.test(h), 'as-of line, then Printed');
+  assert(/Planning Center data as of 2026-10-28<\/p><p class="sub">Printed 11\/14\/26( \u00b7 [^<]*)?<\/p>/.test(h), 'as-of line, then Printed (and on a page with a Color Team column the teams note, N30)');
   assert.strictEqual((h.match(/Printed 11\/14\/26/g) || []).length, 1, 'only the class page carries it, not the volunteer list');
-  assert(!/Printed/.test(run('volunteers', '2026-11-14')) && !/Printed/.test(run('attendance', '2026-11-14', { room: 'Sparks A' })), 'volunteers and attendance carry no Printed line');
+  assert(!/Printed/.test(run('volunteers', '2026-11-14')), 'volunteers carry no Printed line');
+  assert(/Printed 11\/14\/26/.test(run('attendance', '2026-11-14', { room: 'Sparks A' })), 'attendance carries a Printed line (N11, 1.51.16: the leader can turn the browser date and time header off)');
 });
 test('attendance names: a short name has no size class, 25+ characters "long", 35+ "xlong"; the name is never cut in the markup', () => {
   const h = run('attendance', '2026-11-14', { room: 'Sparks A' }), cls = n => new RegExp('<td class="name([^"]*)">' + n + '</td>').exec(h);

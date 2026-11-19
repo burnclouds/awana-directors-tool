@@ -16,22 +16,23 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   const tab = t => page.evaluate(x => document.querySelector('.tabs button[data-tab="' + x + '"]').click(), t);
   await tab('person'); await page.waitForTimeout(400);
   const kid = await page.$eval('#pePerson', e => e.value);
-  await page.evaluate(id => { const S = window.Season, s = window.App.season; ['1', '2', '3', '4', '5', '6'].forEach(i => S.setProgress(s, id, 'common', 'FLT.' + i, '2020-03-04')); window.App.touch(); }, kid);
+  // the Rank block of the first Sparks book, finished in an earlier year: it earns the Green Emblem (Flight 3:16 earns nothing, N23)
+  await page.evaluate(id => { const S = window.Season, s = window.App.season; ['1', '2', '3', '4', '5', '6', '7', '8'].forEach(i => S.setProgress(s, id, 'HG', 'R.' + i, '2020-03-04')); window.App.touch(); }, kid);
   await tab('options'); await page.waitForTimeout(300); await tab('person'); await page.waitForTimeout(400);
 
   await test('a child with earlier-year awards sees them listed and a button', async () => {
-    assert(await page.isVisible('#btnPastGiven'), 'button shown'); assert(/Flight 3:16/.test(await page.textContent('.pastyears')) || /earlier years/.test(await page.textContent('.pastyears')));
+    assert(await page.isVisible('#btnPastGiven'), 'button shown'); assert(/Green Emblem/.test(await page.textContent('.pastyears')) || /earlier years/.test(await page.textContent('.pastyears')));
   });
   await test('the button marks them given with no date at once and offers Undo (no pop-up question), and goes away', async () => {
     dialogs.length = 0; await page.click('#btnPastGiven'); await page.waitForTimeout(300);
     assert.strictEqual(dialogs.length, 0, 'no pop-up question: it is done, and Undo is offered'); assert(/given, with no date/.test(await page.textContent('#doneFlash')), 'the message says what was done');
     assert.strictEqual(await page.locator('#btnPastGiven').count(), 0, 'button gone');
-    const r = await page.evaluate(id => ({ nd: window.Season.isGivenNoDate(window.App.season, id, 'Flight 3:16'), shown: window.Season.givenShown(window.App.season, id, 'Flight 3:16') }), kid);
+    const r = await page.evaluate(id => ({ nd: window.Season.isGivenNoDate(window.App.season, id, 'HG Green Emblem'), shown: window.Season.givenShown(window.App.season, id, 'HG Green Emblem') }), kid);
     assert.deepStrictEqual(r, { nd: true, shown: '' });
   });
   await test('Undo takes it back', async () => {
     await page.click('#btnUndo'); await page.waitForTimeout(300);
-    assert.strictEqual(await page.evaluate(id => window.Season.isGivenNoDate(window.App.season, id, 'Flight 3:16'), kid), false);
+    assert.strictEqual(await page.evaluate(id => window.Season.isGivenNoDate(window.App.season, id, 'HG Green Emblem'), kid), false);
   });
   await test('Options: count first, then one click marks them (no question; message and Apply/Discard note); counting again finds none', async () => {
     await tab('options'); await page.waitForTimeout(300);
@@ -45,7 +46,7 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   });
   await test('the button is a 44px target on a phone and has a name', async () => {
     await page.setViewportSize({ width: 390, height: 800 });
-    await page.evaluate(id => { const S = window.Season, s = window.App.season; S.clearGiven && S.clearGiven(s, id, 'Flight 3:16'); S.setGiven(s, id, 'Flight 3:16', ''); window.App.touch(); }, kid);
+    await page.evaluate(id => { const S = window.Season, s = window.App.season; S.clearGiven && S.clearGiven(s, id, 'HG Green Emblem'); S.setGiven(s, id, 'HG Green Emblem', ''); window.App.touch(); }, kid);
     await tab('person'); await page.waitForTimeout(400);
     const h = await page.$eval('#btnPastGiven', e => e.getBoundingClientRect().height); assert(h >= 43.5, 'height ' + h);
   });

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-flagmarks.js'] = '1.0.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-flagmarks.js'] = '1.0.1';
 // Yellow flags for flags made with Flag anything (level "element"). Such a flag has no place of its own in the page, so each one is found again from its trail (App.flagLocateAll) and a small yellow flag
 // is drawn at the element's top-right corner, in an overlay (#flagLayer) outside the tabs: no tab's layout is touched and nothing is printed. A click opens the same popup as every other yellow flag
 // (the click handler in app-season.js). A flag whose spot cannot be found draws nothing (To do says "spot not found"). The overlay is rebuilt when the tab changes, a flag changes, or the tab redraws

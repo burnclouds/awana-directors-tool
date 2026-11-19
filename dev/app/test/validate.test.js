@@ -18,7 +18,7 @@ function goodSeason() {
   const m = Mdl.emptyMaster(); m.pcCols = Mdl.TRACKED.slice();
   ['Ann', 'Bo'].forEach(f => Mdl.addManualPerson(m, { 'First Name': f, 'Last Name': 'Test', 'Assignment Area: Classes': 'Sparks A', 'Selection': 'Clubber', 'Registration ID': '1' }, '2026-10-01'));
   const s = S.blank('2026-27'); s.roster = Mdl.toRoster(m);
-  s.calendar = [{ Date: '2026-10-28', Type: 'Club night', Quarter: 'Q2', Theme: '', Notes: '', 'No Club': '', 'Cubbies Lesson': '', 'Puggles #': '', 'Puggles Title': '', 'Sparks Lesson': '', 'T&T Lesson': '' }];
+  s.calendar = [{ Date: '2026-10-28', Type: 'Club night', Quarter: 'Q2', Theme: '', Notes: '', 'No Club': '', 'Puggles Lesson': '', 'Cubbies Lesson': '', 'Sparks Lesson': '', 'T&T Lesson': '' }];
   s.rotation = [['Time', 'Sparks'], ['6:30', 'Gym']];
   const id = Object.keys(s.roster.people)[0];
   let before = S.snapshot(s); S.setMark(s, '2026-10-28', id, 'a', 1); S.record(s, before, { now: '2026-10-28T23:00:00.000Z' });

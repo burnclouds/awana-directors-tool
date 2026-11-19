@@ -40,10 +40,10 @@ test('opening something that is not a season file says so', () => {
   assert.throws(() => S.fromJson(JSON.stringify({ format: 'awana-season', version: 99 })), /newer|version/i);
 });
 
-test('the default award lists match the workbook: Puggles 1, Cubbies 5, Sparks 53, T&T 97 (the 24 names for each of 4 books; Start Zone has no award)', () => {
+test('the default award lists match the workbook: Puggles 1, Cubbies 5, Sparks 52, T&T 97 (the 24 names for each of 4 books; Start Zone and Flight 3:16 are not awards, N23)', () => {
   const c = Catalog.defaultConfig();
-  assert.deepStrictEqual(['Puggles', 'Cubbies', 'Sparks', 'T&T'].map(g => c.awardLists[g].length), [1, 5, 53, 97]);
-  assert.deepStrictEqual(c.exclude, { Sparks: ['Flight 3:16'] });
+  assert.deepStrictEqual(['Puggles', 'Cubbies', 'Sparks', 'T&T'].map(g => c.awardLists[g].length), [1, 5, 52, 97]);
+  assert.deepStrictEqual(c.exclude, {});      // nothing is left off by default any more: Flight 3:16 is not an award (N23)
   assert.deepStrictEqual(c.books.HG, { name: 'Hangglider', emblem: 'Green', group: 'Sparks' });
   assert.deepStrictEqual(c.blueJewelWeeks, [6, 12, 19, 27]);
 });
@@ -267,8 +267,8 @@ test('T&T progress is per book and finishes blocks with the book code in the awa
 // ---------- new season ----------
 test('a new season keeps the config and the award lists but empties every record', () => {
   const s = S.blank('2026-27');
-  s.config.exclude.Sparks.push('Something');
-  S.setMark(s, '2026-09-09', 'k1', 'a', 1); S.addAward(s, '2026-09-16', 'k1', 'Start Zone 1');
+  s.config.exclude = { Sparks: ['Something'] };
+  S.setMark(s, '2026-09-09', 'k1', 'a', 1); S.addAward(s, '2026-09-16', 'k1', 'Silver 1');
   S.setGame(s, '2026-09-09', 'Sparks', 'Red', { place: 1, spirit: 3 }); S.setProgress(s, 'k1', 'common', 'SZ1.1', '2026-09-16');
   s.handbooks.k1 = 'HG';
   const n = S.newSeason(s, '2027-28');
@@ -489,7 +489,7 @@ test('restoring to the file as opened leaves an empty history; restoring to the 
 
 test('after a restore, new edits are logged on top of the restored history and every version still rebuilds', () => {
   const { s, states } = scripted(), r = S.restoreTo(s, 4).season, edit = recorder(r);
-  edit(t => S.addAward(t, '2026-11-04', 'k9', 'Start Zone 1'), 500);
+  edit(t => S.addAward(t, '2026-11-04', 'k9', 'Silver 1'), 500);
   assert.strictEqual(r.history.length, 5);
   for (let i = 0; i <= 4; i++) assert.deepStrictEqual(S.snapshot(S.at(r, i)), states[i], 'version ' + i);
   assert.deepStrictEqual(S.snapshot(S.at(r, 5)), S.snapshot(r));

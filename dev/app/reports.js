@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.19.0';
+(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.23.0';
 // Print reports. Each render(ctx) returns HTML; ctx = { master, settings, opts }.
 (function (root) {
   const M = root.Model || (typeof require !== 'undefined' ? require('./model.js') : null);
@@ -8,7 +8,7 @@
 
   const esc = M.esc;      // shared (model.js)
   const TEAM_COLORS = ['Red', 'Blue', 'Green', 'Yellow'];
-  const MIN_ROWS = 25;
+  const ROWS_PER_PAGE = 20;      // attendance rows on one printed page (N11: the top of the page is left clear for the three punch holes)
 
   const kids = m => m.people.filter(p => M.isActive(p) && M.isClubber(p));
   const adults = m => m.people.filter(p => M.isActive(p) && M.isVolunteer(p));
@@ -18,8 +18,8 @@
   const roomsOf = list => [...new Set(list.map(M.room))].sort((a, b) => M.roomRank(a) - M.roomRank(b) || a.localeCompare(b));
   const none = '<span class="none">none on file</span>';
 
-  function table(headers, rows, cls) {
-    return '<table class="grid ' + (cls || '') + '"><thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join('') +
+  function table(headers, rows, cls, widths) {      // widths: optional percentages, one per column, laid out fixed (N15)
+    return '<table class="grid ' + (cls || '') + '">' + (widths ? '<colgroup>' + widths.map(w => '<col style="width:' + w + '%">').join('') + '</colgroup>' : '') + '<thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join('') +
       '</tr></thead><tbody>' + rows.map(r => '<tr>' + r.map(c => '<td>' + c + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
   }
   const sheet = (title, body, orient, sub) =>
@@ -60,45 +60,49 @@
     return roomsOf(list).map(r => {
       const g = M.groupOf(r), marks = MARKS[g] || [], dates = nightDates(ctx), withTeam = M.hasColorTeams(g);
       const people = list.filter(p => M.room(p) === r).sort(byFirst);
-      const rows = Math.max(MIN_ROWS, people.length + 3), span = Math.max(1, marks.length);
+      const span = Math.max(1, marks.length), oneMark = marks.length === 1;      // N8: one box a night (Puggles): the date alone heads the column, no rotated word
+      const pages = Math.max(1, Math.ceil(people.length / ROWS_PER_PAGE));      // N11: 20 rows a page (room for the punch holes); a bigger class goes on to a second page
       const isoNights = ctx.calendar && ctx.calendar.length ? Cal.nights(ctx.calendar, ctx.settings.quarter).map(x => x.Date) : [];
       const MARK_KEY = { Attendance: 'a', Handbook: 'h', Participation: 'p', Extra: 'x' };
       const markTick = (p, iso, key) => { const night = ctx.season && iso ? (ctx.season.attendance || {})[iso] : null; if (!night || !p) return ''; const m = night[p[M.X.ID]] || {}; return m[key] ? '&#10003;' : ''; };
-      let head = '<tr><th rowspan="2" class="name">Name</th>' + (withTeam ? '<th rowspan="2" class="teamcol">' + esc(sheetQuarter(ctx)) + ' Color Team</th>' : '') +
+      const hrows = marks.length && !oneMark ? 2 : 1;
+      let head = '<tr><th rowspan="' + hrows + '" class="name">Name</th>' + (withTeam ? '<th rowspan="' + hrows + '" class="teamcol">' + esc(sheetQuarter(ctx)) + ' Color Team</th>' : '') +
         dates.map(d => '<th colspan="' + span + '" class="date">' + esc(d) + '</th>').join('') + '</tr>';
-      if (marks.length) head += '<tr>' + dates.map(() => marks.map(k => '<th class="mark"><span class="rot">' + k + '</span></th>').join('')).join('') + '</tr>';
-      let body = '';
-      for (let i = 0; i < rows; i++) {
-        const p = people[i];
-        const nm = p ? M.fullName(p) : '';      // a long name gets a smaller font (style.css), never an ellipsis
-        body += '<tr><td class="name' + (nm.length > 34 ? ' xlong' : nm.length > 24 ? ' long' : '') + '">' + esc(nm) + '</td>';
-        if (withTeam) { const t = p ? teamAsOf(ctx, p) : ''; body += '<td class="teamcol' + (t ? ' team-' + esc(t) : '') + '">' + esc(t) + (p && movesThisQuarter(ctx, p) ? '*' : '') + '</td>'; }
-        // Each mark cell is filled from the record for that night (a tick when the mark is set); a night with no record stays blank.
-        body += dates.map((_, di) => marks.map(k => '<td>' + markTick(p, isoNights[di], MARK_KEY[k]) + '</td>').join('')).join('') + '</tr>';
-      }
+      if (marks.length && !oneMark) head += '<tr>' + dates.map(() => marks.map(k => '<th class="mark"><span class="rot">' + k + '</span></th>').join('')).join('') + '</tr>';
+      const bodyOf = pg => {
+        let body = '';
+        for (let i = 0; i < ROWS_PER_PAGE; i++) {
+          const p = people[pg * ROWS_PER_PAGE + i];
+          const nm = p ? M.fullName(p) : '';      // a long name gets a smaller font (style.css), never an ellipsis
+          body += '<tr><td class="name' + (nm.length > 34 ? ' xlong' : nm.length > 24 ? ' long' : '') + '">' + esc(nm) + '</td>';
+          if (withTeam) { const t = p ? teamAsOf(ctx, p) : ''; body += '<td class="teamcol' + (t ? ' team-' + esc(t) : '') + '">' + esc(t) + (p && movesThisQuarter(ctx, p) ? '*' : '') + '</td>'; }
+          // Each mark cell is filled from the record for that night (a tick when the mark is set); a night with no record stays blank.
+          body += dates.map((_, di) => marks.map(k => '<td>' + markTick(p, isoNights[di], MARK_KEY[k]) + '</td>').join('')).join('') + '</tr>';
+        }
+        return body;
+      };
       // A colgroup fixes every column: the name and team columns, then the rest split equally, so the date columns are the same width on every sheet whatever the number of nights or marks.
       const fixed = 20 + (withTeam ? 7 : 0), each = dates.length * span ? ((100 - fixed) / (dates.length * span)).toFixed(3) : 0;
       const cols = '<colgroup><col style="width:20%">' + (withTeam ? '<col style="width:7%">' : '') + dates.map(() => ('<col style="width:' + each + '%">').repeat(span)).join('') + '</colgroup>';
-      return sheet(r + ' — ' + s.quarter + ' Attendance', '<table class="att">' + cols + '<thead>' + head + '</thead><tbody>' + body + '</tbody></table>', 'landscape', withTeam ? esc(teamNote(ctx)) : '');
+      return Array.from({ length: pages }, (_, pg) => sheet(r + ' — ' + s.quarter + ' Attendance' + (pages > 1 ? ', page ' + (pg + 1) + ' of ' + pages : ''),
+        '<table class="att">' + cols + '<thead>' + head + '</thead><tbody>' + bodyOf(pg) + '</tbody></table>', 'landscape att', [withTeam ? esc(teamNote(ctx)) : '', esc(printedOn(ctx))].filter(Boolean).join(' &middot; '))).join('');
     }).join('') || '<p class="empty">No clubbers to show.</p>';
   }
 
   // ---------- color teams (Sparks and T&T play separately) ----------
   function colorTeams(ctx) {
     // List order: color first or name first (the name column then goes first), and the name sorted by first name (the club's usual) or last name then first name ("Smith, Ann"), independently of each other.
-    const { master, settings: s } = ctx, ord = ctx.opts.order || 'color', byName = ord === 'name' || ord === 'nameLast', lastFirst = ord === 'colorLast' || ord === 'nameLast';
+    // N35: the name-first lists ("by name") are gone; a saved 'name' or 'nameLast' falls back to color order. N34: no Group column (the Class column already carries the group).
+    const { master, settings: s } = ctx, ord = ctx.opts.order || 'color', lastFirst = ord === 'colorLast';
     const cmp = lastFirst ? byLast : byFirst, nameOf = p => lastFirst ? last(p) + ', ' + first(p) : M.fullName(p);
     return ['Sparks', 'T&T'].map(g => {
       const people = kids(master).filter(p => M.groupOf(M.room(p)) === g);
       if (!people.length) return '';
-      const rows = [], row = (p, t, star) => byName
-        ? [esc(g), esc(nameOf(p)) + star, teamCell(t) || '<span class="none">unassigned</span>', esc(M.room(p))]
-        : [esc(g), teamCell(t) || '<span class="none">unassigned</span>', esc(nameOf(p)) + star, esc(M.room(p))];
+      const rows = [], row = (p, t, star) => [teamCell(t) || '<span class="none">unassigned</span>', esc(nameOf(p)) + star, esc(M.room(p))];
       const star = p => movesThisQuarter(ctx, p) ? ' *' : '';
-      if (byName) people.slice().sort(cmp).forEach(p => rows.push(row(p, teamAsOf(ctx, p), star(p))));
-      else (ctx.season ? Season.teamOrder(ctx.season) : TEAM_COLORS).concat(['']).forEach(t => people.filter(p => teamAsOf(ctx, p) === t).sort(cmp).forEach(p => rows.push(row(p, t, star(p)))));
-      const head = byName ? ['Group', lastFirst ? 'Last, first name' : 'Full name', sheetQuarter(ctx) + ' Color Team', 'Class'] : ['Group', sheetQuarter(ctx) + ' Color Team', lastFirst ? 'Last, first name' : 'Full name', 'Class'];
-      return sheet(g + ' ' + sheetQuarter(ctx) + ' Color Teams' + (byName ? ' (by name)' : ''), table(head, rows, 'tight'), 'portrait', esc(teamNote(ctx)));
+      (ctx.season ? Season.teamOrder(ctx.season) : TEAM_COLORS).concat(['']).forEach(t => people.filter(p => teamAsOf(ctx, p) === t).sort(cmp).forEach(p => rows.push(row(p, t, star(p)))));
+      const head = [sheetQuarter(ctx) + ' Color Team', lastFirst ? 'Last, first name' : 'Full name', 'Class'];
+      return sheet(g + ' ' + sheetQuarter(ctx) + ' Color Teams', table(head, rows, 'tight'), 'portrait', esc(teamNote(ctx)));
     }).join('');
   }
 
@@ -111,14 +115,16 @@
   const emergOf = p => { const raw = String(M.eff(p, C.EMERG) || '').trim(), i = raw.lastIndexOf(' - '); return { name: !raw ? '' : i < 0 ? raw : raw.slice(0, i), phone: M.emergencyPhone(p) }; };
   // The club's own choice (set on the Person tab) comes after the two Planning Center answers and before the registration contact's number. It prints with no mark.
   const phoneSource = p => parentPhone(p) ? 'parent' : emergOf(p).phone ? 'own' : M.clubPhone(p) ? 'club' : regPhone(p) ? 'reg' : '';
+  const EMERG_W_CLASS = [24, 28, 48], EMERG_W_CLASS_TEAM = [22, 10, 26, 42], EMERG_W_ALL = [24, 18, 8, 19, 31];      // N30, N31: everyone by name: Name, Class, Color Team, Contact, Medical (Class wide enough for "T&T Girls (Group A)", Contact narrower: it has room); a class page of Sparks or T&T has a Color Team column too, so it has its own set; Cubbies and Puggles pages keep the first      // N15: the same column positions on every class page (and on the everyone-by-name page)
   const warnCell = '<span class="nw" style="color:var(--warntxt);font-weight:700">&#9888; NO PHONE ON FILE</span>';
   const contact = p => {
     const { name } = emergOf(p), src = phoneSource(p);
-    const phoneCell = src === 'parent' ? '<span class="nw">' + esc(parentPhone(p)) + '</span>'
-      : src === 'own' ? '<span class="nw">' + esc(emergOf(p).phone) + '</span>'
-      : src === 'club' ? '<span class="nw">' + esc(M.clubPhone(p)) + '</span>'
-      : src === 'reg' ? '<span class="nw">' + esc(regPhone(p)) + ' †</span>' : warnCell;
-    return [name && '<span class="nw">' + esc(name) + '</span>', phoneCell].filter(Boolean).join('<br>');
+    const ph = v => '<span class="' + (String(v).length > 16 ? 'nw nm' : 'nw') + '">' + esc(v);      // a phone stays on one line, unless the field holds more than a number (N15: it then wraps inside its column instead of spilling into the next one)
+    const phoneCell = src === 'parent' ? ph(parentPhone(p)) + '</span>'
+      : src === 'own' ? ph(emergOf(p).phone) + '</span>'
+      : src === 'club' ? ph(M.clubPhone(p)) + '</span>'
+      : src === 'reg' ? ph(regPhone(p)) + ' †</span>' : warnCell;
+    return [name && '<span class="nw nm">' + esc(name) + '</span>', phoneCell].filter(Boolean).join('<br>');
   };
   // "Printed 11/14/26" in the subtitle of the binder pages (emergency, medical and photos; coaches color lists), so a loose page says how old it is. Nothing when the caller gave no day (ctx.today, ISO).
   const printedOn = ctx => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ctx.today || ''); return m ? 'Printed ' + m[2] + '/' + m[3] + '/' + m[1].slice(2) : ''; };
@@ -129,10 +135,15 @@
   // Medical notes, with "No photos" on its own line under them, in one cell (the binders' space-saving layout).
   const medAndPhotos = p => medCell(p) + (M.noPhotos(p) ? '<br><b>No photos</b>' : '');
   const binderCounts = people => people.filter(p => M.medicalText(p)).length + ' of ' + people.length + ' children have medical or allergy notes; ' + people.filter(p => M.noPhotos(p)).length + ' are marked no photos. ';
+  // N30: the child's color team for the quarter being printed, as the colored cell with the color word in it (so a black-and-white print still reads it) and a * for a child who changes team that quarter. Empty for a group with no color teams.
+  const teamFor = (ctx, p) => { if (!M.hasColorTeams(M.groupOf(M.room(p)))) return ''; const t = teamAsOf(ctx, p); return t ? teamCell(t) + (movesThisQuarter(ctx, p) ? '*' : '') : ''; };
   function binderClass(ctx) {
     const list = kids(ctx.master).filter(p => !ctx.opts.room || M.room(p) === ctx.opts.room);
-    return roomsOf(list).map(r => { const people = list.filter(p => M.room(p) === r).sort(byFirst);
-      return sheet(r + ' — Emergency, Medical and Photos', table(['Name', 'Emergency contact', 'Medical / allergy notes'], people.map(p => [esc(M.fullName(p)), contact(p), medAndPhotos(p)]), 'wrap emerg') + parentNote(people) + noPhoneNote(people), 'portrait', printedOn(ctx)); }).join('') || '<p class="status">No children.</p>';
+    return roomsOf(list).map(r => { const people = list.filter(p => M.room(p) === r).sort(byFirst), teams = M.hasColorTeams(M.groupOf(r));
+      const body = teams
+        ? table(['Name', sheetQuarter(ctx) + ' Color Team', 'Emergency contact', 'Medical / allergy notes'], people.map(p => [esc(M.fullName(p)), teamFor(ctx, p), contact(p), medAndPhotos(p)]), 'wrap emerg', EMERG_W_CLASS_TEAM)
+        : table(['Name', 'Emergency contact', 'Medical / allergy notes'], people.map(p => [esc(M.fullName(p)), contact(p), medAndPhotos(p)]), 'wrap emerg', EMERG_W_CLASS);
+      return sheet(r + ' — Emergency, Medical and Photos', body + parentNote(people) + noPhoneNote(people), 'portrait', [printedOn(ctx), teams && ctx.season ? teamNote(ctx) : ''].filter(Boolean).join(' · ')); }).join('') || '<p class="status">No children.</p>';
   }
   // Color teams for the games leaders: one sheet for all of Sparks and one for all of T&T, each sorted by color (a heading per color), last name first, with the class. No contact details.
   function binderTeams(ctx) {
@@ -159,7 +170,7 @@
   }
   function binderAll(ctx) {
     const all = kids(ctx.master).sort(byLast);
-    return sheet('Emergency, Medical and Photos — everyone by name', table(['Name', 'Class', 'Emergency contact', 'Medical / allergy notes'], all.map(p => [esc(last(p) + ', ' + first(p)), esc(M.room(p)), contact(p), medAndPhotos(p)]), 'wrap emerg') + parentNote(all) + noPhoneNote(all), 'portrait', printedOn(ctx));
+    return sheet('Emergency, Medical and Photos — everyone by name', table(['Name', 'Class', sheetQuarter(ctx) + ' Color Team', 'Emergency contact', 'Medical / allergy notes'], all.map(p => [esc(last(p) + ', ' + first(p)), esc(M.room(p)), teamFor(ctx, p), contact(p), medAndPhotos(p)]), 'wrap emerg', EMERG_W_ALL) + parentNote(all) + noPhoneNote(all), 'portrait', [printedOn(ctx), ctx.season ? teamNote(ctx) : ''].filter(Boolean).join(' · '));
   }
 
   function photos(ctx) {
@@ -186,13 +197,20 @@
       'Still to order: ' + n(M.uniToOrder) + ' · still to receive from Awana: ' + n(M.uniToReceive) + ' · still to give to students: ' + kids(ctx.master).filter(p => M.uniformItems(p).length && !M.uniGiven(p)).length);
   }
 
+  // Lessons by week (N2): Date, Theme, then one column for each group that is on (Puggles, Cubbies, Sparks, T&T), from the typed lesson cells. A planned No Club night prints NO CLUB across the row; events are left out.
+  // A group that is off (Sparks work through their books in turn, so they have no lesson by week) is left out. With lessons off the report says so.
   function lessons(ctx) {
-    const cal = (ctx.calendar || []).filter(r => r.Type !== 'Event');
+    const all = ctx.calendar || [], cal = all.filter(r => r.Type !== 'Event');
     if (!cal.length) return '<p class="empty">Load a calendar on the Calendar tab first.</p>';
-    const rows = cal.map(r => r['No Club'] === '1'
-      ? [Cal.short(r.Date), '<span class="none">NO CLUB</span>', '', '', '']
-      : [Cal.short(r.Date), esc(r['Cubbies Lesson']), esc([r['Puggles #'], r['Puggles Title']].filter(Boolean).join(' ')), esc(r['Sparks Lesson']), esc(r['T&T Lesson'])]);
-    return sheet('Lessons', table(['Date', 'Cubbies', 'Puggles', 'Sparks', 'T&T'], rows, 'wrap'), 'portrait');
+    const L = Cal.lessonSettings(ctx.season && ctx.season.config, all);
+    if (!L.on) return '<p class="empty">Lessons by week are not turned on (Calendar tab, Lessons by week).</p>';
+    const groups = Cal.GROUPS.filter(g => L.groups[g].on);
+    if (!groups.length) return '<p class="empty">Every group is switched off for lessons by week (Calendar tab, Lessons by week).</p>';
+    const head = '<tr><th>Date</th><th>Theme</th>' + groups.map(g => '<th>' + esc(g) + '</th>').join('') + '</tr>';
+    const body = cal.map(r => r['No Club'] === '1'
+      ? '<tr><td>' + Cal.short(r.Date) + '</td><td colspan="' + (groups.length + 1) + '"><span class="none">NO CLUB</span>' + (r.Theme ? ' <span class="none">' + esc(r.Theme) + '</span>' : '') + '</td></tr>'
+      : '<tr><td>' + Cal.short(r.Date) + '</td><td>' + esc(r.Theme) + '</td>' + groups.map(g => '<td>' + esc(r[Cal.lessonCol(g)]) + '</td>').join('') + '</tr>').join('');
+    return sheet('Lessons by week', '<table class="grid wrap"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>', 'portrait');
   }
 
 
@@ -200,13 +218,15 @@
   // Three blocks to a page (letter portrait, about 3in each). Events and No Club nights are not blocks (Calendar.nights is the one filter). The quarter is ctx.settings.quarter (a bundle overrides it), never opts.date.
   // A whole quarter goes on ONE letter or A4 page: one table with the column titles once at the top, and for each night a group of write-in rows (a <tbody>, kept whole) with its date and theme in the left cell.
   // Columns, like the club's Excel Notes sheet: date and theme, Workers Not Available (two columns), Supply Orders (Item, Group, Name, Size, Paid), Notes. More than NIGHTS_PER_PAGE nights share the nights evenly over more pages.
-  const NIGHTS_PER_PAGE = 14, ROWS_BUDGET_IN = 9.2;      // 14 nights is a long quarter; 9.2in of rows leaves room for the title row and the gaps between nights on A4 (10.7in inside 0.25in margins) and letter (10.5in)
+  const NIGHTS_PER_PAGE = 14, ROWS_BUDGET_IN = 9.0;      // 14 nights is a long quarter; 9.2in of rows leaves room for the title row and the gaps between nights on A4 (10.7in inside 0.25in margins) and letter (10.5in)
   const rowsFor = n => Math.max(2, Math.min(5, Math.floor(ROWS_BUDGET_IN / (n * 0.26))));      // write-in rows for each night: as many as fit at 0.26in or more a row (2 to 5), so a short quarter gets more room
   const rowHeightIn = n => Math.round(Math.min(0.36, ROWS_BUDGET_IN / (n * rowsFor(n))) * 100) / 100;
   const longDate = iso => Cal.short(iso);      // M/D, no year: the date column is narrow and the date is printed large (the quarter and the club year are known)
+  // N16: the theme never sets the height of a night's block: it sits in a clipped box that is as tall as the block's rows, and a long theme is set smaller (the full theme is on the calendar).
+  const themeSize = t => String(t).length <= 30 ? 'ts1' : String(t).length <= 60 ? 'ts2' : 'ts3';
   function noteNight(r, rows, h) {
     const cells = '<td></td><td class="r1"></td><td class="gp"></td><td class="c3"></td><td></td><td></td><td class="r2"></td><td class="gp"></td><td class="c8"></td>', tr = '<tr class="nr" style="height:' + h + 'in">';
-    return '<tbody class="nblock">' + tr.replace('nr', 'nr nfirst') + '<th rowspan="' + rows + '" class="nhead"><b>' + esc(longDate(r.Date)) + '</b>' + (r.Theme ? ' <i>' + esc(r.Theme) + '</i>' : '') + '</th>' + cells + '</tr>' + (tr + cells + '</tr>').repeat(rows - 1) + '</tbody>';
+    return '<tbody class="nblock">' + tr.replace('nr', 'nr nfirst') + '<th rowspan="' + rows + '" class="nhead"><div class="nh" style="max-height:' + Math.round((rows * h - 0.05) * 100) / 100 + 'in"><b>' + esc(longDate(r.Date)) + '</b>' + (r.Theme ? ' <i class="' + themeSize(r.Theme) + '">' + esc(r.Theme) + '</i>' : '') + '</div></th>' + cells + '</tr>' + (tr + cells + '</tr>').repeat(rows - 1) + '</tbody>';
   }
   function noteTable(list) {
     const rows = rowsFor(list.length), h = rowHeightIn(list.length);
@@ -228,9 +248,10 @@
   function volunteers(ctx) {
     // Volunteers are the people whose Planning Center Selection is a volunteer. Phone and email: the first one filled in, in this order.
     const firstOf = (p, cols) => cols.map(c => M.eff(p, c)).find(v => v) || '';
+    const volRank = p => M.room(p) === 'Volunteers' ? 1000 : M.roomRank(M.room(p));      // N13: class order (Puggles, Cubbies, Sparks, T&T...), then name; volunteers with no class last
     // Planning Center joins several numbers or addresses in one cell with a bare ";". Show them "a; b", and keep each one whole so a long list wraps between them (flag 16).
     const pieces = v => String(v || '').split(';').map(x => x.trim()).filter(Boolean);
-    const rows = ctx.master.people.filter(p => M.isActive(p) && /volunteer/i.test(M.eff(p, C.SELECTION) || '')).sort(byLast).map(p =>['<span class="nw">' + esc(last(p) + ', ' + first(p)) + '</span>', esc(M.room(p)),
+    const rows = ctx.master.people.filter(p => M.isActive(p) && /volunteer/i.test(M.eff(p, C.SELECTION) || '')).sort((a, b) => volRank(a) - volRank(b) || M.room(a).localeCompare(M.room(b)) || byLast(a, b)).map(p =>['<span class="nw">' + esc(last(p) + ', ' + first(p)) + '</span>', esc(M.room(p)),
       pieces(firstOf(p, ['Mobile Phone Number', 'Home Phone Number', 'Work Phone Number', 'Other Phone Number'])).map(x => '<span class="nw">' + esc(x) + '</span>').join('; '),
       pieces(firstOf(p, ['Home Email Address', 'Work Email Address', 'Other Email Address'])).map(esc).join('; ')]);
     return sheet('Volunteer Contact List', table(['Name', 'Assignment (class)', 'Phone', 'Email'], rows), 'portrait');
@@ -247,8 +268,8 @@
   const LIST = [
     { id: 'attendance', title: 'Attendance sheets (per room)', render: attendance, opts: ['room', 'quarter'] },
     { id: 'teams', title: 'Color teams (Sparks, T&T)', render: colorTeams, opts: ['order', 'quarter'] },
-    { id: 'binderClass', title: 'Emergency, medical and photos by class (class binders)', render: binderClass, opts: ['room'] },
-    { id: 'binderAll', title: 'Emergency, medical and photos, everyone by name (coaches binder)', render: binderAll },
+    { id: 'binderClass', title: 'Emergency, medical and photos by class (class binders)', render: binderClass, opts: ['room', 'quarter'] },
+    { id: 'binderAll', title: 'Emergency, medical and photos, everyone by name (coaches binder)', render: binderAll, opts: ['quarter'] },
     { id: 'binderTeams', title: 'Color teams by group and color (coaches binder)', render: binderTeams, opts: ['quarter'] },
     { id: 'noteSheets', title: 'Coaches binder notes (a block for each club night)', render: noteSheets, opts: ['quarter'] },
     { id: 'progressSheets', title: 'Progress sheets, each child, by class (class binder)', render: progressSheets, opts: ['room'] },

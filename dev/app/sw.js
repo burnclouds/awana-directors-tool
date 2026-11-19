@@ -39,7 +39,8 @@ self.addEventListener('fetch', e => {
       return;
     }
     // Any other request for the page (the update check fetches index.html with a cache-busting query): the server's copy, so it always sees the newest release; the cached shell only when offline.
-    e.respondWith(fetch(req).catch(() => caches.match(base + 'index.html', { ignoreSearch: true, cacheName: CACHE })));
+    // Offline, the cached shell is returned with x-awana-offline, so the update check can say it could not reach the site instead of finding "the same version" in the cached copy (N7).
+    e.respondWith(fetch(req).catch(() => caches.match(base + 'index.html', { ignoreSearch: true, cacheName: CACHE }).then(hit => hit ? hit.blob().then(b => new Response(b, { status: 200, headers: { 'content-type': 'text/html', 'x-awana-offline': '1' } })) : hit)));
     return;
   }
   if (file.startsWith('try/')) return;      // the sample club is fetched as it is

@@ -18,7 +18,7 @@ trap 'rm -rf "$out"' EXIT
 
 run_one() {  # $1 = test file name; writes $out/<name>.res with "status|detail"
   f="$1"
-  if grep -q "require('playwright')" "$app/test/$f" 2>/dev/null || grep -q 'require("playwright")' "$app/test/$f" 2>/dev/null; then
+  if grep -q "require('playwright')" "$app/test/$f" 2>/dev/null || grep -q 'require("playwright")' "$app/test/$f" 2>/dev/null || grep -q 'lib/app-page' "$app/test/$f" 2>/dev/null; then      # test/lib/app-page.js is the shared browser setup: a test that uses it needs Playwright too
     if [ "$have_pw" = 0 ] || [ "$nodeonly" = 1 ]; then
       echo "SKIP|no playwright (or --node-only)" > "$out/$f.res"; return
     fi

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-flagpop.js'] = '1.0.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-flagpop.js'] = '1.1.0';
 // The flag popup: a yellow flag (a place that has a note) opens this popup next to itself. Each note is in a text box: Save keeps an edit, Clear removes the flag. Closes with the x, Esc, a click anywhere else,
 // or a change of tab; an edit that was not saved is dropped. Placement is the (i) note's (App.info.placeBox), so it never leaves the window. New flags are made only by the Flag button and the To do "Add note" box.
 (function () {
@@ -12,7 +12,7 @@
     box._ids = ids;
     box.innerHTML = '<button type="button" class="infoclose fpclose" aria-label="Close this note">&times;</button><b class="infotitle">&#9873; Flag</b>' + ids.map(id => { const f = App.season.flags[id];
       return '<div class="fpnote"><span class="status">' + esc(App.flagWhere(Object.assign({ id }, f))) + ' · ' + esc(fmt(f)) + '</span><textarea rows="3" data-fnote="' + esc(id) + '" aria-label="Note">' + esc(f.note) + '</textarea>' +
-        '<div class="dlgbtns"><button type="button" data-fclear="' + esc(id) + '">Clear flag</button><button type="button" class="primary" data-fsave="' + esc(id) + '">Save</button></div></div>'; }).join('');
+        '<div class="dlgbtns">' + (f.level === 'bug' ? '' : '<button type="button" data-fhide="' + esc(id) + '" data-on="' + (Season.isFlagHidden(f) ? '' : '1') + '" title="' + (Season.isFlagHidden(f) ? 'Show this note on the To do list again' : 'Hide this note from the To do list. It stays here and in History.') + '">' + (Season.isFlagHidden(f) ? 'Unhide' : 'Hide on To do') + '</button>') + '<button type="button" data-fclear="' + esc(id) + '">Clear flag</button><button type="button" class="primary" data-fsave="' + esc(id) + '">Save</button></div></div>'; }).join('');
     App.info.placeBox(anchor, box);
   }
   function show(ids, el) {
@@ -28,6 +28,7 @@
       e.preventDefault();
       if (t.classList.contains('fpclose')) { close(); return; }
       if (t.dataset.fsave) { const ta = box.querySelector('textarea[data-fnote="' + CSS.escape(t.dataset.fsave) + '"]'); try { App.setFlagNote(t.dataset.fsave, ta.value); } catch (err) { App.flash(err.message, 'error'); return; } close(); if (App.flagsChanged) App.flagsChanged(); App.flash('Note saved.', 'info'); return; }
+      if (t.dataset.fhide) { App.hideFlag(t.dataset.fhide, !!t.dataset.on); draw(); if (App.flagsChanged) App.flagsChanged(); return; }
       if (t.dataset.fclear) { App.clearFlag(t.dataset.fclear); draw(); if (App.flagsChanged) App.flagsChanged(); return; }
       return;
     }

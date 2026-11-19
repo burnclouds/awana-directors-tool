@@ -16,7 +16,9 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   const txt = id => page.$eval('#' + id, e => e.textContent.trim());
   await page.waitForTimeout(500);
   await test('the badge equals the number of awards still to announce or hand out', async () => {
-    const n = await page.evaluate(() => window.App.awardsToGive().length); assert.strictEqual(await txt('awardsBadge'), n ? String(n) : '');
+    // N22: two numbers. The first is to announce, the second is to hand out.
+    const a = await page.evaluate(() => window.App.awardsToAnnounce()), n = await page.evaluate(() => window.App.awardsToGive().length);
+    assert.strictEqual(await txt('awardsBadge'), a ? String(a) : ''); assert.strictEqual(await txt('awardsGiveBadge'), n ? String(n) : '');
   });
   await test('finishing a block on Progress raises it, and announcing lowers it; the group and menu badges add it to To do', async () => {
     const before = +(await txt('awardsBadge')) || 0;
@@ -28,9 +30,9 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     const sum = (+(await txt('todoBadge')) || 0) + after; assert.strictEqual(+(await txt('tonightBadge')) || 0, sum, 'group badge = To do + Awards');
     assert.strictEqual(+(await txt('tabMenuBadge')) || 0, sum, 'phone menu badge too');
     await tab('awards'); await page.waitForTimeout(400);
-    if (await page.isVisible('#btnAnnounce')) { await page.click('#btnAnnounce'); await page.waitForTimeout(600); assert.strictEqual(+(await txt('awardsBadge')) || 0, after, 'announcing does not lower it: the award still has to be handed out'); }
+    if (await page.isVisible('#btnAnnounce')) { await page.click('#btnAnnounce'); await page.waitForTimeout(600); { const left = await page.evaluate(() => window.App.awardsToAnnounce()); assert(left < after, 'announcing does not lower the to-announce number: ' + after + ' -> ' + left); assert.strictEqual(+(await txt('awardsBadge')) || 0, left, 'to-announce badge'); assert.strictEqual(+(await txt('awardsGiveBadge')) || 0, await page.evaluate(() => window.App.awardsToGive().length), 'to-give badge still counts the hand-outs'); } }
   });
-  await test('awards on the "left off the slide" list (Flight 3:16) are not counted or offered to announce, but are still earned and tracked as given', async () => {
+  await test('Flight 3:16 is a booklet, not an award (N23): finishing it earns nothing, so it is not counted, not offered to announce and not on the give list', async () => {
     const info = await page.evaluate(() => { const A = window.App, M = window.Model, id = p => p['x_ClubberID'];
       const p = A.master.people.find(x => M.groupOf(M.room(x)) === 'Sparks' && M.isActive(x) && !(A.season.progress[id(x)] || {}).common && !Object.values(A.season.awards).some(n => (n[id(x)] || []).includes('Flight 3:16')));
       return p ? { id: id(p), room: M.room(p) } : null; });
@@ -39,7 +41,7 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     await page.evaluate(id => { const S = window.Season, s = window.App.season; ['1', '2', '3', '4', '5', '6'].forEach(i => S.setProgress(s, id, 'common', 'FLT.' + i, '2026-11-01')); window.App.touch(); }, info.id);
     await page.waitForTimeout(400);
     assert.strictEqual(await page.evaluate(() => window.App.awardsToAnnounce()), before, 'Flight 3:16 does not raise the count');
-    assert(await page.evaluate(id => { const A = window.App, p = A.master.people.find(x => x['x_ClubberID'] === id); return Season.suggestedAwards(A.season, id, 'Sparks').some(d => d.award === 'Flight 3:16'); }, info.id), 'still earned (so still on the give list)');
+    assert(await page.evaluate(id => { const A = window.App, p = A.master.people.find(x => x['x_ClubberID'] === id); return !Season.suggestedAwards(A.season, id, 'Sparks').some(d => d.award === 'Flight 3:16'); }, info.id), 'not an award: nothing to give');
     await tab('awards'); await page.waitForTimeout(400);
     assert(!/Flight 3:16/.test(await page.evaluate(() => { const t = document.querySelector('#tab-awards').innerText; return t.split('Announced, not yet given')[0]; })), 'not in Ready to announce');
   });

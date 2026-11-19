@@ -34,7 +34,7 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
   });
   await test('Show binders with the Class binder for Sparks A makes "Your binders" the selected report, drawn with the bundle quarter and with no other class', async () => {
     await page.click('#bindNone'); await page.check('#dlg input[data-room="Sparks A"]'); await page.click('#bindGo'); await page.waitForTimeout(500);
-    assert(await page.isVisible('#tab-reports'), 'on the Reports tab'); assert.strictEqual(await page.inputValue('#rSel'), 'bundle:picked'); assert(/Your binders: Class binder: Sparks A/.test(await page.$eval('#rSel option:checked', o => o.textContent)));
+    assert(await page.isVisible('#tab-reports'), 'on the Reports tab'); assert.strictEqual(await page.inputValue('#rSel'), 'bundle:picked'); assert(/Last made in Print class binders: Class binder: Sparks A/.test(await page.$eval('#rSel option:checked', o => o.textContent)));
     assert(await page.isVisible('#qWrap') && await page.locator('#qWrap button.on').count() === 1, 'the Quarter pills show the quarter to print'); assert(/Class binder: Sparks A/.test(await page.textContent('#bNote')), 'the note names the binders');
     const h2 = await page.$$eval('#report .sheet h2', h => h.map(x => x.textContent)); assert(h2.some(t => /Sparks A/.test(t)) && !h2.some(t => /Cubbies|Puggles|Sparks B/.test(t)), 'only Sparks A: ' + h2.join(' | '));
     assert(/Volunteer Contact List/.test(await page.textContent('#report')), 'the volunteer list is there'); assert((await page.locator('#report .onepage').count()) > 0, 'with its progress sheets');

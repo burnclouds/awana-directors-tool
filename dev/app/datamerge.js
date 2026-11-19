@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['datamerge.js'] = '1.1.5';
+(this.AwanaVersions = this.AwanaVersions || {})['datamerge.js'] = '1.1.6';
 // Merging another leader's data file into the one that is open (BACKLOG item J). Nothing here touches the screen or the open file: plan() works out what a merge would do,
 // summary() lists it as a categorized diff, and finish() builds the merged season once the leader has decided the real conflicts.
 // Rules (Mike, 2026-11-12):
@@ -109,6 +109,7 @@
   const MD = d => { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(d || ''); return m ? (+m[1]) + '/' + (+m[2]) : (typeof d === 'string' ? d.replace(/[<>&"']/g, '') : d); };
   const MARK = { a: 'attended', h: 'handbook', p: 'prayer', x: 'excused' };
   function words(P, p) {
+    if (p[0] === 'flags' && p[2] === 'hidden') return 'Note › hidden on To do';
     const people = Object.assign({}, P.other.roster.people, P.mine.roster.people), parts = [];
     p.slice(1).forEach((s, i) => {
       if (/^\d{4}-\d{2}-\d{2}$/.test(s)) parts.push(MD(s));

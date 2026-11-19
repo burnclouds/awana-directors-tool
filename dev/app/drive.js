@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['drive.js'] = '1.3.2';
+(this.AwanaVersions = this.AwanaVersions || {})['drive.js'] = '1.3.3';
 // Optional Google Drive access, for people whose files are in Drive but who do not have the Drive folder on their computer.
 // Nothing here runs until the person presses a Drive button, and Google's scripts are loaded then, not before. Only files the person
 // picks (and files this app creates) are reachable: the scope is drive.file. save() always makes a NEW file; update() replaces the content of one file this app was given
@@ -13,7 +13,8 @@
   const SCOPE = 'https://www.googleapis.com/auth/drive.file', FILES = 'https://www.googleapis.com/drive/v3/files', UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
   const GSI = 'https://accounts.google.com/gsi/client', GAPI = 'https://apis.google.com/js/api.js', FOLDER = 'application/vnd.google-apps.folder';
 
-  class DriveError extends Error { constructor(msg, status) { super(msg); this.name = 'DriveError'; this.status = status || 0; } }
+  // kind (N9 point 9): signin | folder | busy | offline | other. Set from the HTTP status or the cause; message stays the technical text for the log.
+  class DriveError extends Error { constructor(msg, status, kind) { super(msg); this.name = 'DriveError'; this.status = status || 0; this.kind = kind || (status === 401 ? 'signin' : (status === 403 || status === 404) ? 'folder' : [429, 500, 502, 503, 504].includes(status) ? 'busy' : 'other'); } }
 
   const loading = new Map();
   const defaultLoad = src => {
@@ -43,14 +44,14 @@
         const client = google().accounts.oauth2.initTokenClient({
           client_id: cfg.clientId, scope: SCOPE,
           callback: r => { if (r.error) bad(new DriveError(r.error_description || r.error)); else { token = r.access_token; expires = now() + (+r.expires_in || 3600) * 1000; ok(token); } },
-          error_callback: e => bad(new DriveError('Sign-in did not finish' + (e && (e.message || e.type) ? ' (' + (e.message || e.type) + ')' : '') + '.')),
+          error_callback: e => bad(new DriveError('Sign-in did not finish' + (e && (e.message || e.type) ? ' (' + (e.message || e.type) + ')' : '') + '.', 0, 'signin')),
         });
         client.requestAccessToken({ prompt: '' });
       });
     }
 
     async function api(url, init) {
-      const t = await connect(), r = await doFetch(url, Object.assign({}, init, { headers: Object.assign({ Authorization: 'Bearer ' + t }, init && init.headers) }));
+      const t = await connect(); let r; try { r = await doFetch(url, Object.assign({}, init, { headers: Object.assign({ Authorization: 'Bearer ' + t }, init && init.headers) })); } catch (e) { if (e instanceof TypeError) throw new DriveError('Could not reach Google Drive: the network request failed.', 0, 'offline'); throw e; }
       if (r.ok) return r;
       let why = ''; try { why = (await r.json()).error.message || ''; } catch (e) { /* no detail */ }
       if (r.status === 401) token = null;

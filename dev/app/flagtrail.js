@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['flagtrail.js'] = '1.0.1';
+(this.AwanaVersions = this.AwanaVersions || {})['flagtrail.js'] = '1.1.0';
 // Flag anything: the rules for naming a clicked element. A flag does not point at a DOM node (screens are redrawn constantly); it keeps a trail, a breadcrumb of labels:
 // the tab name, the nearest section heading, the row name, then the element's own label. The same trail is rebuilt later to find the element again. No DOM here: app-flagmode.js
 // reads the page and hands the pieces to these functions, so the rules can be tested without a browser. (docs/superpowers/specs/2026-11-10-flag-anything-design.md)
@@ -16,12 +16,18 @@
   const same = (a, b) => !!a && !!b && a.length === b.length && a.every((x, i) => stable(x) === stable(b[i]));
   // Which element does a stored flag mean? candidates: [{ trail, rowIndex, ref }] rebuilt from the page. The same trail and row position wins; with the same trail only (a shorter list now), the first.
   // Nothing matching returns null: the flag stays listed as "spot not found".
+  // N20: a flag that names a child (stored.kid) is only ever that child's element: a candidate that is another child's is not a hit, and the child's own beats a position match (a re-sorted table moves the row, not the flag).
   function find(stored, candidates) {
-    const t = (stored && stored.trail) || [], ri = (stored && stored.rowIndex) || 0, hits = (candidates || []).filter(c => same(c.trail, t));
+    const t = (stored && stored.trail) || [], ri = (stored && stored.rowIndex) || 0, kid = (stored && stored.kid) || '';
+    const hits = (candidates || []).filter(c => same(c.trail, t) && (!kid || (c.kid || '') === kid));
     return hits.find(c => (c.rowIndex || 0) === ri) || hits[0] || null;
   }
+  // The view a flag was made in (N20): kid (the child the page is about), sub (the Person tab part), book (the book tab), date (the night), room (the class), quarter, group. Every part is optional.
+  // A stored flag is "here" when each part it HAS equals the same part of the view being looked at; a part it does not have is not compared, so a flag made before this existed matches as it always did.
+  const SCOPE_FIELDS = ['kid', 'sub', 'book', 'date', 'room', 'quarter', 'group'];
+  const scopeOk = (stored, scope) => SCOPE_FIELDS.every(k => !(stored && stored[k]) || (scope && scope[k]) === stored[k]);
   // The position of a row among the rows that share its name (two rows both called "Green" are told apart by this).
   const rowIndexOf = (rowNames, i) => { const n = rowNames[i]; return rowNames.slice(0, i).filter(x => x === n).length; };
-  const api = { clean, short, firstText, build, readable, same, stable, find, rowIndexOf, MAX };
+  const api = { clean, short, firstText, build, readable, same, stable, find, rowIndexOf, scopeOk, SCOPE_FIELDS, MAX };
   if (typeof module !== 'undefined') module.exports = api; else root.FlagTrail = api;
 })(this);

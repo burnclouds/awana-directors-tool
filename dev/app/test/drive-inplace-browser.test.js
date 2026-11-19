@@ -54,6 +54,7 @@ async function session(browser, base, d, opts) {
     let m;
     if (method === 'POST' && /upload\/drive\/v3\/files\?/.test(u)) { const [meta, text] = d.part(r.request().postData()), id = 'N' + d.next++, j = JSON.parse(meta); d.put(id, j.name, text, j.parents); return json({ id, name: j.name, parents: j.parents, headRevisionId: 'R1' }); }
     if (method === 'PATCH' && (m = /upload\/drive\/v3\/files\/([A-Za-z0-9]+)\?/.exec(u))) {
+      if (d.failPatch) { d.failPatch = false; return r.fulfill({ status: 503, contentType: 'application/json', body: '{"error":{"message":"Backend Error"}}' }); }      // N9 point 9: Google is busy once; nothing is written
       if (d.beforePatch) { const h = d.beforePatch; d.beforePatch = null; h(m[1]); }
       const [meta, text] = d.part(r.request().postData()), f = d.files[m[1]]; f.name = JSON.parse(meta).name; d.rev(m[1], text); return json(info(d, m[1]));
     }
@@ -118,6 +119,19 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
     assert(/^Merged/.test(file.history.at(-1).label), file.history.at(-1).label);
     assert.deepStrictEqual(await p.evaluate(i => App.season.attendance['2026-10-28'][i], k[2]), { a: 1, x: 1 }, 'this screen shows their mark too'); assert(d.files.F1.revs.length >= 3, 'their revision is kept');
     assert.deepStrictEqual(seen.errors, []); await ctx.close();
+  });
+  await test('a save fails (busy), someone else saves, then saving again merges: the merge screen shows both and their revision is kept', async () => {
+    // Try again is the same save as pressing Save again, so this presses Save again after the failure.
+    const d = fresh(), { p, seen, ctx } = await prep(d); await inplace(p); const k = await kids(p), theirs = JSON.parse(ORIG);
+    d.failPatch = true; await mark(p, '2026-10-28', k[0], 'h'); await save(p); await p.waitForTimeout(800);
+    assert.strictEqual(JSON.parse(d.text('F1')).attendance?.['2026-10-28']?.[k[0]], undefined, 'the busy save wrote nothing to Drive');
+    assert.strictEqual(seen.downloads, 1, 'one copy downloaded on the failure');
+    theirs.attendance = theirs.attendance || {}; theirs.attendance['2026-10-28'] = theirs.attendance['2026-10-28'] || {}; theirs.attendance['2026-10-28'][k[2]] = { a: 1, x: 1 }; d.rev('F1', JSON.stringify(theirs));
+    await save(p); await p.waitForSelector('#mergeDlg[open]', { timeout: 8000 });
+    const shown = await p.$eval('#mergeDlg', e => e.textContent); assert(/Someone else saved this file on Google Drive/.test(shown), shown.slice(0, 200));
+    await applyMerge(p); await settle(p); await p.waitForTimeout(500);
+    const file = JSON.parse(d.text('F1')); assert.strictEqual(file.attendance['2026-10-28'][k[0]].h, 1, 'ours'); assert.deepStrictEqual(file.attendance['2026-10-28'][k[2]], { a: 1, x: 1 }, 'theirs, never overwritten');
+    assert(d.files.F1.revs.length >= 3, 'their revision is kept'); assert.deepStrictEqual(seen.errors, []); await ctx.close();
   });
   await test('someone saves in the gap between the check and the write: the next look at the revisions finds it and merges again, and their revision is never lost', async () => {
     const d = fresh(), { p, seen, ctx } = await prep(d); await inplace(p); const k = await kids(p), theirs = JSON.parse(ORIG);

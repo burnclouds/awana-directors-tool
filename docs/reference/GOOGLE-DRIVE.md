@@ -40,6 +40,19 @@ If your web server sends a Content-Security-Policy, it has to allow `accounts.go
 - The first time, Google shows a consent screen. Browsers that block pop-ups must allow them for this site.
 - A file shared with you by someone else can be opened if you can read it, but saving into that person's folder is refused unless you can edit it. The app then asks for another folder.
 
+## When a save fails
+
+A save you press (Save) that fails shows one sentence and two buttons. A copy of the file is downloaded to the computer at the same time, once.
+
+- **Google asked you to sign in again.** Press **Try again** to sign in. Your changes are still in the app.
+- **Google will not take the folder.** Choose the folder again, then press **Try again**.
+- **Google Drive is busy** (it said 429 or 5xx). Nothing was changed on Drive. Wait a moment, then press **Try again**.
+- **This computer could not reach Google Drive.** Check the connection, then press **Try again**. Nothing was changed on Drive.
+- **Someone else is saving the same file.** Wait a minute and press **Try again**. Their changes are merged with yours, and a newer Drive revision is never overwritten.
+- **Anything else** shows Google's own message in brief.
+
+**Close** leaves the work unsaved on Drive; the copy on this computer is still there. An automatic save never shows this dialog: it shows `auto-save is waiting` or `could not save` on the status line and tries again at the next interval.
+
 ## Tests
 
 `test/drive.test.js` (the Drive calls against a pretend Google, and that nothing Google-related is loaded by default), `test/drive-browser.test.js` (the buttons in a real browser with Google stubbed) and `test/drive-inplace-browser.test.js` (saving in place with a fake Drive that keeps revisions: merge, the gap between check and write, pinning). Both use pretend Google, so **what has not been tested is the real Google sign-in, picker and API**; expect to fix small things on the first real try.

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['validate.js'] = '1.14.0';
+(this.AwanaVersions = this.AwanaVersions || {})['validate.js'] = '1.18.0';
 // File checks for the Validate and Debug tabs. Pure functions: text in, findings out (nothing is read from or written to disk).
 //   validate(text, name) -> { kind, findings: [{ level: 'error' | 'warn' | 'info', msg, check }] }   (check: the part of the file the finding is about: a section name, 'config', 'roster', 'ghosts', 'calendar', 'history', 'replay' or 'file')
 //   inspect(text, name, lastModifiedMs) -> { kind, nameStamp, modified, facts }   (the dates and counts shown on the Debug tab)
@@ -30,7 +30,7 @@
   // What the data-file check covers. test/validate.test.js fails when a section (Season.SECTIONS) or a config key the code uses is missing here, so a new
   // one cannot be added without a check; each entry is exercised by a mutation test there.
   const CHECKED_SECTIONS = ['config', 'handbooks', 'attendance', 'awards', 'given', 'givenNoDate', 'held', 'flags', 'doneBooks', 'received', 'adults', 'teamMoves', 'games', 'progress', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout', 'absences', 'roster', 'calendar', 'rotation'];      // (history is checked too, but is not one of Season.SECTIONS: it is the record of changes to them)
-  const CHECKED_CONFIG = ['clubDay', 'blueJewelWeeks', 'teamOrder', 'saveStyleDrive', 'saveStyleLocal', 'autoUpdate', 'autoSave', 'drivePinDays', 'sparksBooks', 'yearBook', 'placePoints', 'books', 'progress', 'awardLists', 'exclude', 'completion', 'endOfYear', 'store', 'teamPlan', 'teamsOk', 'todoIgnored', 'driveDirs', 'bundles', 'bookOrder', 'slideNames', 'medRead', 'medPrinted', 'clubTitle', 'driveKeepName', 'cubbiesDetail', 'tntBook', 'carriedThrough', 'bugButton', 'startTab'];
+  const CHECKED_CONFIG = ['clubDay', 'blueJewelWeeks', 'teamOrder', 'saveStyleDrive', 'saveStyleLocal', 'autoUpdate', 'autoSave', 'drivePinDays', 'sparksBooks', 'yearBook', 'placePoints', 'books', 'progress', 'awardLists', 'exclude', 'completion', 'endOfYear', 'store', 'teamPlan', 'teamsOk', 'todoIgnored', 'driveDirs', 'bundles', 'bookOrder', 'slideNames', 'medRead', 'medPrinted', 'clubTitle', 'driveKeepName', 'cubbiesDetail', 'tntBook', 'carriedThrough', 'bugButton', 'startTab', 'lessons', 'showHiddenNotes'];
 
   // ---------- the data file ----------
   function validateData(text, name, out) {
@@ -58,6 +58,15 @@
     if (cfg.saveStyleDrive !== undefined && !['inplace', 'dated'].includes(cfg.saveStyleDrive)) err('The Drive save style is ' + JSON.stringify(cfg.saveStyleDrive) + ' (inplace or dated).');
     if (cfg.saveStyleLocal !== undefined && !['single', 'dated'].includes(cfg.saveStyleLocal)) err('The local save style is ' + JSON.stringify(cfg.saveStyleLocal) + ' (single or dated).');
     if (cfg.startTab !== undefined && !['roster', 'tonight', 'todo'].includes(cfg.startTab)) err('The startTab setting should be roster, tonight or todo.');      // which tab a file opens on (absent means Roster)
+    if (cfg.lessons !== undefined) {      // Lessons by week (N2): { on: true | false, groups: { Puggles: { on }, Cubbies, Sparks, 'T&T' } }
+      const L = cfg.lessons;
+      if (!isObj(L)) err('The lessons setting should be a record with on and groups.');
+      else {
+        if (L.on !== undefined && typeof L.on !== 'boolean') err('lessons.on should be true or false.');
+        if (L.groups !== undefined) { if (!isObj(L.groups)) err('lessons.groups should be a record of groups.'); else Object.keys(L.groups).forEach(g => { if (!Calendar.GROUPS.includes(g)) warn('lessons.groups has a group this app does not know: ' + g + '.'); else if (!isObj(L.groups[g]) || (L.groups[g].on !== undefined && typeof L.groups[g].on !== 'boolean')) err('lessons.groups.' + g + ' should be a record with on true or false.'); }); }
+      }
+    }
+    if (cfg.showHiddenNotes !== undefined && typeof cfg.showHiddenNotes !== 'boolean') err('The showHiddenNotes setting should be true or false.');      // To do: show the hidden notes and flags (N19)
     if (cfg.bugButton !== undefined && typeof cfg.bugButton !== 'boolean') err('The bugButton setting should be true or false.');      // the Bug button on or off (absent means off)
     ['autoUpdate', 'autoSave'].forEach(k => { if (cfg[k] !== undefined && !(cfg[k] && typeof cfg[k].on === 'boolean' && Number.isFinite(+cfg[k].minutes) && +cfg[k].minutes > 0)) err('The ' + k + ' setting is not a valid on/minutes pair.'); });
     if (cfg.drivePinDays !== undefined && !(Number.isInteger(cfg.drivePinDays) && cfg.drivePinDays >= 0)) err('The Drive keep-a-version interval is ' + JSON.stringify(cfg.drivePinDays) + ' (a whole number of days, 0 or more).');
@@ -70,6 +79,14 @@
       if (cfg.books !== undefined) { if (!isObj(cfg.books)) err('The list of books (config.books) is not an object.'); else Object.keys(cfg.books).forEach(c => { const b = cfg.books[c]; if (!/^[A-Za-z]{2,3}$/.test(c)) err('Book ' + c + ' has a code that is not 2 or 3 letters.'); else if (!isObj(b) || !isTxt(b.name) || (b.emblem !== undefined && !isTxt(b.emblem))) err('Book ' + c + ' needs a name and an emblem (text).'); else if (b.group !== undefined && !GROUPS.includes(b.group)) err('Book ' + c + ' has a group of ' + JSON.stringify(b.group) + ' (Cubbies, Sparks or T&T).'); }); }
       if (cfg.progress !== undefined) { if (!isObj(cfg.progress)) err('The progress templates (config.progress) are not an object.'); else Object.keys(cfg.progress).forEach(g => { const t = cfg.progress[g], at = 'The progress template for ' + g; if (!isObj(t)) return err(at + ' is not an object.'); ['common', 'perBook'].forEach(part => { if (t[part] === undefined) return; if (!Array.isArray(t[part])) return err(at + ' has a ' + part + ' part that is not a list of blocks.'); t[part].forEach((b, i) => { if (!(isObj(b) && isTxt(b.key) && b.key && isTxt(b.label) && txtList(b.items) && b.items.length && (b.awards === undefined || txtList(b.awards)) && (b.review === undefined || txtList(b.review)) && (b.single === undefined || typeof b.single === 'boolean'))) err(at + ' has block ' + (i + 1) + ' of ' + part + ' that needs a key, a label and a list of items.'); }); }); if (t.bookReview !== undefined && !isObj(t.bookReview)) err(at + ' has a bookReview that is not an object.'); }); }
       groupLists('awardLists', 'award lists'); groupLists('exclude', 'excluded awards'); groupLists('completion', 'book completion awards'); groupLists('endOfYear', 'end-of-year awards');
+      { // N23: Flight 3:16, Start Zone and Apple Acres are not awards. A record of one in the file is deleted when the app opens the file; this says how many the file still holds (an older file, or one saved by an older copy).
+        const bad = x => Season.notAnAward(x); let left = 0;
+        if (isObj(o.awards)) Object.values(o.awards).forEach(day => { if (isObj(day)) Object.values(day).forEach(l => { if (Array.isArray(l)) left += l.filter(bad).length; }); });
+        if (isObj(o.given)) Object.values(o.given).forEach(g => { if (isObj(g)) left += Object.keys(g).filter(bad).length; });
+        ['givenNoDate', 'announcedNoDate'].forEach(k => { if (isObj(o[k])) Object.values(o[k]).forEach(l => { if (Array.isArray(l)) left += l.filter(bad).length; }); });
+        if (isObj(o.held)) Object.values(o.held).forEach(h => { if (isObj(h)) left += Object.keys(h).filter(bad).length; });
+        if (left) warn(left + ' record' + (left === 1 ? '' : 's') + ' of Flight 3:16, Start Zone or Apple Acres (' + (left === 1 ? 'it is' : 'they are') + ' not an award): opening this file in the app removes ' + (left === 1 ? 'it' : 'them') + '.');
+      }
       if (cfg.store !== undefined) { const st = cfg.store; if (!(isObj(st) && (st.method === undefined || ['direct', 'top', 'range'].includes(st.method)) && (st.min === undefined || Number.isFinite(st.min)) && (st.max === undefined || Number.isFinite(st.max)) && (st.min === undefined || st.max === undefined || st.min <= st.max) && (st.programs === undefined || (Array.isArray(st.programs) && st.programs.every(p => ['Sparks', 'T&T'].includes(p)))) && (st.weights === undefined || (isObj(st.weights) && Object.keys(st.weights).every(k => Number.isFinite(st.weights[k]) && st.weights[k] >= 0))))) err('The store points settings (config.store) are not valid: a method of direct, top or range, a minimum and maximum that are numbers with the minimum not above the maximum, programs Sparks and/or T&T, and weights that are numbers of 0 or more.'); }
       if (cfg.teamPlan !== undefined) { const t = cfg.teamPlan; if (!isObj(t) || (t.proj !== undefined && !(isObj(t.proj) && Object.keys(t.proj).every(id => /^[RBGY-]{4}$/.test(t.proj[id])))) || (t.locked !== undefined && !(isObj(t.locked) && Object.keys(t.locked).every(q => /^Q[1-4]$/.test(q) && real(t.locked[q])))) || (t.prio !== undefined && !isObj(t.prio)) || (t.blendNights !== undefined && !(Number.isInteger(t.blendNights) && t.blendNights > 3 && t.blendNights <= 60))) err('The team plan (config.teamPlan) is not valid: proj must give each person four letters from R, B, G, Y or -, locked a real date for each of Q1 to Q4, and blendNights (when present) a whole number from 4 to 60.'); else if (isObj(t.proj)) { const ghostsP = Object.keys(t.proj).filter(id => isObj(o.roster) && isObj(o.roster.people) && !(id in o.roster.people)); if (ghostsP.length) warn('The team plan (config.teamPlan) names ' + plural(ghostsP.length, 'person', 'people') + ' who are not on the roster (' + ghostsP.slice(0, 3).join(', ') + (ghostsP.length > 3 ? ', …' : '') + ').'); } }
       if (cfg.teamsOk !== undefined && !(isObj(cfg.teamsOk) && (cfg.teamsOk.repeats === undefined || txtList(cfg.teamsOk.repeats)) && (cfg.teamsOk.uneven === undefined || (Array.isArray(cfg.teamsOk.uneven) && cfg.teamsOk.uneven.every(q => /^Q[1-4]$/.test(q)))))) err('The accepted team warnings (config.teamsOk) need repeats (a list of text) and uneven (a list of Q1 to Q4).');
@@ -254,21 +271,33 @@
         if (!isDate(f.at)) err(at + ': the date is ' + JSON.stringify(f.at) + ' (not a real date).');
         if (f.kid !== undefined && !isText(f.kid)) err(at + ': the child is not text.'); else if (f.kid) known(f.kid); else if (levelOk && !Season.FLAG_NO_KID.includes(f.level)) err(at + ' needs a child.');
         ['book', 'block', 'key'].forEach(k => { if (f[k] !== undefined && !isText(f[k])) err(at + ': ' + k + ' is not text.'); });
+        if (f.sub !== undefined && !['progress', 'attendance', 'awards', 'registration'].includes(f.sub)) warn(at + ': the Person tab part is ' + JSON.stringify(f.sub) + ' (one of progress, attendance, awards, registration); it is read as no part.');      // N20: the view a flag was made in
+        if (f.hidden !== undefined && f.hidden !== 1 && f.hidden !== true) warn(at + ': hidden is ' + JSON.stringify(f.hidden) + ' (1 when hidden on To do); it is read as not hidden.');      // N19
+        if (f.hidden !== undefined && f.level === 'bug') warn(at + ': a bug report is not hidden on To do (it is not listed there).');
         if (f.level === 'attend' && !(f.date && f.room)) err(at + ' (attendance) needs a night and a class.');
         if (f.level === 'team' && !(f.quarter && f.group)) err(at + ' (color team) needs a quarter and a group.');
         if (f.level === 'field' && !f.field) err(at + ' (field) needs the field.');
         // a bug report or feature request (id starts with b): a status, an optional reply and where it was captured
         if (f.level === 'bug') {
-          if (f.status === undefined) warn(at + ' (bug report) has no status; it is read as open.'); else if (!Season.BUG_STATUS.includes(f.status)) err(at + ': the status is ' + JSON.stringify(f.status) + ' (one of ' + Season.BUG_STATUS.join(', ') + ').');
+          if (f.status === undefined) warn(at + ' (bug report) has no status; it is read as open.'); else if (!Season.BUG_STATUS.includes(f.status)) warn(at + ': the status is ' + JSON.stringify(f.status) + ' (the app knows ' + Season.BUG_STATUS.join(', ') + '); it is read as open.');
           if (f.reply !== undefined && !isText(f.reply)) err(at + ': the reply is not text.');
           if (f.replyAt !== undefined && !isDate(f.replyAt)) err(at + ': the reply date is ' + JSON.stringify(f.replyAt) + ' (not a real date).');
           if ((f.reply !== undefined) !== (f.replyAt !== undefined)) warn(at + ': a reply and its date go together.');
+          if (f.replies !== undefined) {
+            if (!f.replies || typeof f.replies !== 'object' || Array.isArray(f.replies)) err(at + ': the replies are not a record of replies.');
+            else Object.keys(f.replies).forEach(rid => { const r = f.replies[rid], rat = at + ' reply ' + rid;
+              if (!r || typeof r !== 'object' || Array.isArray(r)) { err(rat + ' is not a record.'); return; }
+              if (!isText(r.text) || !String(r.text).trim()) err(rat + ': the text is empty or not text.');
+              if (!isDate(r.at)) err(rat + ': the date is ' + JSON.stringify(r.at) + ' (not a real date).');
+              if (!Season.BUG_BY.includes(r.by)) err(rat + ': written by ' + JSON.stringify(r.by) + ' (one of ' + Season.BUG_BY.join(', ') + ').');
+              if (!/^r/.test(rid)) warn(rat + ': a reply id should start with r.'); });
+          }
           if (f.ver !== undefined && !isText(f.ver)) err(at + ': the version is not text.');
           if (f.tab !== undefined && !(isText(f.tab) && textList(f.trail) && (f.rowIndex === undefined || (Number.isInteger(f.rowIndex) && f.rowIndex >= 0)))) err(at + ' (bug report): where it was captured needs a tab, a trail of text and a row number.');
           if (!/^b/.test(fid)) warn(at + ': a bug report id should start with b.');
         } else {
           if (/^b/.test(fid)) warn(at + ': an id starting with b is for a bug report.');
-          if (f.status !== undefined || f.reply !== undefined) warn(at + ': a status or reply belongs to a bug report.');
+          if (f.status !== undefined || f.reply !== undefined || f.replies !== undefined) warn(at + ': a status or reply belongs to a bug report.');
         }
         if (f.level === 'element' && !(isText(f.tab) && f.tab && textList(f.trail) && f.trail.length && (f.rowIndex === undefined || (Number.isInteger(f.rowIndex) && f.rowIndex >= 0)))) err(at + ' (element) needs the tab, a trail of text and a row number of 0 or more.');
       });

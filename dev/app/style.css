@@ -38,7 +38,10 @@ a[data-person] { color:var(--link); }      /* UX-30: a child's name link is the 
 .scroll { overflow-x:clip; overflow-y:visible; background:var(--panel); border:1px solid var(--line); border-radius:6px; }
 .scroll.wide { overflow-x:auto; overflow-y:hidden; }      /* y hidden: a box that scrolls sideways must never grow an up-and-down bar of its own (its sideways bar would otherwise cause one) */
 table.roster { border-collapse:collapse; width:100%; }
-table.roster th { position:sticky; top:0; background:var(--head); text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+table.roster th { position:sticky; top:0; z-index:2; background:var(--head); text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+section.sheet.strips > h2 { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }      /* N27: the hand-out pages print with no heading; the name stays in the page for Choose pages */
+#uniWrap table.roster th { z-index:40; }      /* N25: the Uniforms date boxes and their Today buttons no longer slide over the column headings when the list scrolls (not yet checked by eye) */
+#uniWrap table.roster td input, #uniWrap table.roster td .todaybtn, #uniWrap table.roster td select { position:relative; z-index:1; }
 table.roster td { padding:3px 8px; border-bottom:1px solid var(--rowline); white-space:nowrap; }
 dialog table.roster td, #optDriveCard table.roster td { white-space:normal; overflow-wrap:anywhere; } dialog table.roster td:last-child, #optDriveCard table.roster td:last-child { white-space:nowrap; }      /* a long folder name wraps instead of pushing the buttons out of the dialog */
 table.roster tr.off td { color:var(--offtxt); background:var(--off); }
@@ -141,6 +144,7 @@ table.rotgrid textarea, #rotWrap textarea { width:100%; min-width:120px; font:in
   main { overflow:visible; }
   #report .sheet { border:none; margin:0; padding:0; break-after:page; }
   #report .sheet:last-child { break-after:auto; }
+  #report .sheet.att { padding-top:0.45in; }      /* N11: 0.4in page margin + 0.45in = 0.85in clear at the top of the attendance sheet for a three-hole punch */
   #pagePick, #report .sheet button, #report .sheet .flagrow, #report .sheet .flagnote { display:none !important; }      /* screen-only controls: the page ticks, Hide / Flag / Today buttons */
   #report .sheet .pblock, #report .sheet .prow, #report .sheet .achild { break-inside:avoid; }
   table.grid tr { break-inside:avoid; }
@@ -213,7 +217,7 @@ table.slide td { font-size:20px; padding:8px 10px; }
 .ahead { margin:0 0 4px; }
 .arev { display:inline-flex; align-items:center; gap:4px; margin-left:8px; padding-left:8px; border-left:1px dashed var(--line); } .arevl { font-size:10px; color:var(--mute); margin-right:2px; }
 @media print { .arow { padding:2px 0; gap:2px 5px; } .alabel { width:96px; font-size:12px; } .abox { min-width:46px; padding:0 3px; } .abox b { min-height:12px; } #report .sheet h2 { margin:0 0 2px; font-size:16px; } #report .sheet p.sub { margin:0 0 4px; } }
-table.att { width:auto; min-width:520px; } table.att td:nth-child(2), table.att th:nth-child(2) { text-align:left; padding-right:24px; }
+table.roster.att { width:auto; min-width:520px; } table.roster.att td:nth-child(2), table.roster.att th:nth-child(2) { text-align:left; padding-right:24px; }      /* the on-screen night tables only (N8: unscoped, this also hit the printed attendance sheet: second heading left-aligned, narrow tables) */
 table.awards select[data-pick], table.games select { max-width:210px; }
 .gamecols { display:grid; grid-template-columns:1fr; gap:20px; }      /* Sparks and T&T side by side on a wide screen, stacked on a narrow one */
 @media (min-width:1000px) { .gamecols { grid-template-columns:1fr 1fr; align-items:start; } }
@@ -277,6 +281,7 @@ details.pcard > summary { cursor:pointer; }
 /* Printed reports carry no app header or tab bar (no blank cover page). */
 @media print { header.top, .tabs, #draftBar, #testBanner { display:none !important; } }
 /* Emergency lists: portrait, compact rows and cells so more children fit on a page. 12px (9pt): a leader may read this page in an emergency (B7). */
+table.grid.emerg { table-layout:fixed; } table.grid.emerg .nw.nm { white-space:normal; overflow-wrap:anywhere; }      /* N15: fixed columns (set in reports.js); a long name wraps inside its column, a phone number stays whole */
 @media print { #report table.emerg td, #report table.emerg th { padding:2px 4px; font-size:12px; line-height:1.2; } #report table.emerg { margin:0; } }
 /* Statistics on paper: the screen boxes clip sideways (overflow-x: clip) and the cells never wrap, so a wide table ran off the page ("Pattern" column, 1,015px on a 704px sheet). On paper the boxes show everything and the cells wrap (B4). */
 @media print { #report .sheet.stats .scroll { overflow:visible; border:0; border-radius:0; } #report .sheet.stats table.roster { table-layout:auto; width:100%; }
@@ -737,6 +742,7 @@ dialog.helpsheet { max-width:min(92vw,640px); max-height:86vh; overflow:auto; bo
 .rshowing { margin:4px 16px 6px; } select.cfset { background:var(--chgbg); border-color:var(--chgline); font-weight:700; }
 /* Bug reports (Debug): the reply editor stacks its labels above the fields; the chosen filter is coloured like the Roster sub-tabs. */
 .bugedit { display:flex; flex-direction:column; align-items:stretch; gap:4px; min-width:14em; } .bugedit label { display:flex; flex-direction:column; gap:2px; font-weight:600; } .bugedit select, .bugedit textarea { font-weight:400; width:100%; box-sizing:border-box; } .bugedit button { align-self:flex-start; }
+.bugreply { margin:0 0 6px; overflow-wrap:anywhere; } .bugreply .linklike { font-size:11px; min-height:0; }      /* N17: one reply of a bug conversation */
 .bugfilter button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); font-weight:600; }
 /* Reports: "Choose pages" pop-up (a long run of pages): the names in columns, scrolling inside the pop-up. */
 .pglist { max-height:55vh; overflow:auto; columns:2 16em; column-gap:18px; padding:6px 2px; } .pglist label { display:block; break-inside:avoid; padding:3px 0; } #dlg .bar button + button { margin-left:6px; }
@@ -791,6 +797,12 @@ table.tg select.tgsel.tgset.team-Red { background-color:#ea9999; border-color:#c
 .sheet.notes .nsheet tbody.nblock { break-inside:avoid; } .sheet.notes .nsheet tbody.nblock tr:last-child td:not(.gp) { border-bottom:2px solid #000; }
 .sheet.notes .nsheet .c3, .sheet.notes .nsheet .c8 { border-left:2px solid #000; } .sheet.notes .nsheet .r1, .sheet.notes .nsheet .r2, .sheet.notes .nsheet .c8 { border-right:2px solid #000; }
 .sheet.notes .nsheet tbody.ngap td { border:0; padding:0; height:5px; line-height:0; font-size:0; }      /* the gap between nights: 5px less the 1px of each 2px frame that collapses into it leaves about 3px of white */
-.sheet.notes .nsheet col.d { width:5.1%; } .sheet.notes .nsheet col.w1, .sheet.notes .nsheet col.w2 { width:9.7%; } .sheet.notes .nsheet col.g { width:5px; } .sheet.notes .nsheet col.s1 { width:12.5%; } .sheet.notes .nsheet col.s2 { width:7%; } .sheet.notes .nsheet col.s3 { width:11.5%; } .sheet.notes .nsheet col.s5 { width:5%; }      /* Notes (col.nt) takes what is left: about 41% */
-.sheet.notes .nsheet th.nhead { padding:2px 1px 0 3px; } .sheet.notes .nsheet th.nhead b { font-size:12px; white-space:nowrap; } .sheet.notes .nsheet th.nhead i { font-size:7.5px; overflow-wrap:anywhere; }
-@media (max-width: 760px) { .sheet.notes .nsheet th, .sheet.notes .nsheet td { font-size:8px; padding:0 1px; } .sheet.notes .nsheet thead th { font-size:8px; } .sheet.notes .nsheet th.nhead b, .sheet.notes .nsheet th.nhead i { font-size:8px; } .sheet.notes .nsheet col.d { width:16%; } }
+.sheet.notes .nsheet col.d { width:7%; } .sheet.notes .nsheet col.w1, .sheet.notes .nsheet col.w2 { width:9.7%; } .sheet.notes .nsheet col.g { width:5px; } .sheet.notes .nsheet col.s1 { width:12.5%; } .sheet.notes .nsheet col.s2 { width:7%; } .sheet.notes .nsheet col.s3 { width:11.5%; } .sheet.notes .nsheet col.s5 { width:5%; }      /* Notes (col.nt) takes what is left: about 41% */
+.sheet.notes .nsheet th.nhead { padding:2px 1px 0 3px; } .sheet.notes .nsheet th.nhead b { font-size:12px; white-space:nowrap; } .sheet.notes .nsheet th.nhead i { font-size:7.5px; overflow-wrap:anywhere; } .sheet.notes .nsheet th.nhead i.ts2 { font-size:6.5px; } .sheet.notes .nsheet th.nhead i.ts3 { font-size:6px; }
+.sheet.notes .nsheet th.nhead .nh { overflow:hidden; }      /* N16: a long theme is clipped to the block's own height; it never makes the block taller */
+@media screen and (max-width: 760px) { .sheet.notes .nsheet th, .sheet.notes .nsheet td { font-size:8px; padding:0 1px; } .sheet.notes .nsheet thead th { font-size:8px; } .sheet.notes .nsheet th.nhead b, .sheet.notes .nsheet th.nhead i { font-size:8px; } .sheet.notes .nsheet col.d { width:16%; } }
+.pextra { margin:14px 0 6px; padding:6px 10px; border-top:2px solid var(--line); border-bottom:1px dashed var(--line); font-weight:700; background:var(--soft); }      /* N32: the Silver and Gold extra-credit heading on a T&T progress page */
+
+.saveflop { display:inline-flex; align-items:center; margin-right:6px; color:var(--okfg, #1e7a3c); opacity:0; transition:opacity .4s ease; pointer-events:none; }      /* N36: the floppy beside Save to Google Drive: fades in while saving, out when done */
+.saveflop.on { opacity:1; }
+@media (prefers-reduced-motion: reduce) { .saveflop { transition:none; } }
