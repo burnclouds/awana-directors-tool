@@ -115,6 +115,7 @@
   function fromJson(text) {
     let o;
     try { o = JSON.parse(String(text).replace(/^﻿/, ''), (k, v) => k === '__proto__' ? undefined : v); } catch (e) { throw new Error('Not a season file (not valid JSON).'); }      // a "__proto__" key in a file is dropped: the paths used by undo, restore and merge would walk into Object.prototype
+    if (isObj(o) && o.readable === true) throw new Error('This is a readable copy, made for reading only. Open your data file instead.');
     if (!isObj(o) || o.format !== FORMAT) throw new Error('Not a season file.');
     if (!(o.version <= VERSION)) throw new Error('This season file is from a newer version of the app (version ' + o.version + ').');
     const s = blank(o.year);
@@ -456,6 +457,31 @@
     }));
     Object.keys(seen).forEach(k => { const x = seen[k]; if (x.days.length > 1) add('award-twice', x.id, '"' + x.a + '" was announced on ' + x.days.length + ' nights (' + x.days.join(', ') + ').'); });
     return out;
+  }
+  // N40 Option A: a readable copy of the file, for a person to read (Debug, Readable copy). The codes are spelled out; the stored file is untouched and nothing is stored about the copy.
+  // It is lossless (every spelled-out value maps back to the stored one: test/readable-copy.test.js), marked readable and readOnly, and Season.fromJson refuses it, so it can never be opened as data by mistake.
+  // It holds the same names and details as the data file, so it is as private as the data file.
+  const READABLE_FORMAT = 'awana-season-readable', QUARTER_WORD = { R: 'Red', B: 'Blue', G: 'Green', Y: 'Yellow', '-': 'none' };
+  function readableCopy(s) {
+    const c = JSON.parse(JSON.stringify(s)), who = {}, people = {}, markWord = { a: 'present', h: 'handbook', p: 'participation', x: 'extra' };
+    (Model.fromRoster(c.roster).people || []).forEach(p => { who[p[Model.X.ID]] = Model.fullName(p); });
+    Object.keys((c.roster && c.roster.people) || {}).forEach(id => {
+      const p = c.roster.people[id], pc = {}; Object.keys(p.pc || {}).forEach(k => { if (p.pc[k] !== null && p.pc[k] !== undefined && p.pc[k] !== '') pc[k] = p.pc[k]; });
+      people[id] = { name: who[id] || '', planningCenter: pc, club: p.v || {} };
+    });
+    const roster = Object.assign({}, c.roster, { people }); delete roster.pcCols; delete roster.pcKeys;      // the field names are written beside each value now
+    const handbooks = {}; Object.keys(c.handbooks || {}).forEach(id => { handbooks[id] = parseHandbook(c.handbooks[id]); });
+    const attendance = {}; Object.keys(c.attendance || {}).forEach(d => { attendance[d] = {}; Object.keys(c.attendance[d]).forEach(id => {
+      const m = c.attendance[d][id], o = {}; Object.keys(markWord).forEach(k => { if (m[k]) o[markWord[k]] = true; }); if (m.g) o.group = m.g; if (m.t) o.teamThatNight = m.t; attendance[d][id] = o; }); });
+    const blueDrops = {}; Object.keys(c.blueDrops || {}).forEach(id => { blueDrops[id] = (c.blueDrops[id] || []).map(x => { const i = String(x).indexOf('|'); return { gem: +String(x).slice(0, i), on: String(x).slice(i + 1) }; }); });
+    const config = c.config || {}; if (config.teamPlan && config.teamPlan.proj) { const proj = {}; Object.keys(config.teamPlan.proj).forEach(id => { const t = String(config.teamPlan.proj[id]); proj[id] = { Q1: QUARTER_WORD[t[0]] || t[0] || '', Q2: QUARTER_WORD[t[1]] || t[1] || '', Q3: QUARTER_WORD[t[2]] || t[2] || '', Q4: QUARTER_WORD[t[3]] || t[3] || '' }; }); config.teamPlan.proj = proj; }
+    const history = (c.history || []).map(h => Object.assign({ time: h.t, label: h.label }, h.tag ? { tag: h.tag } : {}, { changes: (h.changes || []).map(x => Object.assign({ path: x.p }, 'o' in x ? { old: x.o } : {}, 'n' in x ? { new: x.n } : {})) }));
+    const books = {}; Object.keys(config.books || {}).forEach(k => { books[k] = (config.books[k] || {}).name || k; });
+    const out = { format: READABLE_FORMAT, readable: true, readOnly: true,
+      about: 'A readable copy of the data file, made for reading only. The app will not open it: open your data file instead. Codes are spelled out and every child id has a name beside it in "who". It holds the same names and details as the data file, so keep it as private.',
+      year: c.year, version: c.version, who, books };
+    ['year', 'version', 'format', 'history', 'roster', 'handbooks', 'attendance', 'blueDrops'].forEach(k => { delete c[k]; });
+    return Object.assign(out, c, { roster, handbooks, attendance }, Object.keys(blueDrops).length ? { blueDrops } : {}, { history });
   }
   // Apply one row's fix. Re-checks the record first (a row can be stale), so a handbook with a date or a note is never cleared. Returns true when something changed.
   function fixOddball(s, row) {
@@ -1568,7 +1594,7 @@
     return { keep, skipped: items.filter(it => it !== keep) };
   }
   const api = { SECTIONS, KNOWN_TOP, nightStatus, volunteerNights, volunteerExpected, addAbsence, clearAbsenceNights, clearAbsence, absenceList, FLAG_LEVELS, FLAG_NO_KID, shiftDates, freshenFake, FORMAT, VERSION, fileName, MARKS, QUARTERS, TEAMS, blank, toJson, fromJson, isRealDate, badDates, guessDate, dateClashes, fixDates, newSeason, turnoutCounts, addPastYear, addEarlierYear, seasonStart, sectionsThisSeason, defaultYear, setMark, hasNight, heldNights, newest, totals, blueJewels,
-    toHandOut, jewelWaitsForWing, addFlagReply, orphanHandbook, setHandbook, noDateBookKids, resetNoDateBooks, oddballs, fixOddball, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
+    toHandOut, jewelWaitsForWing, addFlagReply, orphanHandbook, setHandbook, noDateBookKids, resetNoDateBooks, oddballs, fixOddball, readableCopy, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
     setProgress, addExtraSheet, blueWingPlan, sparkJewels, heldGems, grantBlue, dropBlue, isAnnNoDate, setAnnNoDate, noDateSigns, isSignNoDate, signShown, signsShown, unsignedIn, markSignsNoDate, baseAward, jewelName, awardLabel, childBook, sparksCurrent, receivedOf, receivedShown, isReceivedNoDate, setReceived, completedBlocks, finishedBooks, bookStatus, completionAwards, setBookDone, suggestedAwards, firstNight, pastYearAwards, markPastYearsGiven, counted,
     normDriveDirs, isGivenNoDate, givenShown, isHeld, setHold, addFlag, setFlagNote, clearFlag, setFlagHidden, isFlagHidden, todoNotes, notAnAward, NOT_AWARDS, upgradeNotAwards, setBugStatus, addBugReply, removeBugReply, bugThread, bugStatusOf, BUG_STATUS, BUG_BY, noteList, bugList, flagList, flagsOf, flagsAt, flagsAtPlace, renameAward, snapshot, diff, merge3, applyChanges, record, labelOf, at, replayDiff, reconcile, tag, restoreTo, compare, kindOf, describe, MERGE_MINUTES };
   if (typeof module !== 'undefined') module.exports = api; else root.Season = api;

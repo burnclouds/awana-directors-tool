@@ -92,6 +92,12 @@
     }).join('');
     return h + '<p><button type="button" id="dbgOddCheck">Check again</button></p>';
   }
+  // N40 Option A: a second, read-only copy of the data file with every code spelled out. Made on request, downloaded to this computer (never to Google Drive), and the data file is not changed.
+  function readableHtml() {
+    if (!App.season) return '';
+    return '<h3>Readable copy</h3><p class="status">Writes a second file with the codes spelled out (attendance marks as words, handbooks split into code, date and note, Planning Center fields by name, a name beside every child id) so a person can read it. It is for reading only: the app will not open it, and your data file is not changed. It holds the same names and details as your data file, so keep it as private. It goes to this computer, not to Google Drive.</p>' +
+      '<p><button type="button" id="dbgReadable">Make a readable copy</button></p>';
+  }
   // ---- Bug reports and feature requests (flag level "bug"): listed here, never on To do. Each has a status and a reply, kept in the data file so every leader sees the same list. ----
   let bugFilter = 'open', bugEditing = '', bugBy = 'leader';
   const STATUS_WORD = { open: 'Open', fixed: 'Fixed', dropped: 'Dropped' }, BY_WORD = { leader: 'Leader', developer: 'Developer' };
@@ -131,7 +137,7 @@
       '<p><a href="version-history.html" target="_blank" rel="noopener">Version history: every version and lettered sub-version, from 1.44 on</a></p>' +
       '<h3>Scripts on this page (' + scripts.length + ')</h3>' + table(['Script', 'Version'], scripts) +
       '<h3>Planning Center columns</h3>' + (App.master ? App.pcColumns.html() : '<p class="status">No roster is open.</p>') +
-      assumedHtml() + noDateHtml() + oddHtml() + '<h3>Open now</h3>' + (open ? table(['', ''], open) : '<p class="status">No data file is open.</p>') +
+      assumedHtml() + noDateHtml() + oddHtml() + readableHtml() + '<h3>Open now</h3>' + (open ? table(['', ''], open) : '<p class="status">No data file is open.</p>') +
       '<h3>Files opened this session</h3>' + (App.opened.length ? table(FILE_HEAD, App.opened.map(fileRow)) : '<p class="status">None yet. Import files from the top bar, or check some here.</p>') +
       '<p><label class="btn">Check files&hellip;<input type="file" id="dbgFiles" multiple class="vh" accept=".csv,.json,.txt,text/csv,application/json,text/plain"></label> <span class="status">reads the dates and counts inside each file; nothing is opened into the app</span></p>' +
       '<h3>Browser</h3>' + table(['', ''], [['Address', esc(location.protocol + '//' + (location.host || '') + location.pathname)], ['Time zone', esc(Intl.DateTimeFormat().resolvedOptions().timeZone)],
@@ -158,6 +164,7 @@
     if (s && id === 'dbgNoDateCount') { const ids = Season.noDateBookKids(s); noDate = { n: ids.length, rows: ids.map(kid => { const p = App.master && App.master.people.find(x => x[Model.X.ID] === kid); return { name: p ? Model.fullName(p) : '(not on the roster)', room: p ? Model.room(p) : '', code: String(s.handbooks[kid] || '').trim().split(/\s+/)[0] }; }) }; renderDebug(); return; }
     if (s && id === 'dbgNoDateReset') { if (!noDate || !noDate.n) return; const n = Season.resetNoDateBooks(s); noDate = null; App.touch(); renderDebug(); App.done(n + ' book code' + (n === 1 ? '' : 's') + ' with no dates cleared. Each sheet opens on its group\'s default book now. Undo takes it back.'); return; }
     if (s && id === 'dbgOddCheck') { odd = oddList(s); renderDebug(); return; }
+    if (s && id === 'dbgReadable') { App.testGate(e.target, () => App.download('awana-' + s.year + '-READABLE-' + App.today().replace(/-/g, '') + '.json', JSON.stringify(Season.readableCopy(s), null, 1), 'application/json', { local: true })); return; }
     const fixCheck = e.target.dataset && e.target.dataset.oddfix;
     if (s && fixCheck) {      // one click is one History entry of its own (labelled, never folded into an earlier edit) and one Undo step
       const rows = oddList(s).filter(r => r.check === fixCheck && r.fix); let n = 0; rows.forEach(r => { if (Season.fixOddball(s, r)) n++; });

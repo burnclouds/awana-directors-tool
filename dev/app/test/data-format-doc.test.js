@@ -64,4 +64,13 @@ test('the season.js header points at docs/DATA-FORMAT.md and keeps no list of se
   Season.SECTIONS.filter(k => k !== 'config').forEach(k => assert(!new RegExp('\\b' + k + '\\[').test(header), 'the header lists the section ' + k + ' again'));
 });
 
+// N40 Option A: section 16 is the one page a person reads with the file open: every top-level key, every attendance mark, the History keys and the prefixes are explained there in plain words.
+test('section 16 "Reading the file by hand" explains every top-level key, mark, History key and prefix', () => {
+  const i = doc.search(/^## 16\. Reading the file by hand/m); assert(i >= 0, 'no "## 16. Reading the file by hand" heading'); const page = doc.slice(i);
+  ['format', 'version', 'year'].concat(Season.SECTIONS).forEach(k => assert(new RegExp('`' + esc(k) + '`').test(page), 'section 16 does not mention `' + k + '`'));
+  ['a', 'h', 'p', 'x', 'g', 't'].forEach(k => assert(new RegExp('`' + k + '`').test(page), 'attendance mark `' + k + '` is not explained'));
+  ['p', 'o', 'n'].forEach(k => assert(new RegExp('`' + k + '`.*(path|old|new)', 'i').test(page), 'History key `' + k + '` is not explained'));
+  ['x_', 'ov:', 'team:'].forEach(k => assert(page.includes('`' + k), 'prefix `' + k + '` is not explained')); assert(/Readable copy/.test(page), 'the Debug Readable copy is not mentioned');
+});
+test('the contents list names section 16', () => { assert(/^16\. Reading the file by hand/m.test(doc), 'not in the Contents list'); });
 console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

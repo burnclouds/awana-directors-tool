@@ -20,6 +20,7 @@ Contents
 13. The other JSON documents
 14. A complete annotated example
 15. Known gaps found while writing this
+16. Reading the file by hand (decoder)
 
 ---
 
@@ -588,3 +589,63 @@ These are facts about the code at 1.51.05, listed so nobody has to rediscover th
 5. **The header comment of `season.js`** lists the sections but omits nine (`givenNoDate`, `held`, `flags` and the six newer ones); they are documented in comments next to their functions. This file is now the single reference. (R19)
 6. **The History replay check warns on a real working file** (a few hundred differences between the data and what the log says). Not investigated. A candidate cause is an operation that changes data without logging it (`renameAward`, a restore, a year rollover); that is a guess. (R20)
 7. **`given` keeps the tick day for a no-date award** (7.5): any new screen or report that reads `given` directly instead of `givenShown` will print a day nobody entered. (R21)
+
+## 16. Reading the file by hand (decoder)
+
+The page to keep open beside a data file. Everything here is explained properly in the sections named in the last column; this is the short version. **The easy way:** on the Debug tab, the **Readable copy** section (the button **Make a readable copy**) writes a second, read-only file with these codes spelled out and a name beside every child id. The app never opens that copy, and your data file is not changed. The copy holds the same names and details as the data file, so keep it as private. Examples use invented values.
+
+### 16.1 Top of the file
+
+| Key | In plain words | See |
+|---|---|---|
+| `format` | always `awana-season`; the app refuses anything else | 4.1 |
+| `version` | the file layout version; the app opens older ones and refuses newer ones | 4.2 |
+| `year` | the club year, for example `2026-27` | 4.3 |
+| `fake` | `true` on an invented demo club | 11.4 |
+
+### 16.2 What each section is
+
+| Key | In plain words | See |
+|---|---|---|
+| `config` | the club's settings: books, award lists, colors, the color plan, Drive and save settings | 6 |
+| `roster` | the people, with their Planning Center fields and the club's own fields | 5.2, 7.2 |
+| `handbooks` | one text per child: book code, day received (`yymmdd`), note | 7.1 |
+| `attendance` | who came on which night, and the marks that night | 5.4, 16.3 |
+| `awards` | awards announced on a night | 5.5 |
+| `given` | the day an award was handed over | 5.6 |
+| `givenNoDate` | awards handed over on a day nobody knows | 5.7, 7.5 |
+| `announcedNoDate` | awards told to the group on no particular night | 5.18 |
+| `held` | earned awards kept off the slides for now | 5.8 |
+| `flags` | notes pinned to a place; bug reports are flags too | 5.9, 9.4 |
+| `doneBooks` | books finished somewhere else | 5.10 |
+| `received` | the day a child received a book (or `no date`) | 5.11 |
+| `adults` | the Adult Memorization slide | 5.12 |
+| `teamMoves` | a child moving to another color in a quarter | 5.13 |
+| `games` | each night's game place and spirit points per color | 5.14 |
+| `progress` | the day each progress box was signed off | 5.15, 7.3 |
+| `progressNoDate` | sign-offs with no known day | 5.16, 7.5 |
+| `extraSheets` | a book sheet added by hand | 5.17 |
+| `blueWings` | Blue Jewel placements from earlier years | 5.19 |
+| `blueOverrides` | a Blue Jewel granted by hand | 5.20 |
+| `blueDrops` | earned Blue Jewel gems a leader dropped, as `gem|day` | 5.21, 7.6 |
+| `pastTurnout` | a child's attendance in earlier years | 5.25 |
+| `absences` | volunteers' planned absences, by club night | 5.26 |
+| `calendar` | one row per night: date, type, quarter, theme, lessons | 5.22 |
+| `rotation` | the class rotation grid; a blank cell means "same as above" | 5.23 |
+| `history` | every change, with old and new values (for Undo and merge) | 10 |
+
+### 16.3 Short codes
+
+**Attendance marks** (`attendance[date][id]`): `a` present, `h` brought the handbook, `p` participation, `x` extra. `g` is the group stamped when the child was marked present; `t` is a one-night team (a visitor or fill-in). A missing key means not marked, never `0` (5.4, 9.1).
+
+**History** (`history[]`): each entry has `t` (the time), `label` (what happened) and `changes`. Each change has `p` (the **path**: the list of keys from the top of the file to the value), `o` (the **old** value, absent when it was new) and `n` (the **new** value, absent when it was removed) (10.1).
+
+**Prefixes on a person's own fields** (`roster.people[id].v`): `x_` is a field the club owns (`x_Active`, `x_FirstSeen`); `ov:` followed by a Planning Center column is a pending change not yet in Planning Center (9.5); `team:Q1` to `team:Q4` is the child's color for that quarter (and `team:<year>:Q1` an archived one) (9.6).
+
+**Other packed values.** A handbook is `AoG 260916` (book, day received as `yymmdd`). A progress key is `RJ1.2` (block, then item). A blue-jewel drop is `1|2026-10-28` (gem number, day earned). A color plan entry is four letters, one per quarter: `R` Red, `B` Blue, `G` Green, `Y` Yellow, `-` none, so `--BY` is Blue in Q3 and Yellow in Q4 (7.1, 7.3, 7.6).
+
+**Ids.** A child's key is `<registration id>_<first>_<last>` (2.3) and is the same in every section. A flag id starts with `f` (a bug report with `b`) and an absence id with `a`, followed by the time in base 36 and two characters; they hold no date (5.9, 5.26).
+
+**Books and awards.** `HG`, `WR`, `SS` are the Sparks books, `AS`, `HC` Cubbies, `AoG` and the other T&T books; the full names are in `config.books`. Award names such as `HG Red Jewel 3` are plain text and the same everywhere (7.4).
+
+**Pairs that must agree.** Where the day is unknown a fact is kept in two places, the day and a "no date" mark (7.5).

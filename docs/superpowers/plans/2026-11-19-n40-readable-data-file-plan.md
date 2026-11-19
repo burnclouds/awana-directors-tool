@@ -1,6 +1,6 @@
 # N40: a data file a person can read (plan, 2026-11-19)
 
-Status: PLAN ONLY. Nothing here changes the file format. Nothing is built until Mike says yes (BACKLOG N40).
+Status: **Option A was approved by Mike (2026-11-19) and is built in dev**: the decoder page is DATA-FORMAT.md section 16 and the Readable copy is on the Debug tab (`Season.readableCopy`; tests `readable-copy.test.js` and `debug-readable-browser.test.js`). Option B was not built. The rest of this file is the original plan, kept as written. The stored file format did not change.
 
 Method and limits: read `docs/DATA-FORMAT.md` (all of sections 5 to 9 and 14) and the invented fixture `dev/test-data/awana-2026-27-TEST-20261029-214815.json` (159 KB, 144 invented people). I did NOT open a real save (it lives on Drive and was not available to this session); sizes below are from the fixture. No real name appears in this file.
 
