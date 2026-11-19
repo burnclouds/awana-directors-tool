@@ -947,7 +947,9 @@
     const d = now || new Date(), at = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     if (!s.flags) s.flags = {};
     const id = (f.level === 'bug' ? 'b' : 'f') + d.getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36).padStart(2, '0');
-    s.flags[id] = { kid: f.kid || '', level: f.level, book: f.book || '', block: f.block || '', key: f.key || '', note, at };      // book, block and key stay '' for every level: an older copy of the app reads them
+    s.flags[id] = { kid: f.kid || '', level: f.level, book: f.book || '', block: f.block || '', key: f.key || '', note, at };
+    // N44: a flag on a filter (a select such as Night or Class) keeps the filter's id and value, so Go can set the filter back.
+    if (f.filter && f.filter.id) s.flags[id].filter = { id: String(f.filter.id), value: String(f.filter.value == null ? '' : f.filter.value) };      // book, block and key stay '' for every level: an older copy of the app reads them
     FLAG_EXTRA.forEach(k => { if (f[k]) s.flags[id][k] = String(f[k]); });
     if (f.level === 'bug') {
       s.flags[id].status = 'open'; if (f.ver) s.flags[id].ver = String(f.ver);
@@ -966,6 +968,13 @@
   const bugStatusOf = f => BUG_STATUS.includes(f && f.status) ? f.status : 'open';
   function bugOf(s, id) { const f = (s.flags || {})[id]; if (!f || f.level !== 'bug') throw new Error('No such bug report.'); return f; }
   function setBugStatus(s, id, status) { const f = bugOf(s, id), st = String(status); if (!BUG_STATUS.includes(st)) throw new Error('Unknown status "' + st + '".'); f.status = st; }
+  // N44: a reply on any note or flag (not only a bug report), in the same shape as a bug reply. Bug reports keep addBugReply.
+  function addFlagReply(s, id, text, by, now) {
+    const f = (s.flags || {})[id]; if (!f) throw new Error('No such note.');
+    const t = normText(text), b = String(by || 'leader'); if (!t) throw new Error('Write a reply.'); if (!BUG_BY.includes(b)) throw new Error('A reply is by a leader or the developer.');
+    const d = now || new Date(), rid = 'r' + d.getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36).padStart(2, '0');
+    if (!isObj(f.replies)) f.replies = {}; f.replies[rid] = { at: isoOf(d), by: b, text: t }; return rid;
+  }
   function addBugReply(s, id, text, by, now) {
     const f = bugOf(s, id), t = normText(text), b = String(by || 'leader'); if (!t) throw new Error('Write a reply.'); if (!BUG_BY.includes(b)) throw new Error('A reply is by a leader or the developer.');
     const d = now || new Date(), rid = 'r' + d.getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36).padStart(2, '0');
@@ -1521,7 +1530,7 @@
     return { keep, skipped: items.filter(it => it !== keep) };
   }
   const api = { SECTIONS, KNOWN_TOP, nightStatus, volunteerNights, volunteerExpected, addAbsence, clearAbsenceNights, clearAbsence, absenceList, FLAG_LEVELS, FLAG_NO_KID, shiftDates, freshenFake, FORMAT, VERSION, fileName, MARKS, QUARTERS, TEAMS, blank, toJson, fromJson, isRealDate, badDates, guessDate, dateClashes, fixDates, newSeason, turnoutCounts, addPastYear, addEarlierYear, seasonStart, sectionsThisSeason, defaultYear, setMark, hasNight, heldNights, newest, totals, blueJewels,
-    toHandOut, jewelWaitsForWing, orphanHandbook, setHandbook, noDateBookKids, resetNoDateBooks, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
+    toHandOut, jewelWaitsForWing, addFlagReply, orphanHandbook, setHandbook, noDateBookKids, resetNoDateBooks, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
     setProgress, addExtraSheet, blueWingPlan, sparkJewels, heldGems, grantBlue, dropBlue, isAnnNoDate, setAnnNoDate, noDateSigns, isSignNoDate, signShown, signsShown, unsignedIn, markSignsNoDate, baseAward, jewelName, awardLabel, childBook, sparksCurrent, receivedOf, receivedShown, isReceivedNoDate, setReceived, completedBlocks, finishedBooks, bookStatus, completionAwards, setBookDone, suggestedAwards, firstNight, pastYearAwards, markPastYearsGiven, counted,
     normDriveDirs, isGivenNoDate, givenShown, isHeld, setHold, addFlag, setFlagNote, clearFlag, setFlagHidden, isFlagHidden, todoNotes, notAnAward, NOT_AWARDS, upgradeNotAwards, setBugStatus, addBugReply, removeBugReply, bugThread, bugStatusOf, BUG_STATUS, BUG_BY, noteList, bugList, flagList, flagsOf, flagsAt, flagsAtPlace, renameAward, snapshot, diff, merge3, applyChanges, record, labelOf, at, replayDiff, reconcile, tag, restoreTo, compare, kindOf, describe, MERGE_MINUTES };
   if (typeof module !== 'undefined') module.exports = api; else root.Season = api;

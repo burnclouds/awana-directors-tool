@@ -341,6 +341,8 @@ NODE_PATH=<dir with playwright> node test/debug-source-browser.test.js        # 
 AWANA_STRICT_DEPLOY=1 node test/release-consistency.test.js                   # N9 point 1: deploy/ must match dev (the Pages test job sets this)
 NODE_PATH=<dir with playwright> node test/punch-margin-browser.test.js     # N37: binder pages print with a 0.85in left margin for a three-hole punch
 node test/note-linebreaks.test.js                # N45: notes, flags and bug reports keep their line breaks (CRLF saved as LF)
+node test/note-replies.test.js                # N44: a reply on any note; a flag on a filter keeps the filter id and value for Go
+NODE_PATH=<dir with playwright> node test/todo-note-reply-browser.test.js  # N44: on To do, edit a note and reply to it (the reply shows under the note)
 NODE_PATH=<dir with playwright> node test/no-date-clear-browser.test.js   # N43: a typed date clears no-date marks; the Date received tick is on its line; a book finished before shows reviews only
 node test/handbook-clear-offer.test.js      # N38: a bare book code with no date is offered for clearing when its received date is cleared
 node test/no-date-books.test.js             # Debug: a bare book code with no dates is reset (Cubbies, Sparks, T&T); a child with a date is never touched

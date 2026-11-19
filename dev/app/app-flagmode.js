@@ -73,7 +73,7 @@
     // Save leaves flag mode: the page stays where it is, so Save and the other buttons work at once. Another note is one more press of the Flag button.
     $('flSave').onclick = () => {
       const ver = (document.querySelector('meta[name="app-version"]') || {}).content || '';
-      try { App.addFlag(Object.assign({}, info.scope, { level: lvl, kid: info.kid || undefined, tab: App.tab, trail: info.trail, label: info.label, rowIndex: info.rowIndex, note: $('flNote').value, ver: bug ? ver : undefined })); } catch (err) { App.flash(err.message, 'error'); return; }
+      try { App.addFlag(Object.assign({}, info.scope, { level: lvl, kid: info.kid || undefined, tab: App.tab, trail: info.trail, label: info.label, rowIndex: info.rowIndex, note: $('flNote').value, filter: (el && el.tagName === 'SELECT' && el.id) ? { id: el.id, value: el.value } : undefined, ver: bug ? ver : undefined })); } catch (err) { App.flash(err.message, 'error'); return; }
       dlg.close(); setMode(false);
       if (bug) { if (App.renderDebug) App.renderDebug(); App.flash('Bug report added. It is on the Debug tab (Options, then Debug).', 'info'); }      // a bug report never touches the To do badge
       else { if (App.updateTodoBadge) App.updateTodoBadge(); App.flash('Flag added. It is on the To do tab.', 'info'); }
@@ -116,6 +116,8 @@
     restoreView(f);
     if (App.tab !== f.tab) App.showTab(f.tab);
     setTimeout(() => {
+      // N44: a filter the note was made on is set back first, so the spot is there to find.
+      if (f.filter && f.filter.id) { const sel = document.getElementById(f.filter.id); if (sel && sel.tagName === 'SELECT' && [...sel.options].some(o => o.value === f.filter.value)) { sel.value = f.filter.value; sel.dispatchEvent(new Event('change', { bubbles: true })); } }
       const el = locate(f);
       if (!el) { missing.add(f.id); App.flash('Spot not found: ' + FT.readable(f.trail) + '. The tab is open; the label or row may have changed.', 'warn'); if (App.tab === 'todo' && App.tabs && App.tabs.todo) App.tabs.todo(); return; }
       el.scrollIntoView({ block: 'center' }); el.classList.add('flashflag'); setTimeout(() => el.classList.remove('flashflag'), 2500);
