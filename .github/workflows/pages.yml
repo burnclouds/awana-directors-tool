@@ -17,10 +17,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # N9.1: the node tests run before the site is published. continue-on-error keeps this a warning for now: it was proven in a clean copy of the repository (97 ok, 0 failed with --node-only) but not yet on GitHub's own runner. After the first green run, delete the continue-on-error line and it becomes a gate. The browser (Playwright) tests are not run here.
+  # N9.1: the node tests run first and must pass before the site is published (a failing test stops the deploy). Gate turned on 2026-11-19 after the first green run on GitHub.
   test:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
