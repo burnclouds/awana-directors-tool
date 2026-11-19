@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['todo.js'] = '1.11.7';
+(this.AwanaVersions = this.AwanaVersions || {})['todo.js'] = '1.11.8';
 // What still needs a person's attention after an import (or any time): classes to assign, colors, handbooks, uniforms, missing
 // details. Pure: roster and season in, a list of groups out; the To do tab draws it and nothing here is stored.
 //   compute({ master, season, quarter, today, newIds }) -> { groups: [{ id, title, level, hint, items: [{ id, name, text, fields, suggest? }] }], people: [{ id, name, room, items: [{ group, title, level, text, fields }] }], total }

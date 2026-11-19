@@ -206,6 +206,18 @@ const GAPI = `window.gapi={load:function(n,o){google.picker=(function(){
     assert.strictEqual(two.seen.posts.length, 2, 'refused once, then saved after confirming'); assert.deepStrictEqual(two.seen.errors, []);
     files.F1.text = saved; await two.ctx.close();
   });
+  await test('N41/N42: the splash offers the remembered Drive file by its exact name (full name on hover), and opens it with no picker', async () => {
+    driveOn = true; const s = await session({});
+    assert(!(await s.p.isVisible('#splashLastRow')), 'shown with nothing remembered');
+    await s.p.evaluate(([id, name]) => localStorage.setItem('awana-drive-last', JSON.stringify({ id, name })), ['F1', DATA]);
+    await s.p.reload(); await s.p.waitForTimeout(400);
+    assert(await s.p.isVisible('#splashLastRow'), 'the remembered file button is not shown');
+    const btn = await s.p.evaluate(() => ({ text: document.getElementById('splashLast').textContent, title: document.getElementById('splashLast').title }));
+    assert(btn.text.includes(DATA), 'the button shows the exact file name: ' + btn.text); assert.strictEqual(btn.title, DATA, 'the hover shows the full name');
+    await s.p.evaluate(() => { window.__pick = []; }); await s.p.click('#splashLast'); await s.p.waitForFunction(() => document.getElementById('status') && /\d+ active/.test(document.getElementById('status').textContent), null, { timeout: 8000 });
+    assert.strictEqual(s.seen.google.filter(u => /picker/.test(u)).length, 0, 'no picker opened');
+    assert.deepStrictEqual(s.seen.errors, []); await s.ctx.close();
+  });
   await browser.close(); server.close();
   console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);
 })();

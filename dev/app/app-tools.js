@@ -53,6 +53,16 @@
     return h + '<p><b>' + assumed.n + ' Given date' + (assumed.n === 1 ? '' : 's') + '</b> for ' + assumed.kids + ' child' + (assumed.kids === 1 ? '' : 'ren') + ', on ' + assumed.days.map(d => esc(d[0].slice(5).replace('-', '/')) + ' (' + d[1] + ')').join(', ') + '.</p>' +
       '<p><button type="button" id="dbgAssumedClear" class="primary">Clear these ' + assumed.n + ' Given dates</button> <button type="button" id="dbgAssumedCount">Count again</button></p>';
   }
+  // Books with no dates (N38 follow-up): a handbook that is only a book code, for a child with no date of any kind. Counted first, reset only on your say-so; Undo takes it back.
+  let noDate = null;
+  function noDateHtml() {
+    const s = App.season; if (!s) return '';
+    let h = '<h3>Books with no dates</h3><p class="status">A child whose only book is a bare code (for example WR) with no date and nothing else recorded: the Progress sheet opens on that code. <b>Reset</b> clears those codes so the sheet opens on the group\'s default book (Hangglider for Sparks, the club book for Cubbies and T&amp;T). Children with any date are never touched. Undo takes it back.</p>';
+    if (!noDate) return h + '<p><button type="button" id="dbgNoDateCount">Count them</button></p>';
+    if (!noDate.n) return h + '<p class="ok">None: no child has a bare book code with no dates.</p><p><button type="button" id="dbgNoDateCount">Count again</button></p>';
+    return h + '<p><b>' + noDate.n + ' child' + (noDate.n === 1 ? '' : 'ren') + '</b>:</p><ul>' + noDate.rows.map(r => '<li>' + esc(r.name) + ' (' + esc(r.room) + '): ' + esc(r.code) + '</li>').join('') + '</ul>' +
+      '<p><button type="button" id="dbgNoDateReset" class="primary">Reset these ' + noDate.n + ' book' + (noDate.n === 1 ? '' : 's') + '</button> <button type="button" id="dbgNoDateCount">Count again</button></p>';
+  }
   // ---- Bug reports and feature requests (flag level "bug"): listed here, never on To do. Each has a status and a reply, kept in the data file so every leader sees the same list. ----
   let bugFilter = 'open', bugEditing = '', bugBy = 'leader';
   const STATUS_WORD = { open: 'Open', fixed: 'Fixed', dropped: 'Dropped' }, BY_WORD = { leader: 'Leader', developer: 'Developer' };
@@ -91,7 +101,7 @@
       '<h3>Versions</h3>' + table(['What', 'Version'], state) +
       '<h3>Scripts on this page (' + scripts.length + ')</h3>' + table(['Script', 'Version'], scripts) +
       '<h3>Planning Center columns</h3>' + (App.master ? App.pcColumns.html() : '<p class="status">No roster is open.</p>') +
-      assumedHtml() + '<h3>Open now</h3>' + (open ? table(['', ''], open) : '<p class="status">No data file is open.</p>') +
+      assumedHtml() + noDateHtml() + '<h3>Open now</h3>' + (open ? table(['', ''], open) : '<p class="status">No data file is open.</p>') +
       '<h3>Files opened this session</h3>' + (App.opened.length ? table(FILE_HEAD, App.opened.map(fileRow)) : '<p class="status">None yet. Import files from the top bar, or check some here.</p>') +
       '<p><label class="btn">Check files&hellip;<input type="file" id="dbgFiles" multiple class="vh" accept=".csv,.json,.txt,text/csv,application/json,text/plain"></label> <span class="status">reads the dates and counts inside each file; nothing is opened into the app</span></p>' +
       '<h3>Browser</h3>' + table(['', ''], [['Address', esc(location.protocol + '//' + (location.host || '') + location.pathname)], ['Time zone', esc(Intl.DateTimeFormat().resolvedOptions().timeZone)],
@@ -114,7 +124,10 @@
     if (t.dataset.buggo) { const f = Season.bugList(App.season).find(x => x.id === t.dataset.buggo); if (f && App.goElement) App.goElement(f); return; }
   });
   $('debugWrap').addEventListener('click', e => {
-    const id = e.target.id, s = App.season; if (!s || !['dbgAssumedCount', 'dbgAssumedClear'].includes(id)) return;
+    const id = e.target.id, s = App.season;
+    if (s && id === 'dbgNoDateCount') { const ids = Season.noDateBookKids(s); noDate = { n: ids.length, rows: ids.map(kid => { const p = App.master && App.master.people.find(x => x[Model.X.ID] === kid); return { name: p ? Model.fullName(p) : '(not on the roster)', room: p ? Model.room(p) : '', code: String(s.handbooks[kid] || '').trim().split(/\s+/)[0] }; }) }; renderDebug(); return; }
+    if (s && id === 'dbgNoDateReset') { if (!noDate || !noDate.n) return; const n = Season.resetNoDateBooks(s); noDate = null; App.touch(); renderDebug(); App.done(n + ' book code' + (n === 1 ? '' : 's') + ' with no dates cleared. Each sheet opens on its group\'s default book now. Undo takes it back.'); return; }
+    if (!s || !['dbgAssumedCount', 'dbgAssumedClear'].includes(id)) return;
     if (id === 'dbgAssumedCount') { const l = Season.assumedGiven(s), by = {}; l.forEach(x => { by[x.date] = (by[x.date] || 0) + 1; }); assumed = { n: l.length, kids: new Set(l.map(x => x.id)).size, days: Object.keys(by).sort().map(d => [d, by[d]]) }; renderDebug(); return; }
     if (!assumed) return;      /* the count came first; clearing is done at once, with Undo (UX-20) */
     const n = Season.clearAssumedGiven(s); assumed = null; App.touch(); renderDebug(); App.done(n + ' Given date' + (n === 1 ? '' : 's') + ' that nobody entered cleared. The awards stay announced and wait under "Announced, not yet given".');

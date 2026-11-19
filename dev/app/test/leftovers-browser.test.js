@@ -305,7 +305,9 @@ const server = http.createServer((req, res) => {
     let banner = await page.textContent('#personWrap .attnbanner'); assert(!/Details missing/.test(banner) && /Changes to make in Planning Center/.test(banner), banner);
     // a club-record field is fixed for good: the handbook item and its highlight disappear
     await page.fill('input[data-hb="code"]', 'HG'); await page.dispatchEvent('input[data-hb="code"]', 'change'); await page.waitForTimeout(300);
-    banner = await page.textContent('#personWrap .attnbanner'); assert(!/Needs a handbook/.test(banner), banner); assert(/Needs attention \(2\)/.test(banner) && /Needs a date received/.test(banner), 'the book is now set, so the next thing to do is its date received: ' + banner);
+    banner = await page.textContent('#personWrap .attnbanner'); assert(!/Needs a handbook/.test(banner), banner); assert(/Needs attention \(2\)/.test(banner), 'the banner counts the two things left: ' + banner);
+    // the date received is on the Progress sheet, not a field on the Person page, so it is on To do and not in the banner (todo.js)
+    assert(await page.evaluate(() => Todo.compute({ master: App.master, season: App.season, quarter: App.quarterOf(App.today()), today: App.today() }).groups.some(g => g.id === 'received' && g.items.length > 0)), 'the date received is on To do');
     assert(!(await page.$('.hbbox.attn, .attn .hbbox')), 'handbook no longer highlighted');
     await page.click('[data-clearattn]'); await page.waitForTimeout(150); assert(!(await page.$('.attnbanner')) && !(await page.$('.attn')), 'Hide this removes the banner and the highlights');
     await page.close();

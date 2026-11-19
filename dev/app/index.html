@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="app-version" content="1.51.16">
-<meta name="app-build" content="2026-11-18">
+<meta name="app-build" content="2026-11-19">
 <title>AWANA Roster &amp; Reports</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1f4e79">
@@ -740,17 +740,25 @@
 <section id="splash" class="splash">
   <div class="splash-card">
     <h2>AWANA Roster &amp; Reports</h2>
-    <p>Open your data file to get started. The app runs in this browser tab; your file goes only where you save it: this computer, or your own Google Drive if saving there is turned on.</p>
-    <ol class="splash-need">
-      <li><b>Your data file</b> <span class="status">awana-2026-27-&hellip;.json &mdash; the one with the newest date in its name. It holds the whole roster, so it is all you need to work, print and run reports.</span></li>
-      <li><b>A newer Planning Center export</b> <span class="status">optional &mdash; only when you want to merge in updates from Planning Center (20261028 -- &lt;club&gt;-2026-27.csv). Anything new or changed is shown for review first.</span></li>
-    </ol>
-    <p><label class="btn primary big">Choose files&hellip;<input type="file" id="splashFiles" accept=".csv,.json,.txt,text/csv,application/json,text/plain" multiple class="vh"></label></p>
-    <p class="status">Pick the data file alone, or both together (hold Ctrl or Shift), or drop them here (files can be dropped anywhere on the page, not only on this screen). The first time ever, before there is a data file, the export alone is enough.</p>
-    <p class="splash-try"><button id="splashTry" class="btn big">Try it out</button> <span class="status">Opens an invented club (made-up names, phones and notes; nothing real) so you can look around and press every button. Nothing is saved anywhere unless you download it.</span></p>
-    <p id="splashDriveRow" hidden><button id="splashDrive" class="btn">Open from Google Drive&hellip;</button> <span class="status">For files kept in Drive without the Drive folder on this computer.</span></p>
-    <p><button id="splashSkip" class="linklike">Skip for now</button></p>
-    <p class="status"><button type="button" id="splashVer" class="linklike" title="Check the website for a newer version"></button> <span id="splashUpdMsg" role="status"></span> <button type="button" id="splashUpdApply" class="linklike" hidden>Update now</button></p>
+    <p>Open your data file to get started. It runs in this browser tab; your file goes only where you save it: this computer, or your own Google Drive if saving there is turned on.</p>
+
+    <div class="splash-group">
+      <h3>Open a file</h3>
+      <p class="splash-main"><label class="btn primary big">Choose file on this computer&hellip;<input type="file" id="splashFiles" accept=".csv,.json,.txt,text/csv,application/json,text/plain" multiple class="vh"></label></p>
+      <p id="splashDriveRow" hidden class="splash-main"><button id="splashDrive" class="btn big">Open from Google Drive&hellip;</button></p>
+      <p id="splashLastRow" hidden class="splash-main"><button id="splashLast" class="btn big splash-last" type="button"></button></p>
+      <p class="status splash-hint">Your data file is the one with the newest date in its name (awana-2026-27-&hellip;.json). Add the Planning Center export (20261028 -- &lt;club&gt;-2026-27.csv) only when you want to merge in updates; anything new or changed is shown for review first. Hold Ctrl or Shift to pick both at once, or drop the files anywhere on the page.</p>
+    </div>
+
+    <div class="splash-group splash-try-group">
+      <h3>Just looking?</h3>
+      <p class="splash-try"><button id="splashTry" class="btn big">Try it out</button> <span class="status">An invented club (made-up names, phones and notes; nothing real). Nothing is saved anywhere unless you download it.</span></p>
+    </div>
+
+    <footer class="splash-foot">
+      <button id="splashSkip" class="linklike">Skip for now</button>
+      <span class="status"><button type="button" id="splashVer" class="linklike" title="Check the website for a newer version"></button> <span id="splashUpdMsg" role="status"></span> <button type="button" id="splashUpdApply" class="linklike" hidden>Update now</button></span>
+    </footer>
   </div>
 </section>
 

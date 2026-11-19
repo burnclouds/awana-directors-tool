@@ -946,6 +946,12 @@
     const spare = [...new Set(['Cubbies', 'Sparks', 'T&T'].flatMap(x => Season.bookOrder(season, x)))].filter(c => !codes.includes(c) && season.config.books[c]);
     return spare.length ? '<select id="peAddSheet" aria-label="Add a progress sheet for another book"><option value="">+ Add sheet</option>' + spare.map(c => '<option value="' + esc(c) + '">' + esc((season.config.books[c] || {}).name || c) + ' (' + esc(Season.bookGroup(season, c) || season.config.books[c].group || '') + ')</option>').join('') + '</select>' : '';
   };
+  // N38 follow-up: after a received date is cleared, a handbook that is only a book code with that book names it still, so the sheet would open on it. Ask once; Keep leaves everything as it is.
+  function offerHandbookClear(book) {
+    if (!ui.prKid || !Season.orphanHandbook(season, ui.prKid, book)) return;
+    App.ask.confirm('This child\'s handbook still says ' + book + ' with no date, so the Progress sheet keeps opening on ' + book + '. Clear the handbook too?', { title: 'Clear the handbook as well?', ok: 'Clear it', cancel: 'Keep it' })
+      .then(ok => { if (ok) { Season.setHandbook(season, ui.prKid, { code: '', date: '' }); touchSeason(); redrawSheet(); } });
+  }
   function renderProgress() {
     const el = $('progressWrap');
     if (!ready(el)) return;
@@ -1054,7 +1060,7 @@
     if (t.dataset && t.dataset.hb) { if (saveHandbook(t.closest('.hbbox'), ui.prKid)) { ui._lastKid = ''; redrawSheet(); } return; }      // only a new book changes what is on screen, so tabbing between the boxes keeps focus
     if (t.dataset && t.dataset.key && t.type !== 'date') commitProgress(t, true);
     if (t.dataset && t.dataset.bookdone) { try { Season.setBookDone(season, ui.prKid, t.dataset.bookdone, t.checked); } catch (err) { App.ask.alert(err.message); } touchSeason(); redrawSheet(); return; }
-    if (t.dataset && t.dataset.recvnd !== undefined) { try { Season.setReceived(season, ui.prKid, t.dataset.recvnd, '', { noDate: t.checked }); } catch (err) { App.ask.alert(err.message); } touchSeason(); redrawSheet(); return; }      // book received, date unknown
+    if (t.dataset && t.dataset.recvnd !== undefined) { try { Season.setReceived(season, ui.prKid, t.dataset.recvnd, '', { noDate: t.checked }); } catch (err) { App.ask.alert(err.message); } if (!t.checked) offerHandbookClear(t.dataset.recvnd); touchSeason(); redrawSheet(); return; }      // book received, date unknown
     if (t.dataset && t.dataset.hold !== undefined) { Season.setHold(season, ui.prKid, t.dataset.hold, t.checked); touchSeason(); redrawSheet(); return; }      // the same flag as the Hold box on the Awards tab
     if (t.dataset && t.dataset.annnodateTick !== undefined) {      // announced, date unknown: counts as told to the group; untick to take it back (a real date replaces it)
       try { Season.setAnnNoDate(season, ui.prKid, t.dataset.annnodateTick, t.checked); } catch (err) { App.ask.alert(err.message); }
@@ -1078,6 +1084,7 @@
     if (v !== '') { if (!leaving && /^0\d{3}-/.test(v)) return; const bad = Check.date(v); if (bad) { t.value = was; App.flash('Date received: ' + bad.msg, 'error'); return; } }
     if (v === was) return;
     try { Season.setReceived(season, ui.prKid, book, v); } catch (err) { App.ask.alert(err.message); t.value = was; return; }
+    if (v === '') offerHandbookClear(book);
     if (v) lastEntered = v;
     touchSeason(); ui._recvDirty = true;
   }

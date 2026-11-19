@@ -70,17 +70,26 @@
       const d = dirOf('club'); let parent = d && (d.parent || d.id);
       if (d) { try { await D.meta(d.id); } catch (e) { parent = undefined; App.flash('The club folder in this file cannot be reached from this account: choose the club files folder again in Options.', 'error'); } }
       const picks = await pick('files', { parent }); if (!picks.length) return;
-      const files = [], datas = []; let folder = null;
-      for (const p of picks) {
-        const f = await D.read(p.id);
-        files.push({ name: f.name, lastModified: f.lastModified, text: async () => f.text });
-        if (/\.json$/i.test(f.name)) { datas.push({ id: f.id || p.id, name: f.name, rev: f.revision || '', text: f.text }); if (f.parents[0]) folder = f.parents[0]; }
-      }
-      st.cand = datas.length === 1 ? datas[0] : null;      // one data file: it may be updated in place later, if the season that opens is really this file's (lineage())
-      await App.openFiles(files);
-      if (folder) st.opened = folder;
-      st.save = true; label();
+      await openPicks(picks);
     } catch (err) { App.ask.alert('Google Drive: ' + err.message, { title: 'Google Drive' }); }
+  }
+  // N41: the last Drive data file opened in this browser (its ID and exact name). Kept after sign-out. Blocked storage just means nothing is remembered.
+  const LAST_KEY = 'awana-drive-last';
+  const rememberLast = f => { try { localStorage.setItem(LAST_KEY, JSON.stringify({ id: f.id, name: f.name })); } catch (e) { /* storage blocked */ } };
+  const lastFile = () => { try { const v = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); return v && v.id && v.name ? v : null; } catch (e) { return null; } };
+  // Load the picked Drive files (the same for the picker and the remembered file). The data file is remembered after a successful open.
+  async function openPicks(picks) {
+    const files = [], datas = []; let folder = null;
+    for (const p of picks) {
+      const f = await D.read(p.id);
+      files.push({ name: f.name, lastModified: f.lastModified, text: async () => f.text });
+      if (/\.json$/i.test(f.name)) { datas.push({ id: f.id || p.id, name: f.name, rev: f.revision || '', text: f.text }); if (f.parents[0]) folder = f.parents[0]; }
+    }
+    st.cand = datas.length === 1 ? datas[0] : null;      // one data file: it may be updated in place later, if the season that opens is really this file's (lineage())
+    await App.openFiles(files);
+    if (folder) st.opened = folder;
+    st.save = true; label();
+    const data = picks.find(p => /\.json$/i.test(p.name)); if (data) rememberLast(data);
   }
   // Pick a folder for one kind. The picker opens beside the current one with it ticked. confirm = the saved folder was refused, so ask this person to confirm it.
   async function chooseDir(kind, confirm) {
@@ -288,4 +297,8 @@
   };
   App.importDefault = () => st.save ? 'drive' : 'local'; App.importFromDrive = () => { preload(); openFromDrive(); };
   $('splashDrive').addEventListener('click', () => { D.preload().then(openFromDrive, err => App.ask.alert('Google Drive: ' + err.message, { title: 'Google Drive' })); });
+  // N41: the remembered file on the splash, as its exact name (a long name is cut off on screen; the full name is on hover). It opens with no picker; if Google refuses it, the picker opens instead.
+  const showLastFile = () => { const last = lastFile(), b = $('splashLast'); if (!last || !b || !cfg || !D.configured()) return; b.textContent = 'Open ' + last.name + ' from Google Drive'; b.title = last.name; b.setAttribute('aria-label', 'Open ' + last.name + ' from Google Drive'); $('splashLastRow').hidden = false; };
+  $('splashLast').addEventListener('click', () => { const last = lastFile(); if (!last) return; D.preload().then(() => openPicks([{ id: last.id, name: last.name }]).catch(err => { App.ask.alert('The remembered file could not be opened (' + err.message + '). Choose it from Google Drive instead.', { title: 'Google Drive' }); openFromDrive(); }), err => App.ask.alert('Google Drive: ' + err.message, { title: 'Google Drive' })); });
+  showLastFile();
 })();

@@ -45,7 +45,8 @@ test('nothing promises "nothing is uploaded"', () => {
 test('the README says settings are in the data file, not the browser', () => {
   assert(!/localStorage/.test(readme), 'README mentions localStorage');
   const bad = readme.split(/(?<=\.)\s/).filter(s => /per browser|per machine|kept in the browser/i.test(s) && !/\bnothing\b|\bnot\b/i.test(s)); assert.deepStrictEqual(bad.map(s => s.slice(0, 60)), [], 'README says something is kept in the browser');
-  const writes = appJs.filter(f => /localStorage\.setItem\(/.test(fs.readFileSync(path.join(appDir, f), 'utf8'))); assert.deepStrictEqual(writes, [], 'code writes localStorage: ' + writes.join(', '));
+  // The only browser write allowed is the remembered Drive file (N41): a per-browser convenience, never a setting. Any other write fails.
+  const writes = appJs.filter(f => (fs.readFileSync(path.join(appDir, f), 'utf8').match(/localStorage\.setItem\([^,]*/g) || []).some(c => !/LAST_KEY|awana-drive-last/.test(c))); assert.deepStrictEqual(writes, [], 'code writes localStorage: ' + writes.join(', '));
 });
 test('README and BACKLOG headers carry no release number', () => {
   const head = readme.split('\n').slice(0, 5).join('\n'); assert(!/\bapp \d+\.\d+/.test(head), 'README header has a release number'); assert(!/\bapp \d+\.\d+/.test(backlog.split('\n')[0]), 'BACKLOG line 1 has a release number');

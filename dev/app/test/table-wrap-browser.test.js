@@ -27,12 +27,12 @@ const server = http.createServer((req, res) => {
   const overlaps = (page, sel) => page.evaluate(s => [...document.querySelectorAll(s + ' tbody tr')].filter(tr => { const cells = [...tr.cells]; return cells.some((c, i) => i && c.getBoundingClientRect().left < cells[i - 1].getBoundingClientRect().right - 1) || cells.some(c => c.scrollWidth > c.clientWidth + 1); }).length, sel);
   await test('Options > Data checks: every message wraps inside its cell and the Open link is never covered, at desktop and narrower widths', async () => {
     const { page } = await open(); await tab(page, 'options'); await page.waitForTimeout(300);
-    for (const w of [1280, 1000, 900]) { await page.setViewportSize({ width: w, height: 800 }); await page.waitForTimeout(250); const rows = await page.locator('#optChecks tbody tr').count(); assert(rows >= 2, 'there are warnings to look at: ' + rows);
+    for (const w of [1280, 1000, 900]) { await page.setViewportSize({ width: w, height: 800 }); await page.waitForTimeout(700); const rows = await page.locator('#optChecks tbody tr').count(); assert(rows >= 2, 'there are warnings to look at: ' + rows);
       assert.strictEqual(await overlaps(page, '#optChecks table'), 0, 'a message runs under its neighbour at ' + w); }
     assert((await page.$$eval('#optionsWrap td.wrap', e => e.filter(x => getComputedStyle(x).whiteSpace === 'normal').length)) >= 2, 'the message cells really are allowed to wrap'); await page.close();
   });
   await test('the same on the To do tab (its Open links) and the Validate tab', async () => {
-    const { page } = await open(); await tab(page, 'todo'); await page.waitForTimeout(300); assert.strictEqual(await overlaps(page, '#todoWrap table'), 0, 'To do');
+    const { page } = await open(); await tab(page, "todo"); await page.waitForTimeout(700); assert.strictEqual(await overlaps(page, '#todoWrap table'), 0, 'To do');
     await page.setInputFiles('#vFiles', [EXPORT]); await page.waitForTimeout(600); await tab(page, 'validate'); await page.waitForTimeout(250); assert.strictEqual(await overlaps(page, '#validateWrap table'), 0, 'Validate'); await page.close();
   });
   await browser.close(); server.close();

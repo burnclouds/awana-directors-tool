@@ -337,6 +337,9 @@ NODE_PATH=<dir with playwright> node test/bundles-club-night-browser.test.js  # 
 NODE_PATH=<dir with playwright> node test/offline-chip-browser.test.js        # N9 point 8: the offline chip in the top bar, at both widths
 NODE_PATH=<dir with playwright> node test/debug-source-browser.test.js        # N9 point 7: the Debug tab shows Built from
 AWANA_STRICT_DEPLOY=1 node test/release-consistency.test.js                   # N9 point 1: deploy/ must match dev (the Pages test job sets this)
+node test/handbook-clear-offer.test.js      # N38: a bare book code with no date is offered for clearing when its received date is cleared
+node test/no-date-books.test.js             # Debug: a bare book code with no dates is reset (Cubbies, Sparks, T&T); a child with a date is never touched
+NODE_PATH=<dir with playwright> node test/debug-nodate-browser.test.js  # Debug tab: Books with no dates counts, lists and resets
 NODE_PATH=<dir with playwright> node test/not-awards-browser.test.js     # N23 on the Awards tab and Progress sheet
 NODE_PATH=<dir with playwright> node test/announce-list-browser.test.js  # N29: the Announce page prints the club-night list
 NODE_PATH=<dir with playwright> node test/tnt-extra-credit-browser.test.js  # N32: the Silver and Gold heading on a T&T progress page

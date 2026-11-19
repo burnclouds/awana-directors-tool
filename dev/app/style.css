@@ -357,7 +357,7 @@ button.armed { background:#b00020; color:#fff; border-color:#b00020; }
   /* club night: Night and Room side by side, the two buttons below them, then the table */
   #attendBar label { flex:1 1 150px; } #attendBar select { width:100%; } #attendBar button { flex:1 1 140px; } #btnNewSeason, #attendBar .grow, #attendBar label.hold { display:none; }
   #attendBar { margin-bottom:4px; }
-  table.att { width:100%; min-width:0; table-layout:auto; } table.att td:nth-child(2), table.att th:nth-child(2) { padding-right:4px; padding-left:4px; white-space:normal; }
+  table.att, table.roster.att { width:100%; min-width:0; table-layout:auto; }      /* N8 scoping: the on-screen night table is table.roster.att, so the phone rule must match it too */ table.att td:nth-child(2), table.att th:nth-child(2) { padding-right:4px; padding-left:4px; white-space:normal; }
   table.att th, table.att td { font-size:13px; padding:0 2px; }
   table.att th .lg { display:none; } table.att th .sh { display:inline; } table.att th { font-size:11px; }
   table.att td.chk label { min-height:44px; min-width:34px; } table.att td.chk input { width:32px; height:32px; }
@@ -809,3 +809,15 @@ table.tg select.tgsel.tgset.team-Red { background-color:#ea9999; border-color:#c
 
 .offchip { display:inline-block; margin-right:8px; padding:4px 10px; border-radius:4px; background:var(--warnbg, #fff4d6); color:var(--warntxt, #6b4300); font-size:13px; max-width:min(320px, 46vw); white-space:normal; line-height:1.3; } .offchip[hidden] { display:none; }      /* N9 point 8: offline chip in the top bar */
 .actions:has(#offlineChip:not([hidden])) { flex-wrap:wrap; } #offlineChip:not([hidden]) { flex:0 0 100%; max-width:none; box-sizing:border-box; margin:0 0 6px; }      /* N9 point 8: while offline the chip takes its own line in the top bar, so the buttons never run off a phone */
+
+/* N42: the splash screen, organized: Open a file, Just looking, and a quiet footer. A remembered Drive file's name is cut off on screen; the full name is on hover. */
+.splash-card h3 { margin:14px 0 6px; font-size:15px; color:var(--mute, #5b6470); text-transform:uppercase; letter-spacing:.04em; }
+.splash-group { border-top:1px solid var(--line, #d7dce2); padding-top:4px; }
+.splash-intro { margin-top:0; }
+.splash-main { margin:8px 0; }
+.splash-main .btn { display:block; width:100%; box-sizing:border-box; text-align:center; }
+.splash-last { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+.splash-hint { margin:6px 0 10px; }
+.splash-try-group { margin-top:10px; }
+.splash-foot { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; justify-content:space-between; margin-top:16px; border-top:1px solid var(--line, #d7dce2); padding-top:8px; }
+@media (min-width: 761px) { .splash-main .btn { display:inline-block; width:auto; } }

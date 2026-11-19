@@ -414,6 +414,18 @@
   const RECEIVED_NO_DATE = 'no date';
   const isReceivedNoDate = (s, id, book) => receivedOf(s, id, book) === RECEIVED_NO_DATE;
   const receivedShown = (s, id, book) => { const r = receivedOf(s, id, book); return r === RECEIVED_NO_DATE ? '' : r; };
+  // N38 follow-up: a handbook that is only a book code (no date) and names this book. Clearing the received date does not clear it, so the sheet still opens on that book; the Person tab offers to clear it.
+  function orphanHandbook(s, id, book) { const p = parseHandbook(s.handbooks[id]); return !!p.code && !p.date && bookKey(s, p.code) === book; }
+  // Debug (N38 follow-up): a child whose handbook is only a book code with no date, and who has no date of any kind (no sign-off, no received date, no finished book, no extra sheet). The code is a leftover: the sheet opens on it. Cubbies, Sparks and T&T alike.
+  function noDateBookKids(s) {
+    return Object.keys(s.handbooks || {}).filter(id => {
+      const p = parseHandbook(s.handbooks[id]); if (!p.code || p.date) return false;
+      const kid = (s.progress || {})[id] || {};
+      const dated = Object.keys(kid).some(c => c !== 'common' && kid[c] && Object.values(kid[c]).some(v => v)) || Object.keys(((s.received || {})[id]) || {}).length > 0 || (((s.doneBooks || {})[id]) || []).length > 0 || (((s.extraSheets || {})[id]) || []).length > 0;
+      return !dated;
+    });
+  }
+  function resetNoDateBooks(s) { const ids = noDateBookKids(s); ids.forEach(id => { delete s.handbooks[id]; }); return ids.length; }
   function setReceived(s, id, book, date, opts) {
     if (!(s.config.books || {})[book]) throw new Error('"' + book + '" is not one of your books.');
     const noDate = !!(opts && opts.noDate) && !date; if (date) needDate(date); if (!s.received) s.received = {};
@@ -1507,7 +1519,7 @@
     return { keep, skipped: items.filter(it => it !== keep) };
   }
   const api = { SECTIONS, KNOWN_TOP, nightStatus, volunteerNights, volunteerExpected, addAbsence, clearAbsenceNights, clearAbsence, absenceList, FLAG_LEVELS, FLAG_NO_KID, shiftDates, freshenFake, FORMAT, VERSION, fileName, MARKS, QUARTERS, TEAMS, blank, toJson, fromJson, isRealDate, badDates, guessDate, dateClashes, fixDates, newSeason, turnoutCounts, addPastYear, addEarlierYear, seasonStart, sectionsThisSeason, defaultYear, setMark, hasNight, heldNights, newest, totals, blueJewels,
-    toHandOut, jewelWaitsForWing, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
+    toHandOut, jewelWaitsForWing, orphanHandbook, setHandbook, noDateBookKids, resetNoDateBooks, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
     setProgress, addExtraSheet, blueWingPlan, sparkJewels, heldGems, grantBlue, dropBlue, isAnnNoDate, setAnnNoDate, noDateSigns, isSignNoDate, signShown, signsShown, unsignedIn, markSignsNoDate, baseAward, jewelName, awardLabel, childBook, sparksCurrent, receivedOf, receivedShown, isReceivedNoDate, setReceived, completedBlocks, finishedBooks, bookStatus, completionAwards, setBookDone, suggestedAwards, firstNight, pastYearAwards, markPastYearsGiven, counted,
     normDriveDirs, isGivenNoDate, givenShown, isHeld, setHold, addFlag, setFlagNote, clearFlag, setFlagHidden, isFlagHidden, todoNotes, notAnAward, NOT_AWARDS, upgradeNotAwards, setBugStatus, addBugReply, removeBugReply, bugThread, bugStatusOf, BUG_STATUS, BUG_BY, noteList, bugList, flagList, flagsOf, flagsAt, flagsAtPlace, renameAward, snapshot, diff, merge3, applyChanges, record, labelOf, at, replayDiff, reconcile, tag, restoreTo, compare, kindOf, describe, MERGE_MINUTES };
   if (typeof module !== 'undefined') module.exports = api; else root.Season = api;
