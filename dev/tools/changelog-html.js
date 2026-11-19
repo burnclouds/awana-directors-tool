@@ -26,6 +26,7 @@ sections.push(cur);
 // Turn a section's lines into HTML: paragraphs, bullet lists (with one level of nesting), and sub-headings as plain bold lines.
 function bodyHtml(body) {
   const html = []; let list = null, sub = null;
+  body = body.filter(l => !PRIVATE.test(l));
   const closeList = () => { if (sub) { list.push('</ul>'); sub = null; } if (list) { html.push(list.join('')); list = null; } };
   for (const raw of body) {
     const l = raw.replace(/\s+$/, '');
@@ -43,7 +44,9 @@ function bodyHtml(body) {
 const id = t => 'v-' + t.toLowerCase().replace(/[^a-z0-9.]+/g, '-').replace(/^-|-$/g, '');
 const headed = sections.filter(s => s.title);
 const toc = headed.map(s => '<a href="#' + id(s.title) + '">' + esc(s.title.split(' (')[0]) + '</a>').join('');
-const intro = bodyHtml(sections[0].body);
+// Public page: the changelog preamble (its Published line is repository history) is not shown, and any entry about repository resets, purges or real data is left out.
+const PRIVATE = /public repo|purge|reset to ONE|GitHub Support|real names|real children|09b0567/i;
+const intro = 'The version history of the AWANA Roster & Reports app. Built from the changelog; each version and its lettered sub-versions are listed below.';
 const body = headed.map(s => '<section class="ver" id="' + id(s.title) + '"><h2>' + esc(s.title) + '</h2>\n' + bodyHtml(s.body) + '</section>').join('\n');
 
 const html = `<!doctype html>
