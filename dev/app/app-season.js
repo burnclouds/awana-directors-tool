@@ -905,7 +905,8 @@
     const blockLabel = key => { if (key === 'BJ') return 'Blue Jewels'; for (const t of tpls) { const b = (t.common || []).concat(t.perBook || []).find(x => x.key === key); if (b) return b.label; } return key; };
     const inBook = f.book && f.book !== 'common' ? bookName(f.book) + ' · ' : '';
     if (f.level === 'general') return 'General note';
-    if (f.level === 'element') return (f.trail || []).join(' › ') || f.label || 'A flagged element';
+    // N44: a filter note names the value it was made on (the class, night or group), so the To do list says which one.
+    if (f.level === 'element') return ((f.trail || []).join(' › ') || f.label || 'A flagged element') + (f.filter && f.filter.value ? ': ' + (String(f.filter.value).length > 40 ? String(f.filter.value).slice(0, 40) + '…' : f.filter.value) : '');
     if (f.level === 'attend') return 'Attendance · ' + (f.room || '') + ' · ' + MD(f.date);
     if (f.level === 'team') return 'Color teams · ' + (f.quarter || '') + ' · ' + (f.group || '') + (f.color ? ' · ' + f.color : '');
     if (f.level === 'field') return 'Person · ' + (f.field || '');
