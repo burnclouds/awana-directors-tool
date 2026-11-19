@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.8.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.8.2';
 // Debug and Validate tabs. Debug: which version of every file is running, what is open, and the dates of the CSV/JSON files.
 // Validate: check a data file, Planning Center export or older CSV for problems without opening it into the app.
 (function () {
@@ -99,6 +99,7 @@
     let storage = '–'; try { storage = Object.keys(localStorage).filter(k => k.startsWith('awana')).join(', ') || 'none'; } catch (e) { storage = 'blocked'; }
     $('debugWrap').innerHTML = bugsHtml() +
       '<h3>Versions</h3>' + table(['What', 'Version'], state) +
+      '<p><a href="version-history.html" target="_blank" rel="noopener">Version history: every version and lettered sub-version, from 1.44 on</a></p>' +
       '<h3>Scripts on this page (' + scripts.length + ')</h3>' + table(['Script', 'Version'], scripts) +
       '<h3>Planning Center columns</h3>' + (App.master ? App.pcColumns.html() : '<p class="status">No roster is open.</p>') +
       assumedHtml() + noDateHtml() + '<h3>Open now</h3>' + (open ? table(['', ''], open) : '<p class="status">No data file is open.</p>') +
