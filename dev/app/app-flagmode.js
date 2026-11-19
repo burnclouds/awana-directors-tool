@@ -67,7 +67,7 @@
     dlg.innerHTML = '<h3 style="margin-top:0">' + (bug ? 'Bug report: ' : '&#9873; Flag: ') + esc(info.label || 'this') + '</h3><p class="status">' + esc(FT.readable(info.trail)) + (info.rowIndex ? ' (row ' + (info.rowIndex + 1) + ' of that name)' : '') + (bug
       ? '<br>This goes on the Debug tab, not To do, where it can be answered. Describe the problem or the feature you would like. Do not write a child\'s name; to report about one child\'s record, click that child\'s row.</p>'
       : '<br>The note shows on the To do tab, with a Go button to come back here, until you clear it.</p>') +
-      here.map(f => '<p class="flagnote"><b>' + esc(f.note) + '</b> <span class="status">' + esc(Model.md(f.at)) + '</span> <button type="button" data-dlgclear="' + esc(f.id) + '">Clear</button></p>').join('') +
+      here.map(f => '<p class="flagnote"><b class="notetext">' + esc(f.note) + '</b> <span class="status">' + esc(Model.md(f.at)) + '</span> <button type="button" data-dlgclear="' + esc(f.id) + '">Clear</button></p>').join('') +
       '<label>Note <textarea id="flNote" rows="3" style="width:100%" placeholder="' + (bug ? 'What went wrong, or what you would like the app to do' : 'What to check') + '"></textarea></label><div class="dlgbtns"><button id="flCancel">Close</button><button id="flSave" class="primary">' + (bug ? 'Add bug report' : 'Add flag') + '</button></div>';
     $('flCancel').onclick = () => dlg.close();
     // Save leaves flag mode: the page stays where it is, so Save and the other buttons work at once. Another note is one more press of the Flag button.

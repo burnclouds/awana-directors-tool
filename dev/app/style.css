@@ -825,3 +825,4 @@ table.tg select.tgsel.tgset.team-Red { background-color:#ea9999; border-color:#c
 .splash-foot { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; justify-content:space-between; margin-top:16px; border-top:1px solid var(--line, #d7dce2); padding-top:8px; }
 @media (min-width: 761px) { .splash-main .btn { display:inline-block; width:auto; } }
 .recvrow .uov { display:inline-block; margin:0 0 0 8px; vertical-align:middle; }      /* N43: the no-date tick for Date received sits on the same line as its box */
+.notetext, .bugtext { white-space:pre-wrap; }      /* N45: a note or a bug reply keeps the line breaks it was typed with */

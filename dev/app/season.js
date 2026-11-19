@@ -934,6 +934,8 @@
   // 'element' (Flag anything, any tab): tab (the tab id), trail (a breadcrumb of labels, tab name first: where the element is, not a screen position), label (the element's own label) and rowIndex (which of several same-named rows). Not about one child.
   // 'bug' is a bug report or feature request about the app (not about a child or the club). It lives in the flags section with an id that starts with b, has a status and a reply, and is listed on the Debug tab, never on To do.
   const FLAG_LEVELS = ['general', 'child', 'sheet', 'block', 'box', 'attend', 'team', 'field', 'element', 'bug'], FLAG_NO_KID = ['general', 'attend', 'team', 'element', 'bug'], FLAG_EXTRA = ['date', 'room', 'quarter', 'group', 'color', 'field', 'sub'], BUG_STATUS = ['open', 'fixed', 'dropped'], BUG_BY = ['leader', 'developer'];
+  // N45: notes, flags and bug reports keep their line breaks. A Windows or phone line break (CRLF, or a lone CR) is saved as LF, so a file does not gain doubled breaks; the text is otherwise kept as typed.
+  const normText = x => String(x || '').replace(/\r\n?/g, '\n').trim();
   function addFlag(s, f, now) {
     if (!f || (!f.kid && !FLAG_NO_KID.includes(f.level))) throw new Error('A flag needs a child.');
     if (!FLAG_LEVELS.includes(f.level)) throw new Error('Unknown flag level "' + f.level + '".');
@@ -941,7 +943,7 @@
     if (f.level === 'team' && !(f.quarter && f.group)) throw new Error('A color team note needs a quarter and a group.');
     if (f.level === 'field' && !f.field) throw new Error('A field note needs the field.');
     if (f.level === 'element' && !(f.tab && Array.isArray(f.trail) && f.trail.length)) throw new Error('A flag on an element needs the tab and the trail to it.');
-    const note = String(f.note || '').trim(); if (!note) throw new Error('Write a note for the flag.');
+    const note = normText(f.note); if (!note) throw new Error('Write a note for the flag.');
     const d = now || new Date(), at = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     if (!s.flags) s.flags = {};
     const id = (f.level === 'bug' ? 'b' : 'f') + d.getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36).padStart(2, '0');
@@ -954,7 +956,7 @@
     if (f.level === 'element') Object.assign(s.flags[id], { tab: String(f.tab), trail: f.trail.map(String), label: String(f.label || f.trail[f.trail.length - 1]), rowIndex: Number.isInteger(f.rowIndex) && f.rowIndex > 0 ? f.rowIndex : 0 });
     return id;
   }
-  function setFlagNote(s, id, note) { const f = (s.flags || {})[id], t = String(note || '').trim(); if (!f) throw new Error('No such flag.'); if (!t) throw new Error('Write a note for the flag.'); f.note = t; }
+  function setFlagNote(s, id, note) { const f = (s.flags || {})[id], t = normText(note); if (!f) throw new Error('No such flag.'); if (!t) throw new Error('Write a note for the flag.'); f.note = t; }
   function clearFlag(s, id) { if (s.flags) delete s.flags[id]; }
   // A bug report is a conversation (N17): replies are an object keyed by reply id, replies[rid] = { at: 'YYYY-MM-DD', by: 'leader' | 'developer', text }. An object, not a list, so two leaders who each add a reply
   // to one report each add a different key and a merge keeps both (a list is one value to the merge). The ids start with r (flags 'f', bugs 'b', absences 'a'); there is no date in them.
@@ -965,7 +967,7 @@
   function bugOf(s, id) { const f = (s.flags || {})[id]; if (!f || f.level !== 'bug') throw new Error('No such bug report.'); return f; }
   function setBugStatus(s, id, status) { const f = bugOf(s, id), st = String(status); if (!BUG_STATUS.includes(st)) throw new Error('Unknown status "' + st + '".'); f.status = st; }
   function addBugReply(s, id, text, by, now) {
-    const f = bugOf(s, id), t = String(text || '').trim(), b = String(by || 'leader'); if (!t) throw new Error('Write a reply.'); if (!BUG_BY.includes(b)) throw new Error('A reply is by a leader or the developer.');
+    const f = bugOf(s, id), t = normText(text), b = String(by || 'leader'); if (!t) throw new Error('Write a reply.'); if (!BUG_BY.includes(b)) throw new Error('A reply is by a leader or the developer.');
     const d = now || new Date(), rid = 'r' + d.getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36).padStart(2, '0');
     if (!isObj(f.replies)) f.replies = {}; f.replies[rid] = { at: isoOf(d), by: b, text: t }; return rid;
   }
