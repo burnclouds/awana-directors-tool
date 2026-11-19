@@ -888,14 +888,15 @@
     let h = '<p class="hbrow shhead"><button type="button" data-shcol aria-expanded="' + (ui.shCollapsed ? 'false' : 'true') + '">' + (ui.shCollapsed ? '&#9656; Show sheet' : '&#9662; Hide sheet') + '</button> ' + printBtn + ' <i class="info" data-info="progress.sheet"></i></p>' + flagbar;
     if (ui.shCollapsed) return h;
     h += recv + bd;
-    if (Season.bookOrder(season, bg)[0] === book) h += t.common.map(b => block(b, 'common')).join('');
+    // N43: a book finished before (another club, no section records) shows no sections: its dates stay in the data, and unticking brings them back. Reviews, the Book Review and the book award still show.
+    if (!done && Season.bookOrder(season, bg)[0] === book) h += t.common.map(b => block(b, 'common')).join('');
     // N32: on a T&T sheet the Silver and Gold extra-credit blocks sit under a visible heading (the regular sections above are unchanged). Keys SV1-4 and GD1-4 (catalog.js).
     const isExtra = b => bg === 'T&T' && /^(SV|GD)\d$/.test(b.key), firstExtra = t.perBook.findIndex(isExtra);
-    h += t.perBook.map((b, i) => (i === firstExtra ? '<div class="pextra" role="heading" aria-level="3">Extra credit: Silver and Gold</div>' : '') + block(b, book)).join('');
+    if (!done) h += t.perBook.map((b, i) => (i === firstExtra ? '<div class="pextra" role="heading" aria-level="3">Extra credit: Silver and Gold</div>' : '') + block(b, book)).join('');
     // The book-completion award (Alpha, 2nd Book, ...) gets the same Given / Announced boxes as a section award. It is offered only once the book is finished (all its sections dated, or ticked finished before).
     const bookAw = Season.completionAwards(season, id, bg).filter(x => x.book === book).map(x => x.award);
     if (bookAw.length) h += '<div class="pblock done bookaward"><span class="plabel">Book completed</span><span class="prow">' + givenBox(bookAw, true, { book, block: 'BOOKS', items: [] }) + '</span></div>';
-    if (bg === 'Sparks') h += blueJewelRow() + reviews(book) + bookReview(book);
+    if (bg === 'Sparks') h += (done ? '' : blueJewelRow()) + reviews(book) + bookReview(book);
     return h;
   }
   // ---- Notes and flags: where a flag points, the note box, and jumping to a flagged place ----
@@ -1085,6 +1086,8 @@
     if (v === was) return;
     try { Season.setReceived(season, ui.prKid, book, v); } catch (err) { App.ask.alert(err.message); t.value = was; return; }
     if (v === '') offerHandbookClear(book);
+    // N43: a real date clears the book's no-date tick at once (no redraw, so the focus stays where it is).
+    if (v) { const row = t.closest('.recvrow') || t.parentElement; if (row) row.querySelectorAll('input[data-recvnd]').forEach(c => { c.checked = false; c.disabled = false; }); }
     if (v) lastEntered = v;
     touchSeason(); ui._recvDirty = true;
   }
@@ -1130,7 +1133,10 @@
     const v = t.value;
     if (t.type === 'date' && v !== '') { const bad = Check.date(v); if (bad) { t.value = stored(t); App.flash(bad.msg, 'error'); return; } }
     if (t.type === 'date' && v === stored(t)) return;
+    const hadNoDate = Season.isSignNoDate(season, ui.prKid, t.dataset.scope, t.dataset.key);
     try { Season.setProgress(season, ui.prKid, t.dataset.scope, t.dataset.key, v); } catch (err) { App.ask.alert(err.message); t.value = stored(t); return; }
+    // N43: a real date clears the box's no-date mark at once, here, without redrawing the sheet (a redraw would move the focus while tabbing).
+    if (hadNoDate && v) { const cell = t.closest('.pcell'); if (cell) { cell.querySelectorAll('.status').forEach(s => { if (s.textContent.trim() === 'no date') s.remove(); }); cell.querySelectorAll('button[data-clearnd]').forEach(b => b.remove()); } }
     touchSeason(); if (redraw) redrawSheet();
   }
   onSheets('focusout', e => { const t = e.target; if (t.type === 'date' && (t.dataset.key || t.dataset.gaward || t.dataset.aaward)) commitProgress(t, !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#progressWrap button, .sheetarea button'))); });
