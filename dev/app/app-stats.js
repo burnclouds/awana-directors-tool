@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-stats.js'] = '1.8.2';
+(this.AwanaVersions = this.AwanaVersions || {})['app-stats.js'] = '1.9.0';
 // Statistics tab: draws what stats.js works out. Read-only; changes nothing.
 (function () {
   const App = window.App, esc = App.esc, $ = id => document.getElementById(id);

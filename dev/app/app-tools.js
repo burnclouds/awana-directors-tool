@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.8.2';
+(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.9.0';
 // Debug and Validate tabs. Debug: which version of every file is running, what is open, and the dates of the CSV/JSON files.
 // Validate: check a data file, Planning Center export or older CSV for problems without opening it into the app.
 (function () {

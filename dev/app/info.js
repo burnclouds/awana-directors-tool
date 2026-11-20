@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['info.js'] = '1.24.2';
+(this.AwanaVersions = this.AwanaVersions || {})['info.js'] = '1.25.0';
 // The (i) notes: a small "i" next to a control that shows a one-line tip on hover and, when clicked, a popup over the page saying which option to use under what conditions.
 // One list of notes feeds both: the (i) buttons across the app and the "Which option when" part of the How it works page, so the two can never disagree.
 // Desktop only: on a phone the buttons and blocks are hidden (style.css), to keep the small screen uncluttered; the How it works page has all of it.

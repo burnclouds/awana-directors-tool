@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.23.0';
+(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.24.0';
 // Print reports. Each render(ctx) returns HTML; ctx = { master, settings, opts }.
 (function (root) {
   const M = root.Model || (typeof require !== 'undefined' ? require('./model.js') : null);

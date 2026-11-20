@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.75.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.76.0';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;

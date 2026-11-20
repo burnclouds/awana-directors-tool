@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-flagmode.js'] = '1.3.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-flagmode.js'] = '1.4.0';
 // Flag anything: the Flag button in the top bar turns on flag mode; click any part of any tab to leave a note about it. The note is saved in the data file and listed on To do, with Go.
 // The flag stores a trail of labels (flagtrail.js), not a screen position. Esc or the Flag button again leaves the mode.
 (function () {

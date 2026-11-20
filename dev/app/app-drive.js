@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-drive.js'] = '1.20.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app-drive.js'] = '1.20.2';
 // Google Drive buttons (optional). Stays completely inactive unless drive-config.js has a client ID and API key: then there is no button,
 // no Google script is loaded and every file is opened and saved locally exactly as before.
 (function () {
