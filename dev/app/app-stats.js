@@ -139,7 +139,7 @@
   if (window.Reports && Reports.LIST) Reports.LIST.push({ id: 'statistics', title: 'Statistics (all sections)', opts: [], render: ctx => {
     const b = build(); if (b.msg) return '<p class="status">' + b.msg + '</p>';
     // N37 F11: the club name usually holds the season already ("AWANA Club 26-27"): the year is added only when it is not there, so the subtitle never says it twice.
-    const yearLine = (club, year) => !year || (club && club.includes(String(year).replace(/^\d\d/, ''))) ? club : club + (club ? ' \u00b7 ' : '') + year;
+    const yearLine = (club, year) => { const short = String(year || '').replace(/^\d\d/, '').replace(/[.*+?^${}()|[\]\\-]/g, '\\$&'); return !year || (club && short && new RegExp('(^|\\D)' + short + '(\\D|$)').test(club)) ? club : club + (club ? ' \u00b7 ' : '') + year; };
     return b.SUBS.map(x => '<section class="sheet portrait stats"><h2>' + esc(x[1]) + (x[0] === 'attendance' ? ' \u2014 Statistics' : '') + '</h2><p class="sub">' + esc(yearLine((ctx.settings || {}).club || '', App.season && App.season.year)) + '</p>' + x[2].replace(/<a href="#" data-person="[^"]*">([^<]*)<\/a>/g, '$1') + '</section>').join('');
   } }); if (App.fillReportSel) App.fillReportSel();      // the report list was built before this script ran
   App.onRefresh.push(() => { if (!$('tab-stats').hidden) render(); });

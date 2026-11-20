@@ -46,6 +46,10 @@ test('lossless: every spelled-out value maps back to the stored value', () => {
   Object.keys(s.config.teamPlan.proj).forEach(id => assert.strictEqual(['Q1', 'Q2', 'Q3', 'Q4'].map(q => L[r.config.teamPlan.proj[id][q]]).join(''), s.config.teamPlan.proj[id]));
   assert.deepStrictEqual(r.history.map(h => ({ t: h.time, label: h.label, changes: h.changes.map(c => ({ p: c.path, o: c.old, n: c.new })) })), s.history);
 });
+test('a blueDrops entry that is not "gem|day" is kept as written, not turned into NaN', () => {
+  const s = fresh(); s.blueDrops[ID] = ['1|2026-10-28', 'odd entry']; const r = S.readableCopy(s);
+  assert.deepStrictEqual(r.blueDrops[ID], [{ gem: 1, on: '2026-10-28' }, 'odd entry']);
+});
 test('making a copy never changes the data', () => { const s = fresh(), before = JSON.stringify(s); S.readableCopy(s); assert.strictEqual(JSON.stringify(s), before); });
 test('a section the copy does not spell out is carried over unchanged', () => { const s = fresh(); s.awards = { '2026-10-07': { [ID]: ['HG Red Jewel 1'] } }; assert.deepStrictEqual(S.readableCopy(s).awards, s.awards); });
 test('Season.fromJson refuses the copy with a plain sentence, and still opens the real file', () => {

@@ -25,4 +25,10 @@ test('a flag made on something other than a filter has no filter field', () => {
   const s = S.blank('2026-27'); const id = S.addFlag(s, { kid: '', level: 'general', note: 'x' }, new Date());
   assert.strictEqual(s.flags[id].filter, undefined);
 });
+// Review finding: History said "reply added: text" only for bug reports; a reply on an ordinary note was a generic change.
+test('History names a reply on an ordinary note', () => {
+  const s = S.blank('2026-27'), id = S.addFlag(s, { kid: '', level: 'general', note: 'ask about the rank' }, new Date()), before = S.snapshot(s);
+  S.addFlagReply(s, id, 'done on Tuesday', 'leader', new Date()); const ch = S.diff(before, s).find(c => c.p[2] === 'replies'), label = ch ? S.describe(ch, x => x) : '(no change under replies)';
+  assert(/reply added/.test(label) && /done on Tuesday/.test(label), 'label: ' + label);
+});
 console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

@@ -28,6 +28,13 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     await page.evaluate(i => document.querySelector('button[data-notesave="' + i + '"]').click(), id); await page.waitForTimeout(400);
     assert.strictEqual(await page.evaluate(i => App.season.flags[i].note, id), 'ask about the rank\nnext Sunday');
   });
+  // Review finding: replies written on the same day are shown in a fixed order (by reply id), not in whatever order the file's keys happen to be in after a merge or reload.
+  await test('two replies on the same day show in reply-id order, whatever the key order in the file', async () => {
+    const id2 = await page.evaluate(() => { const i = App.addFlag({ kid: '', level: 'general', note: 'second note', tab: 'todo', trail: ['To do'] }); App.season.flags[i].replies = { rb: { at: '2026-11-19', by: 'leader', text: 'REPLY-B-later' }, ra: { at: '2026-11-19', by: 'leader', text: 'REPLY-A-earlier' } }; App.tabs.todo(); return i; });
+    await page.waitForTimeout(300);
+    const shown = await page.evaluate(i => { const r = document.querySelector('tr[data-flag="' + i + '"]'); return r ? r.textContent.replace(/\s+/g, ' ') : ''; }, id2);
+    assert(shown.includes('REPLY-A-earlier') && shown.includes('REPLY-B-later'), 'replies not shown: ' + shown.slice(0, 200)); assert(shown.indexOf('REPLY-A-earlier') < shown.indexOf('REPLY-B-later'), 'out of order: ' + shown.slice(0, 200));
+  });
   await test('no script errors', async () => { assert.strictEqual(errs.length, 0, errs.join(' | ')); });
   await browser.close(); server.close();
   console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

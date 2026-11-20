@@ -90,6 +90,22 @@ const pagesOf = buf => { const f = path.join(os.tmpdir(), 'awana-clean-' + proce
     const heads = t.split('\n').map(l => l.trim()).filter(l => /^Sparks [A-D] \(\d+\)$/.test(l)); assert(heads.length >= 3, 'class headings: ' + heads.join(', '));
     if (r.pages.length > 1) { const rowsOnLast = r.pages[r.pages.length - 1].split('\n').filter(l => /none yet\s+none yet/.test(l)).length; assert(rowsOnLast >= 3, 'the last page holds only ' + rowsOnLast + ' child row(s)'); }
   });
+  // Review finding: "the year is already in the club name" is a whole-season test, not a loose substring ("Team 1226-278" contains 26-27 but is not that season).
+  await test('F11: the year is added when the club name only contains its digits inside other numbers', async () => {
+    const sub = async club => { await show('statistics'); await page.evaluate(c => { const el = document.getElementById('sClub'); el.value = c; el.dispatchEvent(new Event('input', { bubbles: true })); }, club); await page.waitForTimeout(400); return page.evaluate(() => (document.querySelector('#report .stats p.sub') || {}).textContent || ''); };
+    const yr = await page.evaluate(() => App.season.year), short = yr.replace(/^\d\d/, '');
+    const a = await sub('Team 12' + short + '8'); assert(a.includes(yr), 'year dropped for a name that only contains its digits: ' + a);
+    const b = await sub('AWANA Club ' + short); assert.strictEqual((b.match(new RegExp(short.replace('-', '\\-'), 'g')) || []).length, 1, 'year twice: ' + b); assert(!b.includes(yr), 'full year added although the club name has the season: ' + b);
+  });
+  // Review findings: the page style follows the pages that print, and a notes page that is not first still gets the punch margin.
+  const pageStyleFor = html => page.evaluate(h => { document.getElementById('report').innerHTML = h; App.setPageStyle(); return document.getElementById('pageStyle').textContent; }, html);
+  await test('a notes page that is not the first page keeps the 0.85 in punch margin', async () => {
+    const css = await pageStyleFor('<section class="sheet landscape"></section><section class="sheet portrait notes punch"></section>'); const m = /@page pgnotes \{[^}]*margin:\s*([^;}]*)/.exec(css);
+    assert(m && /0\.85in/.test(m[1]), 'pgnotes margin: ' + (m && m[1]) + ' in ' + css);
+  });
+  await test('a page that is not printed (an empty-report placeholder) does not decide the orientation or margins', async () => {
+    const css = await pageStyleFor('<section class="sheet landscape emptysheet"></section><section class="sheet portrait"></section>'); assert(/^@page \{ size: portrait;/.test(css), css.slice(0, 120));
+  });
   await test('no script errors', async () => { assert.strictEqual(errs.length, 0, errs.join(' | ')); });
   await browser.close(); server.close();
   console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

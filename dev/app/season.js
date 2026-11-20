@@ -431,7 +431,8 @@
   // groupOf(id) is the child's group from the roster ('' when unknown: such a child is not judged on class). A row is { check, id, text, fix [, date] }; fix '' means "shown, left alone": a date, a note or a choice a person made is never removed for you.
   // The text never holds a name: the screen adds the child's name from id.
   function oddballs(s, groupOf) {
-    const out = [], books = s.config.books || {}, grp = id => (groupOf && groupOf(id)) || '', add = (check, id, text, fix, date) => out.push(Object.assign({ check, id, text, fix: fix || '' }, date ? { date } : {}));
+    const out = [], books = s.config.books || {}, grp = id => { const g = (groupOf && groupOf(id)) || ''; return YEAR_BOOK_GROUPS.includes(g) ? g : ''; },      // Puggles, Volunteers and Unassigned have no book group: not judged on class
+     add = (check, id, text, fix, date) => out.push(Object.assign({ check, id, text, fix: fix || '' }, date ? { date } : {}));
     const bare = new Set(noDateBookKids(s));
     bare.forEach(id => add('bare-handbook', id, 'Handbook "' + parseHandbook(s.handbooks[id]).code + '" with no date and nothing else recorded.', 'clearHandbook'));
     Object.keys(s.handbooks || {}).forEach(id => {
@@ -473,7 +474,7 @@
     const handbooks = {}; Object.keys(c.handbooks || {}).forEach(id => { handbooks[id] = parseHandbook(c.handbooks[id]); });
     const attendance = {}; Object.keys(c.attendance || {}).forEach(d => { attendance[d] = {}; Object.keys(c.attendance[d]).forEach(id => {
       const m = c.attendance[d][id], o = {}; Object.keys(markWord).forEach(k => { if (m[k]) o[markWord[k]] = true; }); if (m.g) o.group = m.g; if (m.t) o.teamThatNight = m.t; attendance[d][id] = o; }); });
-    const blueDrops = {}; Object.keys(c.blueDrops || {}).forEach(id => { blueDrops[id] = (c.blueDrops[id] || []).map(x => { const i = String(x).indexOf('|'); return { gem: +String(x).slice(0, i), on: String(x).slice(i + 1) }; }); });
+    const blueDrops = {}; Object.keys(c.blueDrops || {}).forEach(id => { blueDrops[id] = (c.blueDrops[id] || []).map(x => { const i = String(x).indexOf('|'); if (i < 0) return x; return { gem: +String(x).slice(0, i), on: String(x).slice(i + 1) }; }); });
     const config = c.config || {}; if (config.teamPlan && config.teamPlan.proj) { const proj = {}; Object.keys(config.teamPlan.proj).forEach(id => { const t = String(config.teamPlan.proj[id]); proj[id] = { Q1: QUARTER_WORD[t[0]] || t[0] || '', Q2: QUARTER_WORD[t[1]] || t[1] || '', Q3: QUARTER_WORD[t[2]] || t[2] || '', Q4: QUARTER_WORD[t[3]] || t[3] || '' }; }); config.teamPlan.proj = proj; }
     const history = (c.history || []).map(h => Object.assign({ time: h.t, label: h.label }, h.tag ? { tag: h.tag } : {}, { changes: (h.changes || []).map(x => Object.assign({ path: x.p }, 'o' in x ? { old: x.o } : {}, 'n' in x ? { new: x.n } : {})) }));
     const books = {}; Object.keys(config.books || {}).forEach(k => { books[k] = (config.books[k] || {}).name || k; });
@@ -1011,9 +1012,9 @@
     const d = now || new Date(), at = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     if (!s.flags) s.flags = {};
     const id = (f.level === 'bug' ? 'b' : 'f') + d.getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36).padStart(2, '0');
-    s.flags[id] = { kid: f.kid || '', level: f.level, book: f.book || '', block: f.block || '', key: f.key || '', note, at };
+    s.flags[id] = { kid: f.kid || '', level: f.level, book: f.book || '', block: f.block || '', key: f.key || '', note, at };      // book, block and key stay '' for every level: an older copy of the app reads them
     // N44: a flag on a filter (a select such as Night or Class) keeps the filter's id and value, so Go can set the filter back.
-    if (f.filter && f.filter.id) s.flags[id].filter = { id: String(f.filter.id), value: String(f.filter.value == null ? '' : f.filter.value) };      // book, block and key stay '' for every level: an older copy of the app reads them
+    if (f.filter && f.filter.id) s.flags[id].filter = { id: String(f.filter.id), value: String(f.filter.value == null ? '' : f.filter.value) };
     FLAG_EXTRA.forEach(k => { if (f[k]) s.flags[id][k] = String(f[k]); });
     if (f.level === 'bug') {
       s.flags[id].status = 'open'; if (f.ver) s.flags[id].ver = String(f.ver);
@@ -1497,14 +1498,17 @@
       }
       case 'flags': {
         const f = has(c.n) ? c.n : c.o;
+        // The words for a change under flags[id].replies: a reply added (with its text), changed or removed. Used for a bug report and for an ordinary note.
+        const replyWords = () => { const one = x => isObj(x) && x.text !== undefined ? x : null; const r = p.length === 3 ? (isObj(f) ? Object.keys(f).map(k => one(f[k])).find(Boolean) : null) : p.length === 4 ? one(f) : null; return p.length >= 5 ? 'reply changed' : has(c.n) ? 'reply added' + (r ? ': ' + r.text : '') : 'reply removed'; };
         if (/^b/.test(String(p[1] || ''))) {      // a bug report (id starts with b)
           if (p.length === 2 && isObj(f)) return 'Bug report · ' + (has(c.n) ? 'added' : 'deleted') + ': ' + (f.note || '');
           if (p[2] === 'status') return 'Bug report · status: ' + (has(c.n) ? c.n : 'cleared');
-          if (p[2] === 'replies') { const one = x => isObj(x) && x.text !== undefined ? x : null; const r = p.length === 3 ? (isObj(f) ? Object.keys(f).map(k => one(f[k])).find(Boolean) : null) : p.length === 4 ? one(f) : null; return 'Bug report · ' + (p.length >= 5 ? 'reply changed' : has(c.n) ? 'reply added' + (r ? ': ' + r.text : '') : 'reply removed'); }
+          if (p[2] === 'replies') return 'Bug report · ' + replyWords();
           if (p[2] === 'reply') return 'Bug report · ' + (has(c.n) ? 'reply written: ' + c.n : 'reply removed');
           if (p[2] === 'replyAt') return 'Bug report · reply dated ' + (has(c.n) ? MDATE(c.n) : 'removed');
           return 'Bug report · changed';
         }
+        if (p[2] === 'replies') return 'Notes and flags · ' + replyWords();
         if (p[2] === 'hidden') return 'Notes and flags · ' + (has(c.n) ? 'hidden from To do' : 'shown on To do again');
         if (p.length === 2 && isObj(f)) return (f.kid ? nm(f.kid) : 'Note') + ' · ' + (has(c.n) ? (f.kid ? 'flagged' : 'added') : (f.kid ? 'flag cleared' : 'cleared')) + ': ' + (f.note || '');
         return 'Notes and flags ' + (has(c.n) ? 'changed' : 'cleared');

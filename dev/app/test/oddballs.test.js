@@ -76,6 +76,13 @@ test('the same award announced on two nights is listed and left alone', () => {
   const r = rows(s, 'award-twice'); assert.strictEqual(r.length, 1); assert.strictEqual(r[0].fix, ''); assert.strictEqual(Object.keys(s.awards).length, 2);
 });
 
+// Review finding: groupOf also answers 'Puggles', 'Volunteers' and 'Unassigned' for a room that is not a book group. Those children are not judged on class, so a valid record is never listed (and never offered a clear).
+test('a child in Puggles, Volunteers or an unrecognised room is not judged on class', () => {
+  const s = fresh(); s.roster.people.c = { v: {} }; s.roster.people.d = { v: {} }; s.roster.people.e = { v: {} };
+  s.handbooks = { c: 'HC', d: 'WR', e: 'AoG' }; s.received = { c: { HC: '2026-10-07' }, d: { WR: '2026-10-07' } };
+  const g = { c: 'Puggles', d: 'Unassigned', e: 'Volunteers' }, r = S.oddballs(s, id => g[id] || '').filter(x => ['handbook-group', 'received-book'].includes(x.check));
+  assert.deepStrictEqual(r, [], 'listed: ' + JSON.stringify(r));
+});
 test('fixOddball refuses a row with no fix', () => {
   const s = fresh(); s.received = { a: { ZZ: '2026-10-07' } };
   assert.strictEqual(S.fixOddball(s, rows(s, 'received-book')[0]), false); assert.strictEqual(s.received.a.ZZ, '2026-10-07');
