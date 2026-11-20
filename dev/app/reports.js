@@ -39,7 +39,7 @@
 
   // ---------- attendance sheets (one page per room, every kid in the room) ----------
   const MARKS = {
-    Puggles: ['Attendance'], Cubbies: ['Attendance', 'Extra'],
+    Puggles: ['Attendance'], Cubbies: ['Attendance', '', '', ''],      // Cubbies (Mike, 2026-11-20): four sub-cells a night, the first Attendance and three with blank headings left for writing in (a blank one has no MARK_KEY, so the record never fills it)
     Sparks: ['Attendance', 'Handbook', 'Participation', 'Extra'], 'T&T': ['Attendance', 'Handbook', 'Participation', 'Extra'],
   };
   // Club nights for the selected quarter come from the calendar; typed-in dates are only a fallback.

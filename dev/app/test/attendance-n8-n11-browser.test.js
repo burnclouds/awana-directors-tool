@@ -2,6 +2,7 @@
 // N8: the rotated "Attendance" word is centered in its column on every class that keeps it; Puggles (one box a night) have no rotated row;
 //     the screen night tables keep their left-aligned second column; the printed tables run the full width.
 // N11: 20 rows a page; a class of more than 20 goes on to a page 2 of 2; the top of the page is clear for a three-hole punch (0.85in from the paper edge).
+//     Cubbies (Mike, 2026-11-20): four sub-cells a night, the first Attendance, the other three blank-headed for writing in.
 // Invented test club only. Usage: NODE_PATH=<dir with playwright> node test/attendance-n8-n11-browser.test.js
 const { open } = require('./lib/app-page'), assert = require('assert');
 (async () => {
@@ -69,6 +70,25 @@ const { open } = require('./lib/app-page'), assert = require('assert');
       const gap = await page.evaluate(() => { const s = document.querySelector('#report .sheet.att'); return parseFloat(getComputedStyle(s).paddingTop); });
       assert(gap >= 0.45 * 96 - 0.5, 'padding-top ' + gap + 'px');
     });
+  });
+  // Mike 2026-11-20: a Cubbies night has four sub-cells: the first is Attendance (filled from the record), the other three have blank headings and are left for writing in.
+  await t.test('Cubbies: four sub-cells a night, the first headed Attendance, the other three with blank headings', async () => {
+    await t.report('attendance');
+    const m = await page.evaluate(() => { const sh = [...document.querySelectorAll('#report .sheet')].find(x => /^Cubbies/.test(x.querySelector('h2').textContent)), dates = [...sh.querySelectorAll('th.date')];
+      return { nights: dates.length, spans: [...new Set(dates.map(d => d.colSpan))], marks: [...sh.querySelectorAll('th.mark')].map(x => x.textContent.trim()), cells: sh.querySelector('tbody tr').children.length }; });
+    assert(m.nights >= 5, 'nights: ' + m.nights); assert.deepStrictEqual(m.spans, [4], 'each night spans ' + m.spans.join(',') + ' columns');
+    assert.strictEqual(m.marks.length, m.nights * 4, 'mark headings: ' + m.marks.length);
+    m.marks.forEach((x, i) => assert.strictEqual(x, i % 4 === 0 ? 'Attendance' : '', 'heading ' + i + ' is "' + x + '"'));
+    assert.strictEqual(m.cells, 1 + m.nights * 4, 'a Cubbies row is the name plus four cells a night (got ' + m.cells + ')');
+  });
+  await t.test('Cubbies: a recorded Attendance ticks the first sub-cell only; a recorded Extra does not print in a blank one', async () => {
+    const r = await page.evaluate(() => { const M = Model, s = App.season, kid = App.master.people.find(p => M.isActive(p) && M.isClubber(p) && M.groupOf(M.room(p)) === 'Cubbies'), id = kid[M.X.ID];
+      const first = document.querySelector('#report .sheet th.date') && [...document.querySelectorAll('#report .sheet')].find(x => /^Cubbies/.test(x.querySelector('h2').textContent)).querySelector('th.date').textContent.trim();
+      const row = App.calendar.find(c => Calendar.isNight(c) && Calendar.short(c.Date) === first); Season.setMark(s, row.Date, id, 'a', 1, 'Cubbies'); Season.setMark(s, row.Date, id, 'x', 1, 'Cubbies'); App.touch(); App.showReport('attendance');
+      return { name: M.fullName(kid) }; });
+    await page.waitForTimeout(500);
+    const cells = await page.evaluate(nm => { const sh = [...document.querySelectorAll('#report .sheet')].find(x => /^Cubbies/.test(x.querySelector('h2').textContent)), tr = [...sh.querySelectorAll('tbody tr')].find(x => x.cells[0].textContent.trim() === nm); return [...tr.cells].slice(1, 5).map(c => c.textContent.trim()); }, r.name);
+    assert.strictEqual(cells[0], '✓', 'Attendance cell: ' + JSON.stringify(cells)); assert.deepStrictEqual(cells.slice(1), ['', '', ''], 'the three blank cells: ' + JSON.stringify(cells));
   });
   await t.test('N11-4 the subtitle carries a "Printed" date, so the browser date and time header can be turned off', async () => {
     const s = await sheets(); assert(s.every(x => /Printed \d\d\/\d\d\/\d\d/.test(x.sub)), s.map(x => x.sub).join(' | '));
