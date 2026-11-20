@@ -339,7 +339,7 @@ NODE_PATH=<dir with playwright> node test/bundles-club-night-browser.test.js  # 
 NODE_PATH=<dir with playwright> node test/offline-chip-browser.test.js        # N9 point 8: the offline chip in the top bar, at both widths
 NODE_PATH=<dir with playwright> node test/debug-source-browser.test.js        # N9 point 7: the Debug tab shows Built from
 AWANA_STRICT_DEPLOY=1 node test/release-consistency.test.js                   # N9 point 1: deploy/ must match dev (the Pages test job sets this)
-NODE_PATH=<dir with playwright> node test/punch-margin-browser.test.js     # N37: binder pages print with a 0.85in left margin for a three-hole punch
+NODE_PATH=<dir with playwright> node test/punch-margin-browser.test.js     # N37, N47: only the hole-punched pages (progress sheets, achievement records) print with a 0.85in left margin; attendance is punched along the top; every other report uses the whole page
 node test/note-linebreaks.test.js                # N45: notes, flags and bug reports keep their line breaks (CRLF saved as LF)
 node test/note-replies.test.js                # N44: a reply on any note; a flag on a filter keeps the filter id and value for Go
 NODE_PATH=<dir with playwright> node test/todo-note-reply-browser.test.js  # N44: on To do, edit a note and reply to it (the reply shows under the note)
@@ -355,6 +355,7 @@ NODE_PATH=<dir with playwright> node test/print-clean-browser.test.js  # N37: wh
 NODE_PATH=<dir with playwright> node test/print-rows-browser.test.js  # N37: no table row is split across a printed page (six multi-page reports, several row heights; a control row taller than a page proves the detector can see a split)
 node test/readable-copy.test.js                # N40: Season.readableCopy spells out the codes, is lossless, never changes the data, and Season.fromJson refuses the copy
 node test/changelog-html.test.js              # the version history page: lists nest properly, no markdown shows as text, short titles, grouped into series with the newest open, every changelog bullet is on it, nothing private, one self-contained file
+NODE_PATH=<dir with playwright> node test/award-strips-layout-browser.test.js  # award slips: 3px between strips across and down, all text 8 to 10pt, no page overflows, 54 one-award slips fit on 3 pages
 NODE_PATH=<dir with playwright> node test/debug-readable-browser.test.js  # N40: Debug, Readable copy downloads a read-only JSON with the codes spelled out; the data file is unchanged
 NODE_PATH=<dir with playwright> node test/not-awards-browser.test.js     # N23 on the Awards tab and Progress sheet
 NODE_PATH=<dir with playwright> node test/announce-list-browser.test.js  # N29: the Announce page prints the club-night list

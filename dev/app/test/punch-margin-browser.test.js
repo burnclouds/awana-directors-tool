@@ -1,4 +1,4 @@
-// N37 (punch margins): binder pages print with a 0.85in left margin so a three-hole punch clears the first column; attendance (landscape) keeps its own margin.
+// N37 and N47 (punch margins): only the pages that are hole-punched (progress sheets, achievement records) print with a 0.85in left margin; attendance (landscape) is punched along the top; every other report uses the normal page.
 // Checks the page margin the app writes for each report (#pageStyle). Invented test club only.
 // Usage: NODE_PATH=<dir with playwright> node test/punch-margin-browser.test.js
 const assert = require('assert'), fs = require('fs'), http = require('http'), path = require('path');
@@ -17,21 +17,20 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     await page.evaluate(r => App.showReport(r), report); await page.waitForTimeout(700);
     return page.evaluate(() => { const s = document.getElementById('pageStyle'); return s ? s.textContent : ''; });
   };
-  await test('the Emergency pages by class (binderClass) leave 0.85in on the left', async () => {
-    const css = await marginFor('binderClass'); assert(/margin: 0\.5in 0\.4in 0\.5in 0\.85in/.test(css), 'margin: ' + css.slice(0, 200));
+  // N47 (Mike, 2026-11-19): only attendance sheets, progress reports and blank incident reports are hole-punched; everything else goes in a page protector and uses the whole page.
+  await test('the pages that go in page protectors have no punch margin: emergency pages (by class and everyone by name), coaches color teams, volunteer list', async () => {
+    for (const r of ['binderClass', 'binderAll', 'binderTeams', 'volunteers']) { const css = await marginFor(r); assert(!/0\.85in/.test(css), r + ' still leaves 0.85in: ' + css.slice(0, 160)); assert(/margin: 0\.5in\b/.test(css), r + ' is not the normal 0.5in margin: ' + css.slice(0, 160)); }
   });
-  await test('everyone by name (binderAll) and the volunteer list leave the same left margin', async () => {
-    assert(/0\.85in/.test(await marginFor('binderAll')), 'binderAll');
-    assert(/0\.85in/.test(await marginFor('volunteers')), 'volunteers');
+  await test('coaches notes use the whole page (0.25in), with no punch margin', async () => {
+    const css = await marginFor('noteSheets'); assert(!/0\.85in/.test(css), 'notes: ' + css.slice(0, 200)); assert(/@page \{ size: portrait; margin: 0\.25in;/.test(css), 'notes margin: ' + css.slice(0, 200));
   });
-  await test('color teams for the coaches (binderTeams) leave the same left margin', async () => {
-    assert(/0\.85in/.test(await marginFor('binderTeams')), 'binderTeams');
+  await test('progress sheets and achievement records keep the 0.85in punch margin', async () => {
+    for (const r of ['progressSheets', 'achievement']) { const css = await marginFor(r); assert(/0\.85in/.test(css), r + ': ' + css.slice(0, 200)); }
   });
-  await test('coaches notes keep a 0.85in left margin with 0.3in on the other sides', async () => {
-    const css = await marginFor('noteSheets'); assert(/0\.3in 0\.4in 0\.3in 0\.85in/.test(css), 'notes margin: ' + css.slice(0, 200));
-  });
-  await test('attendance (landscape) keeps its own margin, with no punch margin', async () => {
+  await test('attendance (landscape) is punched along the top, so it keeps 0.4in at the sides', async () => {
     const css = await marginFor('attendance'); assert(!/0\.85in/.test(css), 'attendance: ' + css.slice(0, 200)); assert(/size: landscape; margin: 0\.4in/.test(css), css.slice(0, 200));
+    await page.emulateMedia({ media: 'print' }); const pad = await page.evaluate(() => { const s = document.querySelector('#report .sheet.att'); return s ? getComputedStyle(s).paddingTop : ''; }); await page.emulateMedia({ media: 'screen' });
+    assert.strictEqual(pad, '43.2px', 'attendance: 0.4in page margin + 0.45in = 0.85in clear at the top for the punch (print), got ' + pad);
   });
   await test('no script errors', async () => { assert.strictEqual(errs.length, 0, errs.join(' | ')); });
   await browser.close(); server.close();

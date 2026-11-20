@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports-season.js'] = '1.36.0';
+(this.AwanaVersions = this.AwanaVersions || {})['reports-season.js'] = '1.36.1';
 // Print reports built from the season file. Added to Reports.LIST; ctx = { master, settings, calendar, season, opts }.
 // opts: group ('Sparks' | 'T&T' | 'Cubbies' | 'Puggles'), kid (Unique ID or ''), room.
 (function (root) {
@@ -180,9 +180,9 @@
   // ---------- hand-out strips: one narrow strip per child (about 4.5 inches wide, for the distribution box), cut apart; two columns on landscape Letter ----------
   // A strip: the child's name and class, then each award earned and not yet given (Season.toHandOut, the same rule as the Awards tab) with a tick box and a box for the leader's initials. Children with nothing to give get no strip.
   // Pages are built here, not by CSS columns: a row of two strips is as tall as the taller one, rows fill a page up to PAGE_IN inches, and each page is one sheet (so one printed page, and "Choose pages" names it).
-  const STRIP_FIRST_IN = 7.0, STRIP_NEXT_IN = 7.0;      // inches of strips that fit on a page. N27: page 1 has no heading or tally now, so it is as full as the rest (the heading is hidden by CSS; "Choose pages" still names it)
+  const STRIP_FIRST_IN = 7.45, STRIP_NEXT_IN = 7.45;      // inches of strips that fit on a landscape Letter page (7.7in between the 0.4in margins; 3px rows are counted in flush()). Recalibrated 2026-11-20 from real heights at 10pt: header 0.369in, an award line 0.24in, two lines 0.375in, three 0.562in; a label with its earned text wraps after about 36 characters. N27: page 1 has no heading or tally now, so it is as full as the rest (the heading is hidden by CSS; "Choose pages" still names it)
   // Estimated height of a strip: the name line, each award line (a label about 26 characters or more, with its earned text, wraps to a second line), and padding. A strip never splits, so a child with a long list continues on a second strip when this passes STRIP_MAX_IN.
-  const STRIP_MAX_IN = 6.0, awardIn = r => 0.3 + 0.17 * (Math.ceil((r.label.length + (r.earned ? r.earned.length + 8 : 0)) / 26) - 1), stripIn = rows => 0.32 + 0.15 + rows.reduce((h, r) => h + awardIn(r), 0) + 0.1;
+  const STRIP_MAX_IN = 6.0, awardIn = r => 0.24 + 0.17 * (Math.ceil((r.label.length + (r.earned ? r.earned.length + 8 : 0)) / 34) - 1), stripIn = rows => 0.37 + rows.reduce((h, r) => h + awardIn(r), 0) + 0.07;      // a little above the measured heights, never below
   // N29: the list to read from on club night: every earned award not yet announced and not held, by group, one line per child and award (the same list as the Announce page, without the boxes).
   function announceList(ctx) {
     const { master, season, calendar, opts } = ctx; if (!season) return need;
@@ -210,7 +210,7 @@
     const html = s => '<div class="strip"><div class="stripname"><b>' + esc(M.fullName(s.p)) + (s.more ? ' (continued)' : '') + '</b><span>' + esc(s.room) + '</span></div><div class="stcap"><span class="cd">Date</span><span class="ci">Initials</span></div>' +
       s.rows.map(r => '<div class="stripaward"><span class="stlabel">' + esc(r.label) + (r.earned ? ' <small>' + (/^\d|✓/.test(r.earned) ? 'earned ' : '') + esc(r.earned) + '</small>' : '') + '</span><span class="stdate"></span><span class="stinit"></span></div>').join('') + '</div>';
     const pages = []; let page = null, used = 0, row = [];
-    const flush = () => { if (!row.length) return; const h = Math.max(...row.map(s => stripIn(s.rows))), cap = pages.length > 1 ? STRIP_NEXT_IN : STRIP_FIRST_IN; if (!page || (used + h > cap && page.rows.length)) { page = { rows: [] }; pages.push(page); used = 0; } page.rows.push(row); used += h; row = []; };
+    const flush = () => { if (!row.length) return; const h = Math.max(...row.map(s => stripIn(s.rows))) + 0.03, cap = pages.length > 1 ? STRIP_NEXT_IN : STRIP_FIRST_IN; if (!page || (used + h > cap && page.rows.length)) { page = { rows: [] }; pages.push(page); used = 0; } page.rows.push(row); used += h; row = []; };
     strips.forEach(s => { row.push(s); if (row.length === 2) flush(); }); flush();
     return pages.map((pg, i) => { const all = [].concat(...pg.rows), a = all[0].room, b = all[all.length - 1].room;
       return sheet('Awards to hand out, page ' + (i + 1) + ' of ' + pages.length + ': ' + (a === b ? a : a + ' to ' + b), pg.rows.map(r => '<div class="striprow">' + r.map(html).join('') + '</div>').join(''), 'landscape strips', ''); }).join('');      // N27: no grey note on page 1 (the tally, cutting and Given instructions); the heading is in the page for "Choose pages" but not printed

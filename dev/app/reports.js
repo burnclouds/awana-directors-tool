@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.24.0';
+(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.25.0';
 // Print reports. Each render(ctx) returns HTML; ctx = { master, settings, opts }.
 (function (root) {
   const M = root.Model || (typeof require !== 'undefined' ? require('./model.js') : null);
@@ -146,7 +146,7 @@
       const body = teams
         ? table(['Name', sheetQuarter(ctx) + ' Color Team', 'Emergency contact', 'Medical / allergy notes'], people.map(p => [esc(M.fullName(p)), teamFor(ctx, p), contact(p), medAndPhotos(p)]), 'wrap emerg', EMERG_W_CLASS_TEAM)
         : table(['Name', 'Emergency contact', 'Medical / allergy notes'], people.map(p => [esc(M.fullName(p)), contact(p), medAndPhotos(p)]), 'wrap emerg', EMERG_W_CLASS);
-      return sheet(r + ' — Emergency, Medical and Photos', body + parentNote(people) + noPhoneNote(people), 'portrait punch', [printedOn(ctx), teams && ctx.season ? teamNote(ctx, people) : ''].filter(Boolean).join(' · ')); }).join('') || '<p class="status">No children.</p>';
+      return sheet(r + ' — Emergency, Medical and Photos', body + parentNote(people) + noPhoneNote(people), 'portrait', [printedOn(ctx), teams && ctx.season ? teamNote(ctx, people) : ''].filter(Boolean).join(' · ')); }).join('') || '<p class="status">No children.</p>';
   }
   // Color teams for the games leaders: one sheet for all of Sparks and one for all of T&T, each sorted by color (a heading per color), last name first, with the class. No contact details.
   function binderTeams(ctx) {
@@ -155,7 +155,7 @@
       const rows = colors.map(t => { const list = people.filter(p => teamAsOf(ctx, p) === t).sort(byLast); if (!list.length) return '';
         return '<tr class="colorhead"><td colspan="2"><b>' + (t ? teamCell(t) + ' team' : 'No team') + '</b> <span class="status">(' + list.length + ')</span></td></tr>' +
           list.map(p => '<tr><td>' + esc(last(p) + ', ' + first(p)) + '</td><td>' + esc(M.room(p)) + '</td></tr>').join(''); }).join('');
-      return sheet(g + ' ' + q + ' — color teams', '<table class="roster teamlist"><thead><tr><th>Last, first name</th><th>Class</th></tr></thead><tbody>' + rows + '</tbody></table>', 'portrait punch', printedOn(ctx)); }).join('');
+      return sheet(g + ' ' + q + ' — color teams', '<table class="roster teamlist"><thead><tr><th>Last, first name</th><th>Class</th></tr></thead><tbody>' + rows + '</tbody></table>', 'portrait', printedOn(ctx)); }).join('');
     return out || '<p class="empty">No color teams this quarter.</p>';
   }
   // One printable progress sheet per child, in class order, for the classes in Cubbies, Sparks and T&T. Each sheet opens on the child's current book.
@@ -173,7 +173,7 @@
   }
   function binderAll(ctx) {
     const all = kids(ctx.master).sort(byLast);
-    return sheet('Emergency, Medical and Photos — everyone by name', table(['Name', 'Class', sheetQuarter(ctx) + ' Team', 'Emergency contact', 'Medical / allergy notes'], all.map(p => [esc(last(p) + ', ' + first(p)), esc(M.room(p)), teamFor(ctx, p), contact(p), medAndPhotos(p)]), 'wrap emerg', EMERG_W_ALL) + parentNote(all) + noPhoneNote(all), 'portrait punch', [printedOn(ctx), ctx.season ? teamNote(ctx, all) : ''].filter(Boolean).join(' · '));
+    return sheet('Emergency, Medical and Photos — everyone by name', table(['Name', 'Class', sheetQuarter(ctx) + ' Team', 'Emergency contact', 'Medical / allergy notes'], all.map(p => [esc(last(p) + ', ' + first(p)), esc(M.room(p)), teamFor(ctx, p), contact(p), medAndPhotos(p)]), 'wrap emerg', EMERG_W_ALL) + parentNote(all) + noPhoneNote(all), 'portrait', [printedOn(ctx), ctx.season ? teamNote(ctx, all) : ''].filter(Boolean).join(' · '));
   }
 
   function photos(ctx) {
@@ -245,7 +245,7 @@
     if (!nights.length) return '<p class="empty">No club nights in ' + esc(q) + ' on the calendar. Add them on the Calendar tab.</p>';
     const pages = Math.ceil(nights.length / NIGHTS_PER_PAGE), per = Math.ceil(nights.length / pages);
     return Array.from({ length: pages }, (_, i) => sheet('Coaches notes, ' + q + ', page ' + (i + 1) + ' of ' + pages,
-      noteTable(nights.slice(i * per, (i + 1) * per)), 'portrait notes punch', esc(printedOn(ctx)))).join('');
+      noteTable(nights.slice(i * per, (i + 1) * per)), 'portrait notes', esc(printedOn(ctx)))).join('');
   }
 
   // ---------- volunteers ----------
@@ -258,7 +258,7 @@
     const rows = ctx.master.people.filter(p => M.isActive(p) && /volunteer/i.test(M.eff(p, C.SELECTION) || '')).sort((a, b) => volRank(a) - volRank(b) || M.room(a).localeCompare(M.room(b)) || byLast(a, b)).map(p =>['<span class="nw">' + esc(last(p) + ', ' + first(p)) + '</span>', esc(M.room(p)),
       pieces(firstOf(p, ['Mobile Phone Number', 'Home Phone Number', 'Work Phone Number', 'Other Phone Number'])).map(x => '<span class="nw">' + esc(x) + '</span>').join('; '),
       pieces(firstOf(p, ['Home Email Address', 'Work Email Address', 'Other Email Address'])).map(esc).join('; ')]);
-    return sheet('Volunteer Contact List', table(['Name', 'Assignment (class)', 'Phone', 'Email'], rows, '', [24, 24, 19, 33]), 'portrait punch');      // N37 F4: the class column is wide enough for "T&T Girls (Group A)" on one line
+    return sheet('Volunteer Contact List', table(['Name', 'Assignment (class)', 'Phone', 'Email'], rows, '', [24, 24, 19, 33]), 'portrait');      // N37 F4: the class column is wide enough for "T&T Girls (Group A)" on one line
   }
 
   // ---------- changes needed in Planning Center ----------
