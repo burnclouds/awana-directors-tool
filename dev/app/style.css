@@ -1,10 +1,10 @@
 :root { color-scheme:light; --ink:#1b1f24; --mute:#667; --line:#d5d9de; --bg:#f6f7f9; --accent:#1f5fbf; --onaccent:#fff; --warn:#b45309;
-  --panel:#fff; --head:#eef1f5; --soft:#f5f6f8; --rowline:#cfd5dc; --off:#fafafa; --offtxt:#6b6b6b; --link:#1f5fbf; --bad:#a00; --okfg:#176b2c; --okbg:#eef8ee; --okline:#b6d7a8;
+  --panel:#fff; --head:#eef1f5; --soft:#f5f6f8; --rowline:#cfd5dc; --off:#fafafa; --offtxt:#6b6b6b; --link:#1f5fbf; --bad:#a00; --okfg:#176b2c; --okbg:#eef8ee; --okline:#b6d7a8; --donebg:#dcefdc; --doneline:#8fc28f; --donecell:#eef8ee;      /* N58: a completed Progress section is clearly shaded in light mode too, and so are its date boxes */
   --warnbg:#fff3cd; --warntxt:#7a5a00; --chipbg:#e8f0fe; --addbg:#e3f4e7; --addline:#2f9e4f; --delbg:#fde8e8; --delline:#c0392b; --chgbg:#fff3cd; --chgline:#d49b00; --dangerline:#d9a0a0; --shadow:rgba(0,0,0,.08); --grid:#333; }
 /* Dark mode follows the device setting. Reports stay on white "paper" (see #report .sheet) and printing is always light. */
 @media (prefers-color-scheme: dark) {
   :root { color-scheme:dark; --ink:#e4e7ec; --mute:#98a2b0; --line:#3a424e; --bg:#12161b; --accent:#6ea8fe; --onaccent:#0a1b33; --warn:#f2a65a;
-    --panel:#1c2128; --head:#262d37; --soft:#1a1f26; --rowline:#2b323c; --off:#171b21; --offtxt:#7b8594; --link:#8ab8ff; --bad:#ff8a8a; --okfg:#6fd48a; --okbg:#1b2d22; --okline:#2f5a3c;
+    --panel:#1c2128; --head:#262d37; --soft:#1a1f26; --rowline:#2b323c; --off:#171b21; --offtxt:#7b8594; --link:#8ab8ff; --bad:#ff8a8a; --okfg:#6fd48a; --okbg:#1b2d22; --okline:#2f5a3c; --donebg:#1b2d22; --doneline:#2f5a3c; --donecell:#1c2128;
     --warnbg:#3a3015; --warntxt:#f0d27a; --chipbg:#22324d; --addbg:#17301f; --addline:#3fae63; --delbg:#3a1c1c; --delline:#e0675a; --chgbg:#3a3015; --chgline:#d8a824; --dangerline:#7a4040; --shadow:rgba(0,0,0,.5); --grid:#566070; }
 }
 * { box-sizing: border-box; }
@@ -205,7 +205,7 @@ table.att td.yr { color:var(--mute); text-align:center; }
 .chip a { text-decoration:none; color:var(--bad); font-weight:700; }
 a.chip.due { background:var(--warnbg); text-decoration:none; color:var(--warntxt); }
 .pblock { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; border:1px solid var(--line); border-radius:6px; padding:6px 10px; margin:6px 0; }
-.pblock.done { background:var(--okbg); border-color:var(--okline); }
+.pblock.done { background:var(--donebg); border-color:var(--doneline); } .pblock.done input[type=date] { background:var(--donecell); }
 .plabel { min-width:130px; font-weight:600; } .previews .pblock > .plabel { min-width:170px; } .previews > .plabel { display:block; margin-top:10px; } .pitem { font-size:12px; display:flex; flex-direction:column; } .pitem input { width:128px; }
 .pawards { margin-left:auto; color:var(--mute); font-size:13px; }
 .booktabs { display:flex; flex-wrap:wrap; gap:8px 10px; margin:12px 0 8px; } .booktabs button { padding:6px 14px; }      /* room between the tabs (the colors made them run together), and for the outline of the one being looked at */
