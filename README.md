@@ -354,6 +354,7 @@ NODE_PATH=<dir with playwright> node test/person-default-book-browser.test.js  #
 NODE_PATH=<dir with playwright> node test/print-clean-browser.test.js  # N37: what the paper says, read from a real PDF: no heading ends a page, screen help stays off paper (and on screen), the "* = changes team" note only with a star, the year once
 NODE_PATH=<dir with playwright> node test/print-rows-browser.test.js  # N37: no table row is split across a printed page (six multi-page reports, several row heights; a control row taller than a page proves the detector can see a split)
 node test/readable-copy.test.js                # N40: Season.readableCopy spells out the codes, is lossless, never changes the data, and Season.fromJson refuses the copy
+node test/changelog-html.test.js              # the version history page: lists nest properly, no markdown shows as text, short titles, grouped into series with the newest open, every changelog bullet is on it, nothing private, one self-contained file
 NODE_PATH=<dir with playwright> node test/debug-readable-browser.test.js  # N40: Debug, Readable copy downloads a read-only JSON with the codes spelled out; the data file is unchanged
 NODE_PATH=<dir with playwright> node test/not-awards-browser.test.js     # N23 on the Awards tab and Progress sheet
 NODE_PATH=<dir with playwright> node test/announce-list-browser.test.js  # N29: the Announce page prints the club-night list
