@@ -352,6 +352,7 @@ node test/oddballs.test.js                  # N39: records that look wrong (hand
 NODE_PATH=<dir with playwright> node test/debug-oddballs-browser.test.js  # Debug tab: Records that look wrong lists with names, a button only where the fix is safe, one labelled History entry and one Undo step
 NODE_PATH=<dir with playwright> node test/person-default-book-browser.test.js  # N38: a Sparks child with no records opens on Hangglider; a bare WR code makes it open on WingRunner; Debug Reset puts it back; Cubbies and T&T open on this year's book, else the first
 NODE_PATH=<dir with playwright> node test/print-clean-browser.test.js  # N37: what the paper says, read from a real PDF: no heading ends a page, screen help stays off paper (and on screen), the "* = changes team" note only with a star, the year once
+NODE_PATH=<dir with playwright> node test/print-rows-browser.test.js  # N37: no table row is split across a printed page (six multi-page reports, several row heights; a control row taller than a page proves the detector can see a split)
 node test/readable-copy.test.js                # N40: Season.readableCopy spells out the codes, is lossless, never changes the data, and Season.fromJson refuses the copy
 NODE_PATH=<dir with playwright> node test/debug-readable-browser.test.js  # N40: Debug, Readable copy downloads a read-only JSON with the codes spelled out; the data file is unchanged
 NODE_PATH=<dir with playwright> node test/not-awards-browser.test.js     # N23 on the Awards tab and Progress sheet
