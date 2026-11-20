@@ -78,7 +78,8 @@ test('attendance sheets: every column has a width, the date columns are equal, a
   assert(groups.length > 1);
   groups.forEach(w => {
     assert(Math.abs(w.reduce((a, b) => a + b, 0) - 100) < 0.5, 'adds to ' + w.reduce((a, b) => a + b, 0));
-    const dates = w.slice(w[1] === 7 ? 2 : 1); assert(dates.every(x => x === dates[0]), 'date columns equal');
+    const lead = w.slice(1), dates = lead.slice(lead[1] === 7 ? 2 : 1);      // N50: the first column is the row number (3%), then the name, then the team column (7%) when there is one
+    assert(w[0] === 3, 'the first column is the row number'); assert(dates.every(x => x === dates[0]), 'date columns equal');
   });
 });
 

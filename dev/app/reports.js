@@ -267,7 +267,7 @@
     const list = M.pendingChanges(ctx.master).sort((a, b) => M.byRoomThenName(a.person, b.person));
     const rows = list.map(c => [esc(M.fullName(c.person)), esc(c.person[C.REG]), esc(c.col), esc(c.from) || (M.isGuest(c.person) ? 'not in Planning Center' : none), '<b>' + esc(c.to) + '</b>']);
     return sheet('Changes needed in Planning Center', rows.length ? table(['Person', 'Reg ID', 'Field', 'Planning Center now', 'Change to'], rows, 'wrap') : '<p class="empty">Nothing pending.</p>',
-      'landscape' + (rows.length ? '' : ' emptysheet'), 'Made here as pending changes. Each clears automatically when a later export matches. Name shown is the pending value if one is set.');
+      'landscape' + (rows.length ? '' : ' emptysheet'), '<span class="noprint">Made here as pending changes. Each clears automatically when a later export matches. Name shown is the pending value if one is set.</span>');      // N51: an explanation is screen help, not printed
   }
 
   const LIST = [

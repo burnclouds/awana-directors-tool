@@ -354,6 +354,8 @@ NODE_PATH=<dir with playwright> node test/person-default-book-browser.test.js  #
 NODE_PATH=<dir with playwright> node test/print-clean-browser.test.js  # N37: what the paper says, read from a real PDF: no heading ends a page, screen help stays off paper (and on screen), the "* = changes team" note only with a star, the year once
 NODE_PATH=<dir with playwright> node test/print-rows-browser.test.js  # N37: no table row is split across a printed page (six multi-page reports, several row heights; a control row taller than a page proves the detector can see a split)
 node test/readable-copy.test.js                # N40: Season.readableCopy spells out the codes, is lossless, never changes the data, and Season.fromJson refuses the copy
+node test/print-no-explanations.test.js     # N51: what prints under a report title is a fact (printed date, data date, tally, club year, caution, symbol legend); explanations are screen-only
+NODE_PATH=<dir with playwright> node test/standings-no-group-picker-browser.test.js  # N54: Game standings has no Group picker and always has a page for Sparks and one for T&T
 NODE_PATH=<dir with playwright> node test/progress-done-shading-browser.test.js  # N58: a completed Progress section (and its date boxes) is visibly shaded in light and dark mode
 node test/changelog-html.test.js              # the version history page: lists nest properly, no markdown shows as text, short titles, grouped into series with the newest open, every changelog bullet is on it, nothing private, one self-contained file
 NODE_PATH=<dir with playwright> node test/award-strips-layout-browser.test.js  # award slips: 3px between strips across and down, all text 8 to 10pt, no page overflows, 54 one-award slips fit on 3 pages

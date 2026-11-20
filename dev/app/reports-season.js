@@ -173,7 +173,7 @@
       const order = (season.config.endOfYear || {})[g] || [], names = Object.keys(by).sort((a, b) => order.indexOf(a) - order.indexOf(b));
       const body = names.length ? names.map(a => '<h3 class="cerem">' + esc(Season.baseAward(season, a)) + ' <span class="status">(' + by[a].length + ' to have ready)</span></h3>' + R.table(['Given', 'Name', 'Class', 'Earned', 'Announced'],
         by[a].sort((x, y) => byRoomLast(x.p, y.p)).map(({ p, r }) => ['<span class="abox"><i>&nbsp;</i><b>&nbsp;</b></span>', esc(M.fullName(p)), esc(M.room(p)), esc(earnedText(r, paper)), esc(r.announced ? paper(r.announced) : 'not yet')]), 'wrap')).join('') : '<p class="empty">No end-of-year award is waiting' + (opts.room ? ' in ' + esc(opts.room) : '') + '.</p>';
-      return sheet('End-of-year awards \u2014 ' + (opts.room || g), body, 'portrait' + (names.length ? '' : ' emptysheet'), 'Earned and not yet given.');      // N37 F13: nothing waiting: the page is not printed
+      return sheet('End-of-year awards \u2014 ' + (opts.room || g), body, 'portrait' + (names.length ? '' : ' emptysheet'), '<span class="noprint">Earned and not yet given.</span>');      // N37 F13: nothing waiting: the page is not printed
     }).join('');
   }
 
@@ -223,7 +223,7 @@
     const rows = kids.map(p => { const id = idOf(p), got = nights.filter(d => ((season.attendance[d] || {})[id] || {}).a);
       return [esc(M.fullName(p)), esc(M.room(p)), String(got.length), got.length ? got.map(d => esc(paper(d))).join(', ') : '<span class="status">none yet</span>']; });
     const body = rows.length ? R.table(['Name', 'Class', 'Nights', 'Dates attended'], rows, 'wrap') : '<p class="empty">No children in ' + esc(g) + '.</p>';
-    return sheet('Dates attended — ' + (opts.room || g), body, 'landscape', 'One row per child. Nights are club nights marked on the Attendance tab (events are not counted).');
+    return sheet('Dates attended — ' + (opts.room || g), body, 'landscape', '<span class="noprint">One row per child. Nights are club nights marked on the Attendance tab (events are not counted).</span>');      // N51
   }
 
   // ---------- books finished and end-of-year awards, one page per group: who has finished which book, and which end-of-year awards each child has earned and been given ----------
@@ -244,7 +244,7 @@
   function standings(ctx) {
     const { season, calendar, settings } = ctx, q = (settings || {}).quarter || 'Q1';
     if (!season) return need;
-    const groups = ctx.opts.group && ['Sparks', 'T&T'].includes(ctx.opts.group) ? [ctx.opts.group] : ['Sparks', 'T&T'];
+    const groups = ['Sparks', 'T&T'];      // N54: standings exist only for these two; a group chosen on another report does not reach this one
     return groups.map(g => {
       const st = Season.standings(season, g, q, calendar).slice().sort((a, b) => (a.rank || 99) - (b.rank || 99));
       const teamCell = t => '<span class="team team-' + esc(t) + '">' + esc(t) + '</span>';
@@ -257,7 +257,7 @@
       const movedHtml = moved.length ? '<h3>Changed team this quarter (' + moved.length + ')</h3>' + R.table(['Name', 'Class', 'Teams'], moved.map(x => [esc(M.fullName(x.p)), esc(M.room(x.p)), esc(x.s)])) + '<p class="status">Each clubber\'s points follow the team they were on each night they attended. A team\'s own results above do not change when someone moves.</p>' : '';
       return sheet(g + ' Game Standings — ' + q, R.table(['Rank', 'Team', 'Nights', 'Avg place', 'Spirit', 'Points'],
         st.map(r => [r.rank || '', teamCell(r.team), r.nights, r.avgPlace === null ? '' : r.avgPlace, r.spirit, r.points])) +
-        (nights ? '<h3>Night by night (place / spirit)</h3>' + nights : '') + movedHtml, 'portrait', 'Rank 1 = best average place');
+        (nights ? '<h3>Night by night (place / spirit)</h3>' + nights : '') + movedHtml, 'portrait', '<span class="noprint">Rank 1 = best average place</span>');      // N51
     }).join('');
   }
 
@@ -287,7 +287,7 @@
     const f = Pace.f1, W = Pace.CFG.WINDOW;
     const head = ['Name', 'Attended', 'Overall', 'Recent', 'Trend', 'Last signed', 'Core', 'Extra'];
     return Pace.room(all).map(x => x.room).map(rm => {
-      const k = all.filter(r => r.room === rm).sort((a, b) => a.name.localeCompare(b.name)), sub = esc((settings || {}).club || '') + ' \u00b7 For leaders only: do not hand this page to parents \u00b7 pace = core sections signed per night attended; recent = last ' + W + ' nights attended' + (k[0].roomThrough ? ' \u00b7 data through ' + paper(k[0].roomThrough) : '');      // N37 F13: no "data through nothing entered"
+      const k = all.filter(r => r.room === rm).sort((a, b) => a.name.localeCompare(b.name)), sub = esc((settings || {}).club || '') + ' \u00b7 For leaders only: do not hand this page to parents' + '<span class="noprint"> \u00b7 pace = core sections signed per night attended; recent = last ' + W + ' nights attended</span>' + (k[0].roomThrough ? ' \u00b7 data through ' + paper(k[0].roomThrough) : '');      // N51: the definitions are screen help; the warning and the data date print      // N37 F13: no "data through nothing entered"
       if (!k[0].roomEntered) return sheet(rm + ' \u2014 Pace Watch List', '<p class="status">No sign-off dates are entered for this class yet, so there is nothing to compare.</p>', 'portrait emptysheet', sub);
       const row = r => [esc(r.name), r.nights + (r.guest ? ' (guest)' : ''), f(r.overall), f(r.recent), esc(Pace.ARROW[r.trend] || ''), esc(paper(r.last) || 'none'), r.core, r.extra + '/' + r.extraTotal];
       const body = Object.keys(Pace.LISTS).map(key => {
@@ -308,7 +308,7 @@
     { id: 'ceremony', title: 'End-of-year awards (list)', render: ceremony, opts: ['group', 'room'] },
     { id: 'awardsByChild', title: 'Awards earned (one page per child)', render: awardsByChild, opts: ['group', 'room', 'kid'] },
     { id: 'achievement', title: 'Achievement records (Cubbies, Sparks, T&T)', render: achievement, opts: ['group', 'room', 'kid'] },
-    { id: 'standings', title: 'Game standings', render: standings, opts: ['group', 'quarter'] },
+    { id: 'standings', title: 'Game standings', render: standings, opts: ['quarter'] },      // N54: no Group picker: both groups print, one page each, and Choose pages picks
     { id: 'attendDates', title: 'Dates attended, by class', render: attendDates, opts: ['group', 'room'] },
     { id: 'handbooks', title: 'Handbooks by book', render: handbooks, opts: ['noBook'] },
     { id: 'paceWatch', title: 'Pace watch list (Sparks, T&T)', render: paceWatch, opts: ['group', 'room', 'title'] });      // 'title': the club title is typed on the Reports bar; this is the report that prints it now that the master schedule is gone
