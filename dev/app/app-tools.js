@@ -73,6 +73,7 @@
     'flag-target': ['Notes about a missing child or book', 'A note or flag whose child has left the roster or whose book is no longer in the book list. A note is what a leader wrote, so these are only shown.'],
     'team-color': ['Color that is not one of the four', 'A quarter\'s color that is not Red, Blue, Green or Yellow. Only shown: change it on the Teams tab or the child\'s Person page.'],
     'award-duplicate': ['Same award listed twice in one night', 'An award repeated in one night\'s announced list. One copy is kept.'],
+    'note-with-reply-text': ['Note that contains its own reply', 'An older Edit copied a note\'s replies into the note\'s text. Only shown: open the note on To do, press Edit, and remove the copied reply text (the replies themselves are kept as separate messages).'],
     'award-twice': ['Same award announced on more than one night', 'The same award announced on two nights. It may be right (a repeat announcement), so it is only shown.']
   };
   const FIXWORD = { clearHandbook: n => 'Clear these ' + n + ' handbook code' + (n === 1 ? '' : 's'), dedupeAwards: n => 'Keep one copy in these ' + n };

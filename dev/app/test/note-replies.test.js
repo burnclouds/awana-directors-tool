@@ -31,4 +31,21 @@ test('History names a reply on an ordinary note', () => {
   S.addFlagReply(s, id, 'done on Tuesday', 'leader', new Date()); const ch = S.diff(before, s).find(c => c.p[2] === 'replies'), label = ch ? S.describe(ch, x => x) : '(no change under replies)';
   assert(/reply added/.test(label) && /done on Tuesday/.test(label), 'label: ' + label);
 });
+// N49: a note and its replies are separate messages: each reply can be edited or removed on its own, and a note that already holds its reply's text is listed.
+test('one reply can be edited on its own: its text changes, the note and the other reply do not', () => {
+  const s = S.blank('2026-27'), id = S.addFlag(s, { kid: '', level: 'general', note: 'ask about the rank' }, new Date()), r1 = S.addFlagReply(s, id, 'first', 'leader', new Date(2026, 10, 19, 9, 0)), r2 = S.addFlagReply(s, id, 'second', 'leader', new Date(2026, 10, 19, 9, 1));
+  S.setFlagReply(s, id, r1, 'first, changed\r\nnext line'); assert.strictEqual(s.flags[id].replies[r1].text, 'first, changed\nnext line'); assert.strictEqual(s.flags[id].replies[r2].text, 'second'); assert.strictEqual(s.flags[id].note, 'ask about the rank'); assert.strictEqual(s.flags[id].replies[r1].by, 'leader');
+  assert.throws(() => S.setFlagReply(s, id, r1, '   '), /Write a reply/); assert.throws(() => S.setFlagReply(s, id, 'nope', 'x'), /No such reply/); assert.throws(() => S.setFlagReply(s, 'nope', r1, 'x'), /No such note/);
+});
+test('one reply can be removed on its own; removing the last one leaves no replies key; History says so', () => {
+  const s = S.blank('2026-27'), id = S.addFlag(s, { kid: '', level: 'general', note: 'n' }, new Date()), r1 = S.addFlagReply(s, id, 'first', 'leader', new Date(2026, 10, 19, 9, 0)), r2 = S.addFlagReply(s, id, 'second', 'leader', new Date(2026, 10, 19, 9, 1));
+  const before = S.snapshot(s); S.removeFlagReply(s, id, r1); assert.deepStrictEqual(Object.keys(s.flags[id].replies), [r2]); const ch = S.diff(before, s).find(c => c.p[2] === 'replies'); assert(/reply removed/.test(S.describe(ch, x => x)), S.describe(ch, x => x));
+  S.removeFlagReply(s, id, r2); assert(!('replies' in s.flags[id]), 'a record that becomes empty is deleted'); assert.throws(() => S.removeFlagReply(s, id, r2), /No such reply/);
+});
+test('Debug lists a note that already holds the text of its reply (the old Edit copied replies into the note); it never changes it', () => {
+  const s = S.blank('2026-27'), id = S.addFlag(s, { kid: '', level: 'general', note: 'ask about the rank' }, new Date()); S.addFlagReply(s, id, 'done on Tuesday', 'leader', new Date());
+  assert.deepStrictEqual(S.oddballs(s, () => '').filter(r => r.check === 'note-with-reply-text'), [], 'a clean note is not listed');
+  s.flags[id].note = 'ask about the rankdone on TuesdayLeader, 2026-11-19'; s.flags[id].note = s.flags[id].note.replace('on Tuesday', 'on Tuesday');      // the damaged form: the reply text is inside the note
+  const before = JSON.stringify(s), rows = S.oddballs(s, () => '').filter(r => r.check === 'note-with-reply-text'); assert.strictEqual(rows.length, 1, JSON.stringify(rows)); assert.strictEqual(rows[0].fix, '', 'listed only: a person decides'); assert.strictEqual(JSON.stringify(s), before);
+});
 console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);
