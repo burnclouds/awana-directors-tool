@@ -29,7 +29,7 @@ check('B2', 'Puggles attendance sheet has mark cells under the dates', () => {
   const h = run(x, 'attendance', { room: M.room(p) });
   const dates = (h.match(/<th colspan="\d+" class="date">/g) || []).length, bodyCells = (h.split('<tbody>')[1] || '').split('</tr>')[0].match(/<td/g) || [];
   assert(dates > 0, 'no date headings');
-  assert.strictEqual(bodyCells.length, 1 + dates, dates + ' dates but ' + bodyCells.length + ' cells in the first body row (name + one box per date expected)');
+  assert.strictEqual(bodyCells.length, 2 + dates, dates + ' dates but ' + bodyCells.length + ' cells in the first body row (row number + name + one box per date expected; N50 added the number)');
   assert(!/class="mark"/.test(h), 'N8 (1.51.16): one box a night, so the date alone heads the column (no rotated Attendance word)');
   // the box is filled from the record (key a): mark the first kid present on the first night of the quarter and the sheet shows a tick
   const night = require('../calendar.js').nights(x.calendar, 'Q2')[0];
