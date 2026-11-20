@@ -59,6 +59,17 @@ const { open } = require('./lib/app-page'), assert = require('assert');
     assert.deepStrictEqual(info.rows, [20, 20]);
     assert.strictEqual(info.named[0], 20); assert(info.named[1] >= 1 && info.named[0] + info.named[1] >= 25, JSON.stringify(info.named));
   });
+  // N50 (Mike, 2026-11-20): row numbers on every attendance sheet, the blank write-in rows too; on page 2 of a big class the numbers carry on (21 and up).
+  await t.test('N50 every row of every attendance sheet is numbered 1 to 20, blank rows included', async () => {
+    const bad = await page.evaluate(() => { const out = []; document.querySelectorAll('#report .sheet').forEach(sh => { const t = sh.querySelector('h2').textContent; if (/page 2 of/.test(t)) return; [...sh.querySelectorAll('tbody tr')].forEach((tr, i) => { const c = tr.cells[0]; if (!c.classList.contains('num') || c.textContent.trim() !== String(i + 1)) out.push(t + ' row ' + (i + 1) + ': "' + c.textContent.trim() + '"'); }); }); return out; });
+    assert.deepStrictEqual(bad, []);
+    const head = await page.evaluate(() => [...document.querySelectorAll('#report .sheet')].map(sh => { const th = sh.querySelector('thead th'); return th.classList.contains('num') && th.textContent.trim() === ''; }));
+    assert(head.length && head.every(Boolean), 'the number column has a blank heading (no "#")');
+  });
+  await t.test('N50 on page 2 of a class of more than 20 the numbers carry on: 21 to 40', async () => {
+    const pages = await page.evaluate(() => [...document.querySelectorAll('#report .sheet')].filter(x => /^Puggles/.test(x.querySelector('h2').textContent)).map(sh => [...sh.querySelectorAll('tbody tr')].map(tr => tr.cells[0].textContent.trim())));
+    assert.strictEqual(pages.length, 2); assert.deepStrictEqual(pages[0], Array.from({ length: 20 }, (_, i) => String(i + 1))); assert.deepStrictEqual(pages[1], Array.from({ length: 20 }, (_, i) => String(i + 21)));
+  });
   await t.test('N11-3 PDF: one page per sheet, landscape, the title starts at or below 0.85in, nothing under the bottom margin', async () => {
     const buf = await t.pdf(), txt = buf.toString('latin1');
     const boxes = [...txt.matchAll(/\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/g)].map(m => [Math.round(m[1]), Math.round(m[2])]);
@@ -75,11 +86,11 @@ const { open } = require('./lib/app-page'), assert = require('assert');
   await t.test('Cubbies: four sub-cells a night, the first headed Attendance, the other three with blank headings', async () => {
     await t.report('attendance');
     const m = await page.evaluate(() => { const sh = [...document.querySelectorAll('#report .sheet')].find(x => /^Cubbies/.test(x.querySelector('h2').textContent)), dates = [...sh.querySelectorAll('th.date')];
-      return { nights: dates.length, spans: [...new Set(dates.map(d => d.colSpan))], marks: [...sh.querySelectorAll('th.mark')].map(x => x.textContent.trim()), cells: sh.querySelector('tbody tr').children.length }; });
+      return { nights: dates.length, spans: [...new Set(dates.map(d => d.colSpan))], marks: [...sh.querySelectorAll('th.mark')].map(x => x.textContent.trim()), cells: sh.querySelector('tbody tr').children.length }; });      // (a row is: number, name, then four cells a night)
     assert(m.nights >= 5, 'nights: ' + m.nights); assert.deepStrictEqual(m.spans, [4], 'each night spans ' + m.spans.join(',') + ' columns');
     assert.strictEqual(m.marks.length, m.nights * 4, 'mark headings: ' + m.marks.length);
     m.marks.forEach((x, i) => assert.strictEqual(x, i % 4 === 0 ? 'Attendance' : '', 'heading ' + i + ' is "' + x + '"'));
-    assert.strictEqual(m.cells, 1 + m.nights * 4, 'a Cubbies row is the name plus four cells a night (got ' + m.cells + ')');
+    assert.strictEqual(m.cells, 2 + m.nights * 4, 'a Cubbies row is the number, the name and four cells a night (got ' + m.cells + ')');
   });
   await t.test('Cubbies: a recorded Attendance ticks the first sub-cell only; a recorded Extra does not print in a blank one', async () => {
     const r = await page.evaluate(() => { const M = Model, s = App.season, kid = App.master.people.find(p => M.isActive(p) && M.isClubber(p) && M.groupOf(M.room(p)) === 'Cubbies'), id = kid[M.X.ID];
@@ -87,7 +98,7 @@ const { open } = require('./lib/app-page'), assert = require('assert');
       const row = App.calendar.find(c => Calendar.isNight(c) && Calendar.short(c.Date) === first); Season.setMark(s, row.Date, id, 'a', 1, 'Cubbies'); Season.setMark(s, row.Date, id, 'x', 1, 'Cubbies'); App.touch(); App.showReport('attendance');
       return { name: M.fullName(kid) }; });
     await page.waitForTimeout(500);
-    const cells = await page.evaluate(nm => { const sh = [...document.querySelectorAll('#report .sheet')].find(x => /^Cubbies/.test(x.querySelector('h2').textContent)), tr = [...sh.querySelectorAll('tbody tr')].find(x => x.cells[0].textContent.trim() === nm); return [...tr.cells].slice(1, 5).map(c => c.textContent.trim()); }, r.name);
+    const cells = await page.evaluate(nm => { const sh = [...document.querySelectorAll('#report .sheet')].find(x => /^Cubbies/.test(x.querySelector('h2').textContent)), tr = [...sh.querySelectorAll('tbody tr')].find(x => x.cells[1].textContent.trim() === nm); return [...tr.cells].slice(2, 6).map(c => c.textContent.trim()); }, r.name);
     assert.strictEqual(cells[0], '✓', 'Attendance cell: ' + JSON.stringify(cells)); assert.deepStrictEqual(cells.slice(1), ['', '', ''], 'the three blank cells: ' + JSON.stringify(cells));
   });
   await t.test('N11-4 the subtitle carries a "Printed" date, so the browser date and time header can be turned off', async () => {

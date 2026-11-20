@@ -101,6 +101,7 @@ table.att { border-collapse:collapse; width:100%; table-layout:fixed; }
 table.att th, table.att td { border:1px solid var(--grid); height:1.55em; padding:0 3px; text-align:center; font-size:12px; }
 table.att th { background:var(--panel); }
 table.att .name { width:11%; text-align:left; font-size:13px; line-height:1.1; white-space:normal; overflow-wrap:anywhere; }      /* left-aligned; a long name shrinks (td.name.long / .xlong, set in reports.js) and, past that, wraps: never cut with an ellipsis (B7) */
+table.att td.num { text-align:right; padding:0 4px 0 0; font-size:10px; color:#444; }      /* N50: the row number, small and grey, so the name and the boxes keep the room */
 table.att td.name.long { font-size:11px; } table.att td.name.xlong { font-size:10px; }
 table.att .teamcol { width:6%; font-size:12px; }
 /* Every attendance column (the four marks of every week) shares the rest of the width equally. */

@@ -67,7 +67,7 @@
       const MARK_KEY = { Attendance: 'a', Handbook: 'h', Participation: 'p', Extra: 'x' };
       const markTick = (p, iso, key) => { const night = ctx.season && iso ? (ctx.season.attendance || {})[iso] : null; if (!night || !p) return ''; const m = night[p[M.X.ID]] || {}; return m[key] ? '&#10003;' : ''; };
       const hrows = marks.length && !oneMark ? 2 : 1;
-      let head = '<tr><th rowspan="' + hrows + '" class="name">Name</th>' + (withTeam ? '<th rowspan="' + hrows + '" class="teamcol">' + esc(sheetQuarter(ctx)) + ' Color Team</th>' : '') +
+      let head = '<tr><th rowspan="' + hrows + '" class="num"></th><th rowspan="' + hrows + '" class="name">Name</th>' + (withTeam ? '<th rowspan="' + hrows + '" class="teamcol">' + esc(sheetQuarter(ctx)) + ' Color Team</th>' : '') +
         dates.map(d => '<th colspan="' + span + '" class="date">' + esc(d) + '</th>').join('') + '</tr>';
       if (marks.length && !oneMark) head += '<tr>' + dates.map(() => marks.map(k => '<th class="mark"><span class="rot">' + k + '</span></th>').join('')).join('') + '</tr>';
       const bodyOf = pg => {
@@ -75,7 +75,8 @@
         for (let i = 0; i < ROWS_PER_PAGE; i++) {
           const p = people[pg * ROWS_PER_PAGE + i];
           const nm = p ? M.fullName(p) : '';      // a long name gets a smaller font (style.css), never an ellipsis
-          body += '<tr><td class="name' + (nm.length > 34 ? ' xlong' : nm.length > 24 ? ' long' : '') + '">' + esc(nm) + '</td>';
+          body += '<tr><td class="num">' + (pg * ROWS_PER_PAGE + i + 1) + '</td><td class="name' +      // N50: every row is numbered, the blank write-in rows too; a second page carries on (21 and up)
+             (nm.length > 34 ? ' xlong' : nm.length > 24 ? ' long' : '') + '">' + esc(nm) + '</td>';
           if (withTeam) { const t = p ? teamAsOf(ctx, p) : ''; body += '<td class="teamcol' + (t ? ' team-' + esc(t) : '') + '">' + esc(t) + (p && movesThisQuarter(ctx, p) ? '*' : '') + '</td>'; }
           // Each mark cell is filled from the record for that night (a tick when the mark is set); a night with no record stays blank.
           body += dates.map((_, di) => marks.map(k => '<td>' + markTick(p, isoNights[di], MARK_KEY[k]) + '</td>').join('')).join('') + '</tr>';
@@ -83,8 +84,8 @@
         return body;
       };
       // A colgroup fixes every column: the name and team columns, then the rest split equally, so the date columns are the same width on every sheet whatever the number of nights or marks.
-      const fixed = 20 + (withTeam ? 7 : 0), each = dates.length * span ? ((100 - fixed) / (dates.length * span)).toFixed(3) : 0;
-      const cols = '<colgroup><col style="width:20%">' + (withTeam ? '<col style="width:7%">' : '') + dates.map(() => ('<col style="width:' + each + '%">').repeat(span)).join('') + '</colgroup>';
+      const fixed = 23 + (withTeam ? 7 : 0), each = dates.length * span ? ((100 - fixed) / (dates.length * span)).toFixed(3) : 0;
+      const cols = '<colgroup><col style="width:3%"><col style="width:20%">' + (withTeam ? '<col style="width:7%">' : '') + dates.map(() => ('<col style="width:' + each + '%">').repeat(span)).join('') + '</colgroup>';
       return Array.from({ length: pages }, (_, pg) => sheet(r + ' — ' + s.quarter + ' Attendance' + (pages > 1 ? ', page ' + (pg + 1) + ' of ' + pages : ''),
         '<table class="att">' + cols + '<thead>' + head + '</thead><tbody>' + bodyOf(pg) + '</tbody></table>', 'landscape att', [withTeam ? esc(teamNote(ctx, people)) : '', esc(printedOn(ctx))].filter(Boolean).join(' &middot; '))).join('');
     }).join('') || '<p class="empty">No clubbers to show.</p>';
