@@ -54,6 +54,7 @@
   const TNT_PENDING_AWARDS = [];
   const REC_H = { Sparks: 0.30, 'T&T': 0.28, Cubbies: 0.40 };      // row height in inches
   const mdShort = d => { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(d || ''); return m ? (+m[1]) + '/' + (+m[2]) : ''; };
+  const mdyFull = d => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || ''); return m ? m[2] + '/' + m[3] + '/' + m[1].slice(2) : ''; };      // N56: every date on the progress sheet prints in full, mm/dd/yy
   const mdyShort = d => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || ''); return m ? (+m[2]) + '/' + (+m[3]) + '/' + m[1].slice(2) : ''; };
   const chunk4 = a => { const o = []; for (let i = 0; i < a.length; i += 4) o.push(a.slice(i, i + 4)); return o; };
   const fillName = (award, code, emblem) => award.replace('{book}', code).replace('{emblem}', emblem || '').replace(/\s+/g, ' ').trim();
@@ -74,16 +75,20 @@
     if (r.given === 'no date') return { state: 'nodate' };
     if (r.given) return { state: 'given', date: r.given };
     if (r.earned || r.earnedNoDate || r.announced || r.annNoDate || e) { const noDate = r.earnedNoDate || (!r.earned && e && e.noDate), date = r.earnedNoDate ? '' : r.earned || (e && e.date) || '';
-      return { state: 'earned', tag: noDate ? 'EARNED ✓' : date ? 'EARNED ' + mdShort(date) : 'EARNED' }; }
+      return { state: 'earned', tag: noDate ? 'EARNED ✓' : date ? 'EARNED ' + mdyFull(date) : 'EARNED' }; }
     return { state: 'none' };
   }
   function awardTds(label, st, span) {
     const rs = span > 1 ? ' rowspan="' + span + '"' : '', cls = st.state === 'earned' ? ' e' : st.state === 'given' || st.state === 'nodate' ? ' g' : '';
-    const tag = st.state === 'earned' ? '<em class="tag">' + esc(st.tag) + '</em>' : '', v = st.state === 'given' ? esc(mdyShort(st.date)) : st.state === 'nodate' ? '✓ no date' : '';
+    const tag = st.state === 'earned' ? '<em class="tag">' + esc(st.tag) + '</em>' : '', v = st.state === 'given' ? esc(mdyFull(st.date)) : st.state === 'nodate' ? '✓ no date' : '';
     return '<td class="an' + cls + (label.length > 17 ? ' lg' : '') + '"' + rs + '><span>' + esc(label) + '</span>' + tag + '</td><td class="gv gd' + cls + '"' + rs + '><i class="n">date</i><span class="v">' + v + '</span></td><td class="gv gi' + cls + '"' + rs + '><i class="n">init</i></td>';
   }
-  const newRow = bk => ({ bk, b1: BLANK, b2: BLANK, name: BLANK, boxes: '<td class="nb" colspan="4"></td>', br: BLANK, rail: '<td class="nb" colspan="3"></td>' });
-  const soCell = (n, date, nd, rv) => '<td class="so' + (rv ? ' rv' : '') + '"><i class="n">' + esc(n) + '</i><span class="ini"></span><span class="dt">' + (nd ? '✓' : esc(mdShort(date))) + '</span></td>';
+  // N56: two awards earned together share one cell. Given only when both are given (the later date); no date if either was given with none; earned while either is still to hand out.
+  const combineState = (a, b) => { const gv = x => x.state === 'given' || x.state === 'nodate'; if (gv(a) && gv(b)) return a.state === 'nodate' || b.state === 'nodate' ? { state: 'nodate' } : { state: 'given', date: a.date > b.date ? a.date : b.date }; return [a, b].find(x => x.state === 'earned') || (gv(a) || gv(b) ? { state: 'earned', tag: 'EARNED' } : { state: 'none' }); };
+  const railName = (nm, code, emblem) => recName(nm, code, emblem).replace(/ Jewel (\d)$/, ' $1');      // N56: the award cells at the right drop the word Jewel (Red 2, Green 3)
+  const newRow = bk => ({ bk, b1: BLANK, name: BLANK, boxes: '<td class="nb" colspan="4"></td>', br: BLANK, rail: '<td class="nb" colspan="3"></td>' });
+  const LABELS = '<i class="lbi">init</i><i class="lbd">date</i>';      // N56: a 6pt grey caption in every box, as the award boxes have
+  const soCell = (n, date, nd, rv) => '<td class="so' + (rv ? ' rv' : '') + '"><i class="n">' + esc(n) + '</i><span class="ini"></span>' + LABELS + '<span class="dt">' + (nd ? '✓' : esc(mdyFull(date))) + '</span></td>';
   // opts.common: print the once-only blocks (Flight 3:16, Start Zone, Apple Acres); default = this is the group's first book.
   function recordBody(ctx, p, book, opts) {
     const s = ctx.season, id = idOf(p), g = Season.bookGroup(s, book) || M.groupOf(M.room(p)), t = s.config.progress[g], bk = s.config.books[book] || {}, emblem = bk.emblem || '';
@@ -101,11 +106,14 @@
         const row = newRow(b.key), n = ks.length; row.boxes = ks.map((i, k) => { const key = b.key + '.' + i; return soCell(b.single ? '' : sg.rev ? ci * 4 + k + 1 : i, shown[key], nds.includes(key), sg.rev); }).join('') + (n < 4 ? '<td class="nb" colspan="' + (4 - n) + '"></td>' : '');
         mine.push({ row, rev: sg.rev }); }));
       const e0 = mine.filter(m => !m.rev).length, r1 = mine.length - e0;
-      if (r1) { mine[0].row.name = '<td class="nm" rowspan="' + e0 + '"><b>' + esc(b.label) + '</b></td>'; mine[e0].row.name = '<td class="nm rvn" rowspan="' + r1 + '">' + esc(b.key) + ' review</td>'; mine.forEach((m, i) => { if (i && i !== e0) m.row.name = ''; }); }
-      else { mine[0].row.name = '<td class="nm" rowspan="' + mine.length + '"><b>' + esc(b.label) + '</b></td>'; mine.slice(1).forEach(m => { m.row.name = ''; }); }
+      const secN = g === 'Sparks' && /^[RG]J\d$/.test(b.key) ? t.perBook.filter(x => /^[RG]J\d$/.test(x.key)).findIndex(x => x.key === b.key) + 1 : 0, nameOf = secN ? 'Section ' + secN : b.label, reviewOf = secN ? 'Review ' + secN : b.key + ' review';      // N56: the left labels are Section 1 to 8 and Review 1 to 8
+      if (r1) { mine[0].row.name = '<td class="nm" rowspan="' + e0 + '"><b>' + esc(nameOf) + '</b></td>'; mine[e0].row.name = '<td class="nm rvn" rowspan="' + r1 + '">' + esc(reviewOf) + '</td>'; mine.forEach((m, i) => { if (i && i !== e0) m.row.name = ''; }); }
+      else { mine[0].row.name = '<td class="nm" rowspan="' + mine.length + '"><b>' + esc(nameOf) + '</b></td>'; mine.slice(1).forEach(m => { m.row.name = ''; }); }
       if (names.length) { mine[0].row.br = '<td class="br" rowspan="' + e0 + '"></td>'; mine.slice(1, e0).forEach(m => { m.row.br = ''; }); }
-      if (names.length === 1) { mine[0].row.rail = awardTds(recName(names[0], code, emblem), recState(L, names[0]), e0); mine.slice(1, e0).forEach(m => { m.row.rail = ''; }); }
-      else names.forEach((nm, j) => { if (mine[j]) mine[j].row.rail = awardTds(recName(nm, code, emblem), recState(L, nm), 1); });
+      const wing = g === 'Sparks' ? names.find(a => /Pilot Wing$/.test(a)) : '', mate = wing && names.length === 2 ? names.find(a => a !== wing) : '';
+      if (mate) { mine[0].row.rail = awardTds('Wings/' + railName(mate, code, emblem), combineState(recState(L, wing), recState(L, mate)), e0); mine.slice(1, e0).forEach(m => { m.row.rail = ''; }); }      // N56: Wings/Red 1
+      else if (names.length === 1) { mine[0].row.rail = awardTds(railName(names[0], code, emblem), recState(L, names[0]), e0); mine.slice(1, e0).forEach(m => { m.row.rail = ''; }); }
+      else names.forEach((nm, j) => { if (mine[j]) mine[j].row.rail = awardTds(railName(nm, code, emblem), recState(L, nm), 1); });
       mine.forEach(m => { m.row.rv = m.rev; (m.rev ? revRows : rows).push(m.row); });
     };
     const textRow = (key, label, text, award) => { const r = newRow(key); r.name = '<td class="nm"><b>' + esc(label) + '</b></td>'; r.boxes = '<td class="txt" colspan="4">' + esc(text) + '</td>'; if (award) r.rail = awardTds(recName(award, book, emblem), recState(L, award), 1); rows.push(r); };
@@ -120,25 +128,25 @@
       const weeks = s.config.blueJewelWeeks || [], r1 = newRow('BJ'), r2 = newRow('BJ'); r1.name = '<td class="nm"><b>Blue Jewels</b></td>'; r2.name = '<td class="nm rvn">given</td>';
       r1.boxes = r2.boxes = '';
       [1, 2, 3, 4].forEach(n => { const j = jewels.find(x => x.n === n), nm = book + ' Blue Jewel ' + n, st = recState(L, nm);
-        r1.boxes += '<td class="bj"><i class="n">' + n + ' · ' + esc(String(weeks[n - 1] || '?')) + ' nights</i><span class="v">' + (j ? esc(mdShort(j.date)) : '') + '</span></td>';
-        r2.boxes += '<td class="so bg' + (st.state === 'earned' ? ' e' : '') + '"><i class="n">' + n + '</i><span class="ini"></span><span class="dt">' + (st.state === 'given' ? esc(mdShort(st.date)) : st.state === 'nodate' ? '✓' : '') + '</span></td>'; });
+        r1.boxes += '<td class="bj"><i class="n">' + n + ' · ' + esc(String(weeks[n - 1] || '?')) + ' nights</i><span class="v">' + (j ? esc(mdyFull(j.date)) : '') + '</span></td>';
+        r2.boxes += '<td class="so bg' + (st.state === 'earned' ? ' e' : '') + '"><i class="n">' + n + '</i><span class="ini"></span>' + LABELS + '<span class="dt">' + (st.state === 'given' ? esc(mdyFull(st.date)) : st.state === 'nodate' ? '✓' : '') + '</span></td>'; });
       rows.push(r1, r2);
     }
     if (g === 'T&T') TNT_PENDING_AWARDS.forEach(x => textRow('PEND', x.label, x.note || '', fillName(x.award, book, emblem)));
     const ba = bookAwardFor(s, id, g, book);
-    textRow('BA', 'Book award', g === 'Sparks' ? 'Rank and all 8 jewels signed (reviews not needed)' : g === 'T&T' ? 'All 8 emblem blocks signed (Silver and Gold not needed)' : 'Trail and all 6 units signed', ba);
+    textRow('BA', 'Book award', g === 'Sparks' ? 'Rank and all 8 sections signed (reviews not needed)' : g === 'T&T' ? 'All 8 emblem blocks signed (Silver and Gold not needed)' : 'Trail and all 6 units signed', ba);
     // The left bands: what earns what. Outer = Book award (Sparks: from Rank to the last jewel box, reviews not needed); inner (Sparks) = Review Emblem: the review rows and the Review Emblem row. Found by row flag, not by key (a review row shares its jewel's key).
     const first = pred => rows.findIndex(pred), lastOf = pred => { for (let i = rows.length - 1; i >= 0; i--) if (pred(rows[i])) return i; return -1; };
-    const bands = g === 'Sparks' ? [[1, first(r => r.bk === 'R'), lastOf(r => r.bk === 'GJ4' && !r.rv), 'BOOK AWARD: every unshaded box'], [2, first(r => r.rv), first(r => r.bk === 'BR'), 'REVIEW EMBLEM: every jewel box and every review']]
+    const bands = g === 'Sparks' ? [[1, first(r => r.bk === 'R'), lastOf(r => r.bk === 'GJ4' && !r.rv), 'BOOK AWARD: every unshaded box'], [1, first(r => r.rv), first(r => r.bk === 'BR'), 'REVIEW EMBLEM: every section box and every review']]
       : g === 'T&T' ? [[1, first(r => r.bk === 'BE1'), lastOf(r => r.bk === 'YE2'), 'BOOK AWARD: all 8 emblems']] : [[1, first(r => r.bk === 'TR'), lastOf(r => r.bk === 'U6'), 'BOOK AWARD: Trail and all 6 units']];
     bands.forEach(([col, a, z, text]) => { if (a < 0 || z < a) return;
       rows[a]['b' + col] = '<td class="band" rowspan="' + (z - a + 1) + '"><div class="bt">' + esc(text) + '</div></td>'; for (let i = a + 1; i <= z; i++) rows[i]['b' + col] = ''; });
     const today = /^\d{4}-\d{2}-\d{2}$/.test(ctx.today || '') ? ctx.today : new Date().toLocaleDateString('en-CA'), bname = bk.name || '________';
-    const recv = Season.isReceivedNoDate(s, id, book) ? '✓ no date' : mdyShort(Season.receivedShown(s, id, book));
-    return '<div class="rhead"><div class="r2"><span>Book: <b>' + esc(bname) + '</b></span><span>Received: <b class="rc">' + (recv ? esc(recv) : '') + '</b></span><span class="pr">Printed ' + esc(mdyShort(today)) + '</span></div>' +
+    const recv = Season.isReceivedNoDate(s, id, book) ? '✓ no date' : mdyFull(Season.receivedShown(s, id, book));
+    return '<div class="rhead"><div class="r2"><span>Book: <b>' + esc(bname) + '</b></span><span>Received: <b class="rc">' + (recv ? esc(recv) : '') + '</b></span><span class="pr">Printed ' + esc(mdyFull(today)) + '</span></div>' +
       '<div class="r3">Each box: initials | date. Shaded box = review. Thick award box = earned, hand it out.</div></div>' +
-      '<table class="rec"><colgroup><col style="width:0.12in"><col style="width:0.12in"><col style="width:0.80in"><col style="width:0.95in"><col style="width:0.95in"><col style="width:0.95in"><col style="width:0.95in"><col style="width:0.10in"><col style="width:0.96in"><col style="width:0.65in"><col style="width:0.45in"></colgroup><tbody>' +
-      rows.map(r => '<tr style="height:' + H + 'in">' + r.b1 + r.b2 + r.name + r.boxes + r.br + r.rail + '</tr>').join('') + '</tbody></table>';
+      '<table class="rec"><colgroup><col style="width:0.12in"><col style="width:0.92in"><col style="width:0.95in"><col style="width:0.95in"><col style="width:0.95in"><col style="width:0.95in"><col style="width:0.10in"><col style="width:0.96in"><col style="width:0.65in"><col style="width:0.45in"></colgroup><tbody>' +
+      rows.map(r => '<tr style="height:' + H + 'in">' + r.b1 + r.name + r.boxes + r.br + r.rail + '</tr>').join('') + '</tbody></table>';
   }
   // One page: the child's name, class and club year as the title, then the record body. The Progress Sheets report prints the current book.
   function recordSheet(ctx, p, book) {

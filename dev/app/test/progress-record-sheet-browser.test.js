@@ -36,7 +36,7 @@ const TICK = '2026-10-30', ANN = '2026-12-24';      // the hidden day of a no-da
       A.season.handbooks[id] = book + ' 260916';
       out[g] = { id, book, room: Model.room(p), b1: nm(b1), b2: nm(b2), b3: nm(b3), b4: nm(b4), b5: nm(b5), name: Model.fullName(p) };
     });
-    A.touch(); return out;
+    return out;      // no App.touch() here: on the Roster tab it leaves an unapplied draft, and the app then asks before the Reports tab can open (the data is already in memory)
   }, [TICK, ANN]);
   const show = async (room, report, group, kid) => { await page.evaluate(() => document.querySelector('.tabs button[data-tab="reports"]').click()); await page.evaluate(([r, v, g, k]) => { App.reportOptions({ room: r, group: g, kid: k || '' }); App.showReport(v); }, [room, report, group, kid]); await page.waitForTimeout(700); };
   const printed = async (room, report, group) => {
@@ -81,15 +81,16 @@ const TICK = '2026-10-30', ANN = '2026-12-24';      // the hidden day of a no-da
     await one('Sparks'); const s = setup.Sparks;
     const r = await page.evaluate(() => { const cells = [...document.querySelectorAll('#report td.an')].map(a => ({ name: a.querySelector('span').textContent, e: a.classList.contains('e'), g: a.classList.contains('g'), tag: (a.querySelector('.tag') || {}).textContent || '', v: a.nextElementSibling.querySelector('.v').textContent })); return { cells, all: document.getElementById('report').innerText }; });
     const by = {}; r.cells.forEach(c => { by[c.name] = c; });
-    const label = n => n.replace(/^HG /, '').replace('{emblem}', ''), c1 = by[label(s.b1)], c2 = by[label(s.b2)], c3 = by[label(s.b3)], c4 = by[label(s.b4)], c5 = by[label(s.b5)];
+    const label = n => n.replace(/^HG /, '').replace('{emblem}', '').replace(/ Jewel (\d)$/, ' $1'),      // N56: the award cells at the right drop the word Jewel
+       c1 = by[label(s.b1)], c2 = by[label(s.b2)], c3 = by[label(s.b3)], c4 = by[label(s.b4)], c5 = by[label(s.b5)];
     assert(c1 && c1.e && /^EARNED/.test(c1.tag) && c1.v === '', 'earned not given (no-date last box): ' + JSON.stringify(c1)); assert(/EARNED ✓/.test(c1.tag), 'a no-date finish says EARNED with a check, not a day: ' + c1.tag);
     assert(c2 && c2.g && !c2.e && c2.v === '10/28/26', 'given with its date: ' + JSON.stringify(c2)); assert(c3 && c3.g && /no date/.test(c3.v) && !/\d/.test(c3.v), 'given, no date: ' + JSON.stringify(c3));
-    assert(c4 && c4.e && /^EARNED 9\/30$/.test(c4.tag), 'held prints as earned: ' + JSON.stringify(c4)); assert(!/hold/i.test(r.all), 'no HOLD anywhere on the page'); assert(c5 && c5.e, 'announced and earned is earned, not given');
+    assert(c4 && c4.e && /^EARNED 09\/30\/26$/.test(c4.tag), 'held prints as earned: ' + JSON.stringify(c4)); assert(!/hold/i.test(r.all), 'no HOLD anywhere on the page'); assert(c5 && c5.e, 'announced and earned is earned, not given');
     assert(!/12\/24/.test(r.all), 'the announced date is not printed'); assert(!/10\/30/.test(r.all), 'the no-date tick day is not printed');
   });
   await test('a no-date sign-off prints a check in the date part and no digits (all three groups)', async () => {
     for (const g of ['Sparks', 'T&T', 'Cubbies']) { await one(g); const r = await page.evaluate(() => [...document.querySelectorAll('#report td.so .dt')].map(d => d.textContent)); assert(r.includes('✓'), g + ': a check mark prints'); assert(r.filter(t => t === '✓').every(t => !/\d/.test(t)));
-      assert(r.some(t => /^10\/21$/.test(t)) || g === 'Cubbies', g + ': a dated sign-off prints M/D'); }
+      assert(r.some(t => /^10\/21\/26$/.test(t)) || g === 'Cubbies', g + ': a dated sign-off prints mm/dd/yy (N56)'); }
   });
   await test('the PDF text: no tick day, no announced day, no HOLD', async () => {
     if (!hasPdftotext) { console.log('       (skipped: pdftotext is not installed)'); return; }
@@ -101,7 +102,7 @@ const TICK = '2026-10-30', ANN = '2026-12-24';      // the hidden day of a no-da
     await one('Sparks');
     const r = await page.evaluate(() => { const row = [...document.querySelectorAll('#report tr')].find(t => /Blue Jewels/.test(t.textContent)); return { bj: document.querySelectorAll('#report td.bj').length, given: [...document.querySelectorAll('#report td.bg')].length, first: row ? row.querySelector('td.bj .v').textContent : '' }; });
     assert.strictEqual(r.bj, 4, 'four earned cells'); assert.strictEqual(r.given, 4, 'four Given cells');
-    if (jew.length) assert(/^\d+\/\d+$/.test(r.first), 'the first jewel shows its earned date: ' + r.first + ' (' + jew + ')');
+    if (jew.length) assert(/^\d\d\/\d\d\/\d\d$/.test(r.first), 'the first jewel shows its earned date, in full (N56): ' + r.first + ' (' + jew + ')');
   });
   await test('Review Emblem and Book award rows print, each with its own Given boxes', async () => {
     await one('Sparks'); const r = await page.evaluate(() => [...document.querySelectorAll('#report td.an')].map(a => a.querySelector('span').textContent));

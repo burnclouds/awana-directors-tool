@@ -29,7 +29,7 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     await page.evaluate(({ id, AW }) => { Season.setGiven(App.season, id, AW, ''); App.touchSeason && App.touchSeason(); }, { id: kid.id, AW });
   });
   // Flight 3:16 has no award to give (its block only shows Complete), so the Progress tests use Red Jewel 1 of the Hangglider book, which has a Given box on every child's HG sheet once given.
-  const AW2 = 'HG Red Jewel 1';
+  const AW2 = 'HG Green Jewel 1';      // (not Red Jewel 1: since N56 it shares the Wings/Red 1 cell with the Pilot Wing, which shows as given only when both are)
   const open = async () => { await page.evaluate(({ id }) => { ui_kid = id; }, { id: kid.id }).catch(() => {}); await tab('person'); await page.waitForTimeout(300); await page.selectOption('#peGroup', 'Sparks'); await page.selectOption('#peClass', kid.room).catch(() => {}); await page.selectOption('#pePerson', kid.id); await page.waitForTimeout(400); await page.click('.booktabs button[data-book="HG"]'); await page.waitForTimeout(200); };
 
   await test('Progress tab: a no-date award shows an empty date box, the "no date" tick on and no Today button; ticking and un-ticking round trips', async () => {

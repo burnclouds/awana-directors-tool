@@ -23,9 +23,9 @@ const { open } = require('./lib/app-page'), assert = require('assert');
     // no jewel item row after the first review row
     const lastItem = Math.max(...rows.map((r, i) => !r.isReviewRow && i < rv[0] ? i : -1)); assert(lastItem < rv[0]);
   });
-  await t.test('N12-2 Sparks: each review row names its jewel ("RJ1 review"), and the bands do not cover the wrong rows', async () => {
+  await t.test('N12-2 Sparks: each review row is numbered ("Review 1" to "Review 8"), and the bands do not cover the wrong rows', async () => {
     const { rows } = await sheetOf('Sparks', 'HG');
-    const labels = rows.filter(r => /review$/.test(r.nm)).map(r => r.nm); assert(labels.length >= 8 && labels.every(l => /^[A-Z]{2}\d review$/.test(l)), labels.join('|'));
+    const labels = rows.filter(r => /^Review \d$/.test(r.nm)).map(r => r.nm); assert.deepStrictEqual(labels, Array.from({ length: 8 }, (_, i) => 'Review ' + (i + 1)), labels.join('|'));      // N56: Review 1 to Review 8
     const first = rows.findIndex(r => r.bands.some(b => /BOOK AWARD/.test(b.text))), b1 = rows[first].bands.find(b => /BOOK AWARD/.test(b.text));
     const firstRv = rows.findIndex(r => r.isReviewRow); assert(first + b1.span <= firstRv, 'Book award band (' + first + '+' + b1.span + ') ends before the reviews at ' + firstRv);
     const a = rows.findIndex(r => r.bands.some(b => /REVIEW EMBLEM/.test(b.text))), b2 = rows[a].bands.find(b => /REVIEW EMBLEM/.test(b.text)), emblem = rows.findIndex(r => /^Review Emblem/.test(r.nm));

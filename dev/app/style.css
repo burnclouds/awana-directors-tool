@@ -179,8 +179,10 @@ table.rec td.br { border-left:0; }
 table.rec td.nm { padding:0 2px; } table.rec td.nm b { font-size:7.5pt; } table.rec td.rvn { font-size:7.5pt; }
 table.rec td.txt { padding:0 4px; font-size:7pt; border-style:dotted; }
 table.rec .n { position:absolute; left:2px; top:1px; font:normal 6.5pt/1 Arial,Helvetica,sans-serif; }
+table.rec .lbi, table.rec .lbd { position:absolute; font:normal 6pt/1 Arial,Helvetica,sans-serif; color:#666; }      /* N56: 6pt medium-grey captions in every box */
+table.rec .lbi { left:2px; bottom:1px; } table.rec .lbd { left:calc(0.38in + 2px); top:1px; }
 table.rec .ini { position:absolute; left:0; top:0; bottom:0; width:0.38in; border-right:0.75pt dotted #000; }
-table.rec .dt { position:absolute; left:0.38in; right:0; bottom:2px; text-align:center; font-size:9pt; line-height:1; }
+table.rec .dt { position:absolute; left:0.38in; right:0; bottom:2px; text-align:center; font-size:8pt; line-height:1; }      /* 8pt so a full mm/dd/yy date has room in its box */
 table.rec td.rv { background:#e2e2e2; } table.rec td.so, table.rec td.gv, table.rec td.bj { overflow:visible; }
 table.rec td.bj .v { position:absolute; right:3px; bottom:2px; font-size:9pt; } table.rec td.bj .n { font-size:6.5pt; }
 table.rec td.an { padding:1px 3px; } table.rec td.an span { display:block; font-size:8pt; line-height:1; } table.rec td.an.lg span { font-size:7pt; } table.rec td.an.g { font-weight:700; } table.rec td.an.e { font-weight:700; }

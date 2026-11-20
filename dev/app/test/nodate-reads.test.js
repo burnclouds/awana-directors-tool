@@ -27,7 +27,7 @@ test('signShown is empty for a no-date sign-off and the date otherwise; signsSho
 });
 test('BUG 1: the Achievement Record prints no tick day for a no-date box (and still prints the real dates)', () => {
   const x = setup(), html = render(x, 'achievement');
-  assert(!SHOWN.test(html.replace(/<[^>]*>/g, ' ')), 'the tick day is printed'); assert(/>10\/21</.test(html), 'a real date is still printed (the record sheet prints M/D)');
+  assert(!SHOWN.test(html.replace(/<[^>]*>/g, ' ')), 'the tick day is printed'); assert(/>10\/21\/26</.test(html), 'a real date is still printed (the record sheet prints mm/dd/yy since N56)');
 });
 test('every season report that shows given dates prints no tick day', () => {
   const x = setup(); Season.setGiven(x.s, x.id, x.block.awards[0].replace('{book}', x.book).replace('{emblem}', (x.s.config.books[x.book] || {}).emblem || ''), TICK, { noDate: true });

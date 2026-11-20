@@ -29,13 +29,14 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
       assert.strictEqual(h.length, books, 'one sheet per book: ' + h); assert(h.every(x => x <= PAGE_H), 'each fits one page (' + Math.round(PAGE_H) + 'px): ' + h);
     });
   }
-  await test('each award of a block has its own box and name: Blue Pilot Wing and Red Jewel 1 with their own Given dates (no book code), Announced when not yet given', async () => {
+  await test('the Pilot Wing and Red Jewel 1 are one cell, Wings/Red 1 (N56), with its own Given boxes: given when both are given (no book code)', async () => {
     await page.evaluate(id => { const A = App, S = Season; S.addAward(A.season, '2026-10-21', id, 'WR Pilot Wing'); S.addAward(A.season, '2026-10-21', id, 'WR Red Jewel 1'); S.setGiven(A.season, id, 'WR Red Jewel 1', '2026-10-28'); A.touch(); }, ids.sp);
-    await page.evaluate(i => { App.reportOptions({ group: 'Sparks', kid: i }); App.showReport('achievement'); }, ids.sp); await page.waitForTimeout(600);
-    // The record sheet (recordSheet): each award is a td.an with its own two Given boxes (td.gv); announced-only reads as earned (the sheet prints no announced date).
-    const row = await page.evaluate(() => { const sheet = [...document.querySelectorAll('#report .sheet')].find(x => /Wingrunner/.test(x.textContent)); return ['Blue Pilot Wing', 'Red Jewel 1'].map(n => { const a = [...sheet.querySelectorAll('td.an')].find(x => x.querySelector('span').textContent === n); return a ? a.textContent.replace(/\s+/g, ' ').trim() + ' | ' + a.nextElementSibling.textContent.replace(/\s+/g, ' ').trim() + ' | ' + a.nextElementSibling.classList.contains('gd') + a.nextElementSibling.nextElementSibling.classList.contains('gi') : null; }); });
-    assert(row[0] && row[1], JSON.stringify(row)); assert(/^Blue Pilot Wing\s*EARNED/.test(row[0]) && !/Announced/.test(row[0]), row[0]); assert(/^Red Jewel 1 \| date10\/28\/26 \| truetrue/.test(row[1]), row[1]);
-    assert(!/WR /.test(row.join(' ')), 'no book code on the book\'s own page');
+    const cell = async () => { await page.evaluate(i => { App.reportOptions({ group: 'Sparks', kid: i }); App.showReport('achievement'); }, ids.sp); await page.waitForTimeout(600);
+      return page.evaluate(() => { const sheet = [...document.querySelectorAll('#report .sheet')].find(x => /Wingrunner/.test(x.textContent)), all = [...sheet.querySelectorAll('td.an')].map(x => x.querySelector('span').textContent), a = [...sheet.querySelectorAll('td.an')].find(x => x.querySelector('span').textContent === 'Wings/Red 1'); return { all, cls: a ? a.className : '', date: a ? a.nextElementSibling.querySelector('.v').textContent : '', boxes: a ? a.nextElementSibling.classList.contains('gd') && a.nextElementSibling.nextElementSibling.classList.contains('gi') : false }; }); };
+    let c = await cell(); assert(c.all.includes('Wings/Red 1') && !c.all.some(x => /Pilot Wing$|Red Jewel 1$/.test(x)), 'one merged cell: ' + c.all.join(' | ')); assert(c.boxes, 'its two Given boxes (date and initials)');
+    assert(/\be\b/.test(c.cls) && !/\bg\b/.test(c.cls), 'only Red Jewel 1 is given, so the cell is still earned, not given: ' + c.cls);
+    await page.evaluate(id => { Season.setGiven(App.season, id, 'WR Pilot Wing', '2026-10-30'); App.touch(); }, ids.sp); c = await cell();
+    assert(/\bg\b/.test(c.cls) && c.date === '10/30/26', 'both given: the cell is given with the later date: ' + JSON.stringify(c)); assert(!/WR /.test(c.all.join(' ')), 'no book code on the book\'s own page');
   });
   await test('the printout starts on the first sheet\'s paper: no named page on it (a named first page prints a blank page first)', async () => {
     const css = await page.$eval('#pageStyle', e => e.textContent); assert(/@page \{ size: portrait/.test(css), css); assert(!/#report \.sheet\.portrait/.test(css), 'the first orientation has no named page: ' + css);
