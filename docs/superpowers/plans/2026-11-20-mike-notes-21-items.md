@@ -42,3 +42,13 @@ Every item is now in `BACKLOG.md` as N49 to N60 (grouped by screen); the table a
 | 19 | N58 | Light mode: shade completed sections |
 | 20 | N59 | T&T sign-offs on the Person tab |
 | 21 | N60 | Click the unsaved-edits count to see a summary |
+
+## Mike's answers to the open questions (same day, verbatim)
+
+- Do the blank attendance rows get numbers too? Yes.
+- What should the club night pack contain? Awards announcements, slides, and slips. Add a backlog item to consider using lesson plan schedule and coloring sheet PDFs and to the club night prints so we have that nights coloring sheets also. (-> N61 and N62)
+- Which rows are Sections 1 to 8 on the Sparks sheet? I don't know what you mean. (-> N56: the question is restated in plain words with a proposal)
+- Which of Achievement Record and Progress Sheet stays, and are blank sheets per book or per class? The intent of the blank progress sheets is to have a few in each binder so a new child already has a progress sheet we can get started with. (-> N57)
+- A mock-up for the Silver and Gold layout. One of the screenshots is a mock-up of the silver gold layout. (-> N59: the screenshot is the mock-up; it is not stored in the public repo)
+- Should unsaved edits held as a draft appear in the summary? Yes drafts unsaved edits should all appear in the summary. (-> N60)
+
