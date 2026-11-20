@@ -6,6 +6,8 @@ Everything here is finished, superseded or historical. It is kept because it rec
 |---|---|---|---|
 | `old-google-sheets/` (summary, plus `SHEET-TABS.md` and `WEEKLY-AWARDS-TABS.md`) | 2026-10-29 | The two Google Sheet workbooks were replaced by the app | `old-google-sheets/SUMMARY.md` says what each tab became |
 | `CHANGELOG-before-1.40.md` | 2026-10-29 to 31 | Older than 1.40; summarized in `CHANGELOG.md` | The "Before 1.40" block in `CHANGELOG.md` |
+| `BACKLOG-done-2026-11-20.md` | 2026-11-18 to 2026-11-19 | The backlog was cut to open work again: the old State notes, items N9 and N38 to N45 (built and released), the full text of N37, the volunteer-absences design and build notes, and the done log | `../../BACKLOG.md` |
+| `BACKLOG-done-2026-11-19.md` | to 2026-11-18 | Closed items archived on 2026-11-19, grouped by the section they were under | `../../BACKLOG.md` |
 | `BACKLOG-full-2026-11-14.md` | to 2026-11-14 | The backlog was cut to open items; this is the full text with every done and closed entry | `../../BACKLOG.md` |
 | `REVIEW-2026-10-30.md` | app 1.15.1 | Findings were fixed in later versions; never re-audited | `../reviews/` for the current ones |
 | `UX-REVIEW-2026-11-03.md`, `MOBILE-FEEDBACK-2026-11-05.md` | 1.49 to 1.50 | Phone and accessibility review and external feedback; acted on in 1.50 to 1.51 | `../../CHANGELOG.md` (the 1.50.x and 1.51.x entries) |
