@@ -2,6 +2,7 @@
 //  - a Sparks child with no handbook, no progress and no received date opens on Hangglider (the first Sparks book);
 //  - a bare code left in the handbook ("WR", nothing else recorded) makes it open on WingRunner (the reported case);
 //  - Debug, Books with no dates, Reset clears that code and the sheet opens on Hangglider again.
+//  - Cubbies and T&T open on this year's book when one is set, else on the first book of the group.
 // Usage: NODE_PATH=<dir with playwright> node test/person-default-book-browser.test.js
 const assert = require('assert'), fs = require('fs'), http = require('http'), path = require('path');
 const { chromium } = require('playwright');
@@ -35,6 +36,21 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     assert.strictEqual(await page.evaluate(i => App.season.handbooks[i], id), undefined);
     const got = await opensOn(); assert.strictEqual(got, 'HG', 'opens on "' + got + '"');
   });
+  // Cubbies and T&T: with nothing recorded the sheet opens on this year's book for the group when one is set, otherwise on the first book in the group's list.
+  const groupCase = async (group, setYear) => page.evaluate(([g, year]) => {
+    const M = Model, s = App.season, kids = App.master.people.filter(x => M.isActive(x) && M.isClubber(x) && M.groupOf(M.room(x)) === g);
+    const kid = kids[0][M.X.ID], other = kids[1][M.X.ID];
+    ['handbooks', 'progress', 'received', 'doneBooks', 'extraSheets'].forEach(k => { if (s[k]) delete s[k][kid]; }); s.config.yearBook = Object.assign({ Cubbies: '', Sparks: '', 'T&T': '' }, s.config.yearBook, { [g]: year });
+    return { kid, other };
+  }, [group, setYear]);
+  const opensFor = async (c) => { await page.evaluate(o => { App.goProgress(o); }, c.other); await page.waitForTimeout(150); await page.evaluate(i => { App.goProgress(i); }, c.kid); await page.waitForTimeout(300); return page.evaluate(() => { const b = document.querySelector('#progressWrap button[data-book].on'); return b ? b.dataset.book : ''; }); };
+  for (const [group, first, yearBook] of [['Cubbies', 'AS', 'HC'], ['T&T', null, 'DoG']]) {
+    await test(group + ' child with no records: this year\'s book when one is set, else the first book of the group', async () => {
+      const firstBook = first || await page.evaluate(() => Season.bookOrder(App.season, 'T&T')[0]);
+      let c = await groupCase(group, ''); let got = await opensFor(c); assert.strictEqual(got, firstBook, 'no year book: opens on "' + got + '", expected the first book ' + firstBook);
+      c = await groupCase(group, yearBook); got = await opensFor(c); assert.strictEqual(got, yearBook, 'year book ' + yearBook + ': opens on "' + got + '"');
+    });
+  }
   await test('no script errors', async () => { assert.strictEqual(errs.length, 0, errs.join(' | ')); });
   await browser.close(); server.close();
   console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);
