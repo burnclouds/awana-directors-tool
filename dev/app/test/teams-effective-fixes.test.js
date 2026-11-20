@@ -79,7 +79,7 @@ test('A1: the Color teams list, with no night chosen, puts a moved child on the 
 });
 test('A1: the coaches color list counts the moved child on the new team', () => {
   const t = txt(R.LIST.find(r => r.id === 'binderTeams').render(ctx()));
-  assert(/Blue team \(1\) Test, Mover/.test(t) && /Red team \(1\) Test, Stayer/.test(t), t.slice(0, 300));
+  assert(/Blue team \(1\) Mover Test/.test(t) && /Red team \(1\) Stayer Test/.test(t), t.slice(0, 300));      // N53: the list defaults to first name first (List order picker; last name first is "Color, then last name")
 });
 test('A1: a binder bundle printed after the quarter started shows the move; before it starts, the first-night colors', () => {
   const b = { name: 'x', items: [{ report: 'teams' }] };

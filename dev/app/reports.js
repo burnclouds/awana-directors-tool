@@ -22,8 +22,9 @@
     return '<table class="grid ' + (cls || '') + '">' + (widths ? '<colgroup>' + widths.map(w => '<col style="width:' + w + '%">').join('') + '</colgroup>' : '') + '<thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join('') +
       '</tr></thead><tbody>' + rows.map(r => '<tr>' + r.map(c => '<td>' + c + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
   }
-  const sheet = (title, body, orient, sub) =>
-    '<section class="sheet ' + (orient || 'portrait') + '"><h2>' + esc(title) + '</h2>' + (sub ? '<p class="sub">' + sub + '</p>' : '') + body + '</section>';
+  // right: optional text set at the right end of the title line (N53: "Printed 11/20/26"); it is an attribute drawn by CSS, so it is not part of the title that Choose pages lists.
+  const sheet = (title, body, orient, sub, right) =>
+    '<section class="sheet ' + (orient || 'portrait') + '"><h2' + (right ? ' data-right="' + esc(right) + '"' : '') + '>' + esc(title) + '</h2>' + (sub ? '<p class="sub">' + sub + '</p>' : '') + body + '</section>';
   const teamCell = t => t ? '<span class="team team-' + esc(t) + '">' + esc(t) + '</span>' : '';
 
   // Team on the sheet's night: a move or one-night exception in the data file wins over the quarter color. * marks a child who changes team this quarter.
@@ -150,13 +151,16 @@
       return sheet(r + ' — Emergency, Medical and Photos', body + parentNote(people) + noPhoneNote(people), 'portrait', [printedOn(ctx), teams && ctx.season ? teamNote(ctx, people) : ''].filter(Boolean).join(' · ')); }).join('') || '<p class="status">No children.</p>';
   }
   // Color teams for the games leaders: one sheet for all of Sparks and one for all of T&T, each sorted by color (a heading per color), last name first, with the class. No contact details.
+  // N53 (Mike, 2026-11-20): one layout for both groups: color blocks (each kept whole) flowing in two columns, the name at the left and the class at the right, so the columns are the same on every sheet and a group fits one page;
+  // no column headings (they are obvious); the printed date is at the right end of the title line; the order follows the List order picker (first name first, or last name first).
   function binderTeams(ctx) {
-    const q = sheetQuarter(ctx), colors = (ctx.season ? Season.teamOrder(ctx.season) : TEAM_COLORS).concat(['']);
+    const q = sheetQuarter(ctx), lastFirst = (ctx.opts.order || 'color') === 'colorLast', cmp = lastFirst ? byLast : byFirst, nameOf = p => lastFirst ? last(p) + ', ' + first(p) : M.fullName(p);
+    const colors = (ctx.season ? Season.teamOrder(ctx.season) : TEAM_COLORS).concat(['']);
     const out = ['Sparks', 'T&T'].map(g => { const people = kids(ctx.master).filter(p => M.groupOf(M.room(p)) === g); if (!people.length) return '';
-      const rows = colors.map(t => { const list = people.filter(p => teamAsOf(ctx, p) === t).sort(byLast); if (!list.length) return '';
-        return '<tr class="colorhead"><td colspan="2"><b>' + (t ? teamCell(t) + ' team' : 'No team') + '</b> <span class="status">(' + list.length + ')</span></td></tr>' +
-          list.map(p => '<tr><td>' + esc(last(p) + ', ' + first(p)) + '</td><td>' + esc(M.room(p)) + '</td></tr>').join(''); }).join('');
-      return sheet(g + ' ' + q + ' — color teams', '<table class="roster teamlist"><thead><tr><th>Last, first name</th><th>Class</th></tr></thead><tbody>' + rows + '</tbody></table>', 'portrait', printedOn(ctx)); }).join('');
+      const blocks = colors.map(t => { const list = people.filter(p => teamAsOf(ctx, p) === t).sort(cmp); if (!list.length) return '';
+        return '<div class="teamblock"><div class="teamhead"><b>' + (t ? teamCell(t) + ' team' : 'No team') + '</b> <span class="status">(' + list.length + ')</span></div>' +
+          list.map(p => '<div class="teamrow"><span>' + esc(nameOf(p)) + '</span><span>' + esc(M.room(p)) + '</span></div>').join('') + '</div>'; }).join('');
+      return sheet(g + ' ' + q + ' \u2014 color teams', '<div class="teamcols">' + blocks + '</div>', 'portrait', '', printedOn(ctx)); }).join('');
     return out || '<p class="empty">No color teams this quarter.</p>';
   }
   // One printable progress sheet per child, in class order, for the classes in Cubbies, Sparks and T&T. Each sheet opens on the child's current book.
@@ -275,7 +279,7 @@
     { id: 'teams', title: 'Color teams (Sparks, T&T)', render: colorTeams, opts: ['order', 'quarter'] },
     { id: 'binderClass', title: 'Emergency, medical and photos by class (class binders)', render: binderClass, opts: ['room', 'quarter'] },
     { id: 'binderAll', title: 'Emergency, medical and photos, everyone by name (coaches binder)', render: binderAll, opts: ['quarter'] },
-    { id: 'binderTeams', title: 'Color teams by group and color (coaches binder)', render: binderTeams, opts: ['quarter'] },
+    { id: 'binderTeams', title: 'Color teams by group and color (coaches binder)', render: binderTeams, opts: ['order', 'quarter'] },
     { id: 'noteSheets', title: 'Coaches binder notes (a block for each club night)', render: noteSheets, opts: ['quarter'] },
     { id: 'progressSheets', title: 'Progress sheets, each child, by class (class binder)', render: progressSheets, opts: ['room'] },
     { id: 'photos', title: 'No photos', render: photos },

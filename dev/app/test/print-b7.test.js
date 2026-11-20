@@ -11,12 +11,12 @@ const kid = (id, first, last, room) => { const p = {}; p[X.ID] = id; p[C.FIRST] 
 const master = { people: [kid('a', 'Ada', 'Moss', 'Sparks A'), kid('b', 'Ben', 'Pike', 'T&T Boys (Group A)'), kid('c', 'Maximilian Bartholomew', 'Featherstonehaugh-Montgomery', 'Sparks A')] };
 const season = S.blank('2026-27');
 const run = (id, today, opts) => R.LIST.find(r => r.id === id).render({ master, season, calendar: [], settings: { quarter: 'Q2' }, today, opts: opts || {} });
-const subs = h => [...h.matchAll(/<p class="sub">([^<]*)<\/p>/g)].map(m => m[1]), sheets = h => (h.match(/<section class="sheet/g) || []).length;
+const subs = (h, id) => id === 'binderTeams' ? [...h.matchAll(/data-right="([^"]*)"/g)].map(m => m[1]) : [...h.matchAll(/<p class="sub">([^<]*)<\/p>/g)].map(m => m[1]), sheets = h => (h.match(/<section class="sheet/g) || []).length;
 
 for (const id of ['binderClass', 'binderAll', 'binderTeams']) {
   test(id + ': every page says "Printed 11/14/26" when the day is given, once, and nothing when it is not', () => {
     const h = run(id, '2026-11-14'), n = sheets(h); assert(n >= 1, 'has pages');
-    assert.strictEqual(subs(h).filter(s => /^Printed 11\/14\/26( \u00b7 .*)?$/.test(s)).length, n, id + ': one Printed line per page (a page with a Color Team column adds the teams note after it, N30): ' + subs(h).join(' | '));
+    assert.strictEqual(subs(h, id).filter(s => /^Printed 11\/14\/26( \u00b7 .*)?$/.test(s)).length, n, id + ': one Printed line per page (a page with a Color Team column adds the teams note after it, N30; the coaches color list has it at the right end of the title line, N53): ' + subs(h, id).join(' | '));
     assert(!/Printed/.test(run(id, undefined)), 'no day, no Printed line'); assert(!/Printed/.test(run(id, 'yesterday')), 'a bad day prints nothing');
   });
 }

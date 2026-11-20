@@ -27,7 +27,7 @@ test('color teams: one sheet for all Sparks and one for all T&T, each sorted by 
   const sheets = (html.match(/class="sheet/g) || []).length;
   assert.strictEqual(sheets, 2, 'one sheet per group, not per color: ' + sheets);
   assert(/Sparks Q1 — color teams/.test(text(html)) && /T&amp;T Q1 — color teams|T&T Q1 — color teams/.test(text(html)), 'titled by group and quarter');
-  const colorHeads = (html.match(/class="colorhead"/g) || []).length;
+  const colorHeads = (html.match(/class="teamhead"/g) || []).length;
   assert(colorHeads >= 2, 'a heading for each color that has children');
   assert(!/Emergency contact/.test(html) && !/\(\d{3}\) \d{3}-\d{4}/.test(html), 'no emergency contacts or phone numbers');
 });

@@ -292,6 +292,10 @@ table.grid.emerg { table-layout:fixed; } table.grid.emerg .nw.nm { white-space:n
 @media print { #report .sheet.stats .scroll { overflow:visible; border:0; border-radius:0; } #report .sheet.stats table.roster { table-layout:auto; width:100%; }
   #report .sheet.stats table.roster th, #report .sheet.stats table.roster td { white-space:normal; overflow-wrap:anywhere; padding:2px 4px; font-size:11px; line-height:1.2; } #report .sheet.stats table.roster th { position:static; } }
 /* The color-team sheet: one page per group, compact rows. */
+/* N53: the coaches color teams list: color blocks in two columns, name left and class right, the printed date at the right end of the title line */
+.teamcols { column-count:2; column-gap:0.4in; } .teamblock { break-inside:avoid; margin:0 0 8px; } .teamhead { padding:3px 0; border-bottom:1px solid #999; } .teamrow { display:flex; justify-content:space-between; gap:8px; padding:1px 2px; border-bottom:1px solid #ddd; font-size:12px; line-height:1.25; } .teamrow > span:last-child { white-space:nowrap; text-align:right; }
+.sheet h2[data-right] { display:flex; justify-content:space-between; align-items:baseline; gap:12px; } .sheet h2[data-right]::after { content:attr(data-right); font-size:11px; font-weight:400; color:#555; white-space:nowrap; }
+@media (max-width:600px) { .teamcols { column-count:1; } }
 @media print { #report .teamlist td { padding:1px 4px; font-size:11px; line-height:1.2; } #report .teamlist tr.colorhead td { padding-top:6px; background:none; } }
 @media print { input[type=date][data-blank-print] { color:transparent !important; border-color:transparent !important; } input[type=date][data-blank-print]::-webkit-calendar-picker-indicator { display:none !important; } }
 
