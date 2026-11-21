@@ -814,6 +814,13 @@ table.tg select.tgsel.tgset.team-Red { background-color:#ea9999; border-color:#c
 .sheet.notes .nsheet th.nhead .nh { overflow:hidden; }      /* N16: a long theme is clipped to the block's own height; it never makes the block taller */
 @media screen and (max-width: 760px) { .sheet.notes .nsheet th, .sheet.notes .nsheet td { font-size:8px; padding:0 1px; } .sheet.notes .nsheet thead th { font-size:8px; } .sheet.notes .nsheet th.nhead b, .sheet.notes .nsheet th.nhead i { font-size:8px; } .sheet.notes .nsheet col.d { width:16%; } }
 .pextra { margin:14px 0 6px; padding:6px 10px; border-top:2px solid var(--line); border-bottom:1px dashed var(--line); font-weight:700; background:var(--soft); }      /* N32: the Silver and Gold extra-credit heading on a T&T progress page */
+/* N59: T&T progress sheet: emblem section with Silver and Gold rows directly underneath */
+.tnt-section { margin:8px 0; border:1px solid var(--line); border-radius:6px; padding:4px 8px; }
+.tnt-section .tnt-row { margin:2px 0; border:none; }
+.tnt-section .tnt-row:not(:last-child) { border-bottom:1px dashed var(--line); border-radius:0; }
+.tnt-section .tnt-row.done { background:var(--donebg); }
+.tnt-section .plabel { min-width:140px; }
+@media (max-width: 760px) { .tnt-section .pcell-ghost { display:none; } }
 
 /* N36 (moved 2026-11-19): while a Drive save runs, the Save button's label fades out and a floppy icon fades in where the label was; the header does not move. The text stays in the button for screen readers. */
 #btnSeasonSave { position: relative; transition: color .3s ease; }

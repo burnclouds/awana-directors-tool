@@ -890,9 +890,42 @@
     h += recv + bd;
     // N43: a book finished before (another club, no section records) shows no sections: its dates stay in the data, and unticking brings them back. Reviews, the Book Review and the book award still show.
     if (!done && Season.bookOrder(season, bg)[0] === book) h += t.common.map(b => block(b, 'common')).join('');
-    // N32: on a T&T sheet the Silver and Gold extra-credit blocks sit under a visible heading (the regular sections above are unchanged). Keys SV1-4 and GD1-4 (catalog.js).
-    const isExtra = b => bg === 'T&T' && /^(SV|GD)\d$/.test(b.key), firstExtra = t.perBook.findIndex(isExtra);
-    if (!done) h += t.perBook.map((b, i) => (i === firstExtra ? '<div class="pextra" role="heading" aria-level="3">Extra credit: Silver and Gold</div>' : '') + block(b, book)).join('');
+    // N59: on a T&T sheet, Silver and Gold extra credit sit directly beneath each emblem section (Unit 1: BE1, RE1; Unit 2: GE1, YE1; Unit 3: BE2, RE2; Unit 4: GE2, YE2).
+    const tntSection = (b, scope) => {
+      const u = (/^[BR]E1$/.test(b.key) ? 1 : /^[GY]E1$/.test(b.key) ? 2 : /^[BR]E2$/.test(b.key) ? 3 : /^[GY]E2$/.test(b.key) ? 4 : 0);
+      const svBlock = t.perBook.find(x => x.key === 'SV' + u), gdBlock = t.perBook.find(x => x.key === 'GD' + u);
+      const dates = prog[scope] || {};
+      const renderRow = (blk, subItems, isExtraRow) => {
+        const rowDone = subItems.length && subItems.every(i => dates[blk.key + '.' + i]);
+        const fullDone = blk.items.every(i => dates[blk.key + '.' + i]);
+        const names = blk.awards.map(a => fillName(a, scope)), er = earnedOf(blk.key, scope);
+        const ghostCount = b.items.length - subItems.length;
+        let cellsHtml = subItems.map(i => cell(blk, scope, i, dates, i, blk.label + ' ' + i)).join('');
+        for (let g = 0; g < ghostCount; g++) {
+          cellsHtml += '<span class="pcell pcell-ghost" aria-hidden="true" style="visibility:hidden"><label class="pitem">&nbsp;<input type="date" disabled tabindex="-1"></label></span>';
+        }
+        const awText = fullDone ? esc(names.map(a => Season.awardLabel(season, id, a)).join(' + ')) + (er ? ' · earned ' + (er.noDate ? '(no date)' : esc(MD(er.date))) : '') : (er ? 'completed ' + (er.noDate ? '(no date)' : esc(MD(er.date))) : '');
+        return '<div class="pblock tnt-row' + (rowDone ? ' done' : '') + (isExtraRow ? ' tnt-extra' : '') + '">' +
+          '<span class="plabel">' + esc(blk.label) + (rowDone ? ' ✓' : '') + flagBtn('block', scope, blk.key, '', blk.label) + '</span>' +
+          cellsHtml + '<span class="pawards">' + awText + '</span>' +
+          (names.length ? '<span class="prow">' + givenBox(names, fullDone, { book: scope, block: blk.key, items: blk.items }) + '</span>' : '') +
+          '</div>';
+      };
+      const emblemRow = renderRow(b, b.items, false);
+      const svItems = svBlock ? b.items.filter(i => svBlock.items.includes(i)) : [];
+      const gdItems = gdBlock ? b.items.filter(i => gdBlock.items.includes(i)) : [];
+      const svRow = svBlock && svItems.length ? renderRow(svBlock, svItems, true) : '';
+      const gdRow = gdBlock && gdItems.length ? renderRow(gdBlock, gdItems, true) : '';
+      return '<div class="tnt-section">' + emblemRow + svRow + gdRow + '</div>';
+    };
+    if (!done) {
+      if (bg === 'T&T') {
+        const emblemBlocks = t.perBook.filter(b => !/^(SV|GD)\d$/.test(b.key));
+        h += emblemBlocks.map(b => tntSection(b, book)).join('');
+      } else {
+        h += t.perBook.map(b => block(b, book)).join('');
+      }
+    }
     // The book-completion award (Alpha, 2nd Book, ...) gets the same Given / Announced boxes as a section award. It is offered only once the book is finished (all its sections dated, or ticked finished before).
     const bookAw = Season.completionAwards(season, id, bg).filter(x => x.book === book).map(x => x.award);
     if (bookAw.length) h += '<div class="pblock done bookaward"><span class="plabel">Book completed</span><span class="prow">' + givenBox(bookAw, true, { book, block: 'BOOKS', items: [] }) + '</span></div>';

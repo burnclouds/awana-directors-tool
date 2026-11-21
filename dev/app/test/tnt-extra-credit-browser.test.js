@@ -15,15 +15,30 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   await page.waitForTimeout(400);
   const showGroup = async group => page.evaluate(g => { const A = window.App, M = window.Model, p = A.master.people.find(x => M.isActive(x) && M.groupOf(M.room(x)) === g);
     if (!p) return false; A.showPerson(p[M.X.ID], { sub: 'progress' }); return true; }, group);
-  await test('a T&T child: the Silver and Gold blocks sit under the extra-credit heading', async () => {
+  await test('a T&T child: Silver and Gold rows sit directly under each emblem section (N59)', async () => {
     assert(await showGroup('T&T'), 'no T&T child in the test data'); await page.waitForTimeout(500);
-    const n = await page.$$eval('.pextra', els => els.length); assert.strictEqual(n, 1, 'heading count ' + n);
-    const after = await page.evaluate(() => { const h = document.querySelector('.pextra'); const next = h && h.nextElementSibling; return next && /^(Silver|Gold)/.test(next.querySelector('.plabel') ? next.querySelector('.plabel').textContent : ''); });
-    assert(after, 'the heading is not directly above a Silver or Gold block');
+    const sections = await page.$$eval('.tnt-section', els => els.length);
+    assert.strictEqual(sections, 8, '8 T&T emblem sections with Silver and Gold directly under each');
+    // Check Green Emblem 1 section
+    const geSec = await page.evaluate(() => {
+      const sec = Array.from(document.querySelectorAll('.tnt-section')).find(s => s.textContent.includes('Green Emblem 1'));
+      if (!sec) return null;
+      const rows = Array.from(sec.querySelectorAll('.tnt-row'));
+      const labels = rows.map(r => r.querySelector('.plabel') ? r.querySelector('.plabel').textContent.trim() : '');
+      const boxes = rows.map(r => Array.from(r.querySelectorAll('.pcell:not(.pcell-ghost) input[data-key]')).map(i => i.dataset.key.replace(/^[A-Z0-9]+\./, '')));
+      const gives = rows.map(r => !!r.querySelector('.pgive'));
+      return { labels, boxes, gives };
+    });
+    assert(geSec, 'Green Emblem 1 section found');
+    assert.deepStrictEqual(geSec.labels.map(l => l.replace(/ ✓$/, '')), ['Green Emblem 1', 'Silver 2', 'Gold 2'], '3 rows: Emblem, Silver 2, Gold 2');
+    assert.deepStrictEqual(geSec.boxes[0], ['2.1', '2.2', '2.3', '2.4'], 'Emblem boxes 2.1 to 2.4');
+    assert.deepStrictEqual(geSec.boxes[1], ['2.1', '2.2', '2.3', '2.4'], 'Silver 2 boxes 2.1 to 2.4');
+    assert.deepStrictEqual(geSec.boxes[2], ['2.1', '2.2', '2.3', '2.4'], 'Gold 2 boxes 2.1 to 2.4');
+    assert.deepStrictEqual(geSec.gives, [true, true, true], 'each row has its own Given box');
   });
-  await test('a Sparks child has no extra-credit heading', async () => {
+  await test('a Sparks child has no .tnt-section', async () => {
     assert(await showGroup('Sparks'), 'no Sparks child'); await page.waitForTimeout(500);
-    assert.strictEqual(await page.$$eval('.pextra', els => els.length), 0);
+    assert.strictEqual(await page.$$eval('.tnt-section', els => els.length), 0);
   });
   await test('no script errors', async () => { assert.strictEqual(errs.length, 0, errs.join(' | ')); });
   await browser.close(); server.close();
