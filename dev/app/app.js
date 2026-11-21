@@ -1434,7 +1434,9 @@
   window.addEventListener('afterprint', () => blankDates(false));
   // Print class binders: a quick pick (a saved bundle: Class binder, Coaches binder, Quarterly Printables, the club's own) sets the pages that go in; the pages can be adjusted; the classes are ticked (none = the whole club in one set).
   // "Show binders" makes the choice a selection of the report list ("Your binders"), drawn like any bundle: the bundle quarter, the lock question and the page choice all work on it.
-  const BINDER_PARTS = [['attendance', 'Attendance sheet'], ['binderClass', 'Roster with medical and contact'], ['volunteers', 'Volunteer contact list (a copy in each class binder)'], ['progressSheets', 'Progress sheet for each child (none for Puggles)'], ['binderAll', 'Everyone by name: emergency, medical, photos'], ['binderTeams', 'Color teams by group and color'], ['teams', 'Color teams list (Sparks, T&T)'], ['noteSheets', 'Coaches notes sheet: the whole quarter on one page (once)']];
+  const BINDER_CLASS_PARTS = [['attendance', 'Attendance sheet'], ['binderClass', 'Roster with medical and contact (each class)'], ['volunteers', 'Volunteer contact list (a copy in each class binder)'], ['progressSheets', 'Progress sheet for each child (none for Puggles)']];
+  const BINDER_COACHES_PARTS = [['binderAll', 'Coaches: emergency, medical, photos, color team (print once)'], ['binderTeams', 'Color teams by group and color'], ['teams', 'Color teams list (Sparks, T&T)'], ['noteSheets', 'Coaches notes sheet: the whole quarter on one page (once)']];
+  const BINDER_PARTS = BINDER_CLASS_PARTS.concat(BINDER_COACHES_PARTS);
   const BINDER_PER_CLASS = ['attendance', 'binderClass', 'volunteers', 'progressSheets'];      // pages made once per class when classes are ticked
   const binderItems = (parts, classes, blanks) => {
     const per = BINDER_PER_CLASS.filter(k => parts.includes(k)), items = [], withBlanks = (k, it) => k === 'progressSheets' && blanks > 0 ? Object.assign(it, { blanks }) : it;      // N57: blank progress sheets after each class's own
@@ -1452,14 +1454,25 @@
     const pr = binderPrefs; if (pr.quick !== '' && !bundles[+pr.quick]) pr.quick = '';
     dl.innerHTML = '<h3 style="margin-top:0">Print class binders</h3><p class="status">Pick a quick pick, change the pages if you want, and tick the classes. Nothing prints until you press Print on the Reports tab.</p>' +
       '<fieldset class="addgrp bindquick"><legend>1. Quick pick</legend><label>Pages for <select id="bindQuick">' + bundles.map((b, i) => '<option value="' + i + '"' + (pr.quick === String(i) ? ' selected' : '') + '>' + esc(b.name) + '</option>').join('') + '<option value=""' + (pr.quick === '' ? ' selected' : '') + '>Custom: the pages I tick below</option></select></label> <span class="status" id="bindQuickNote"></span></fieldset>' +
-      '<fieldset class="addgrp bindopt"><legend>2. Pages in each binder (an option, not a binder)</legend>' + BINDER_PARTS.map(([k, l]) => '<label class="pf chk"><input type="checkbox" data-part="' + k + '"' + (k === 'progressSheets' ? ' id="bindSheets"' : '') + (pr.parts.includes(k) ? ' checked' : '') + '> ' + esc(l) + '</label>').join('') + '<label class="pf">Blank progress sheets after each class\'s sheets <input type="number" id="bindBlanks" min="0" max="20" value="' + (pr.blanks === undefined ? 3 : pr.blanks) + '" style="width:4em"> <span class="status">(0 for none; a new child already has a sheet to start)</span></label></fieldset>' +
+      '<fieldset class="addgrp bindopt"><legend>2. Pages in each class binder</legend>' + BINDER_CLASS_PARTS.map(([k, l]) => '<label class="pf chk"><input type="checkbox" data-part="' + k + '"' + (k === 'progressSheets' ? ' id="bindSheets"' : '') + (pr.parts.includes(k) ? ' checked' : '') + '> ' + esc(l) + '</label>').join('') + '<label class="pf">Blank progress sheets after each class\'s sheets <input type="number" id="bindBlanks" min="0" max="20" value="' + (pr.blanks === undefined ? 3 : pr.blanks) + '" style="width:4em"> <span class="status">(0 for none; a new child already has a sheet to start)</span></label></fieldset>' +
+      '<fieldset class="addgrp bindopt"><legend>2b. Coaches pages (print once for the whole club)</legend>' + BINDER_COACHES_PARTS.map(([k, l]) => '<label class="pf chk"><input type="checkbox" data-part="' + k + '"' + (pr.parts.includes(k) ? ' checked' : '') + '> ' + esc(l) + '</label>').join('') + '</fieldset>' +
       '<fieldset class="addgrp bindpick"><legend>3. Classes to print</legend><p class="bar" style="margin:0 0 4px"><button type="button" id="bindAll">Select all</button><button type="button" id="bindNone">Select none</button><span class="status" id="bindCount"></span></p>' +
-      rooms.map((c, i) => '<label class="pf chk"><input type="checkbox" data-bind="' + i + '" data-room="' + esc(c) + '"' + (pr.classes.includes(c) ? ' checked' : '') + '> ' + esc(c) + '</label>').join('') + '<p class="status" style="margin:4px 0 0">Leave all unticked to print the whole club in one set (the Coaches binder works this way).</p></fieldset>' +
+      '<p class="status" style="margin:4px 0 4px">Leave all unticked to print the whole club in one set (the Coaches binder works this way).</p>' +
+      rooms.map((c, i) => '<label class="pf chk"><input type="checkbox" data-bind="' + i + '" data-room="' + esc(c) + '"' + (pr.classes.includes(c) ? ' checked' : '') + '> ' + esc(c) + '</label>').join('') + '</fieldset>' +
       '<div class="dlgbtns"><button id="bindCancel">Cancel</button><button id="bindGo" class="primary">Show binders</button></div>';
     dl.showModal();
     const picks = () => [...dl.querySelectorAll('input[data-bind]')], partBoxes = () => [...dl.querySelectorAll('input[data-part]')], quick = () => $('bindQuick').value;
     const count = () => { $('bindCount').textContent = picks().filter(i => i.checked).length + ' of ' + picks().length + ' selected'; const b = quick() === '' ? null : bundles[+quick()]; $('bindQuickNote').textContent = fixedBundle(b) ? 'This one prints its saved classes as they are.' : b && b.perClass ? 'Tick the classes below.' : ''; };
-    $('bindQuick').onchange = () => { const b = bundles[+quick()]; if (b) { const keep = partsOfBundle(b); partBoxes().forEach(c => { c.checked = keep.includes(c.dataset.part); }); } count(); };
+    $('bindQuick').onchange = () => {
+      const b = bundles[+quick()];
+      if (b) {
+        const keep = partsOfBundle(b);
+        partBoxes().forEach(c => { c.checked = keep.includes(c.dataset.part); });
+        if (b.name === 'Quarterly Printables') picks().forEach(i => { i.checked = true; });
+        else if (b.name === 'Coaches binder') picks().forEach(i => { i.checked = false; });
+      }
+      count();
+    };
     $('bindAll').onclick = () => { picks().forEach(i => { i.checked = true; }); count(); }; $('bindNone').onclick = () => { picks().forEach(i => { i.checked = false; }); count(); };
     const onChange = e => { const t = e.target.closest && e.target.closest('input'); if (!t) return; if (t.dataset.part) $('bindQuick').value = ''; count(); };      // the shared #dlg keeps no handler of this pop-up once it closes
     dl.addEventListener('change', onChange); dl.addEventListener('close', () => dl.removeEventListener('change', onChange), { once: true });      // changing a page makes it a custom choice

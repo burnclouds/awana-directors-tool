@@ -22,9 +22,19 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
     const classes = await page.$$eval('#dlg input[data-bind]', l => l.map(x => x.dataset.room)); assert.strictEqual(classes.length, 10); assert.deepStrictEqual(classes.slice(0, 3), ['Puggles', 'Cubbies', 'Sparks A']);
     assert.deepStrictEqual(await page.$$eval('#dlg input[data-part]:checked', l => l.map(x => x.dataset.part)), ['attendance', 'binderClass', 'volunteers', 'progressSheets'], 'the Class binder pages are ticked');
     assert.strictEqual(await page.locator('#dlg input[data-bind="coaches"]').count(), 0, 'the Coaches binder is a quick pick now, not a class box');
+    const legends = await page.$$eval('#dlg fieldset legend', ls => ls.map(l => l.textContent));
+    assert(legends.includes('2. Pages in each class binder') && legends.includes('2b. Coaches pages (print once for the whole club)'), 'N55: coaches pages visually apart in section 2b');
+    const labelAll = await page.$eval('#dlg input[data-part="binderAll"]', el => el.closest('label').textContent.trim());
+    assert.strictEqual(labelAll, 'Coaches: emergency, medical, photos, color team (print once)', 'N55: coaches roster page renamed');
+    const barThenSentence = await page.$eval('#dlg fieldset.bindpick', el => { const p = el.querySelectorAll('p'); return p[0].classList.contains('bar') && /Leave all unticked/.test(p[1].textContent); });
+    assert(barThenSentence, 'N55: sentence is just below buttons');
   });
-  await test('choosing a quick pick ticks its pages; changing a page makes it Custom', async () => {
+  await test('choosing a quick pick ticks its pages; changing a page makes it Custom; quick picks set class defaults (N55)', async () => {
+    await page.selectOption('#bindQuick', { label: 'Quarterly Printables' });
+    const classCount = (await page.$$eval('#dlg input[data-bind]', l => l.length));
+    assert.strictEqual(await page.$$eval('#dlg input[data-bind]:checked', cs => cs.length), classCount, 'N55: Quarterly quick pick defaults to all classes');
     await page.selectOption('#bindQuick', { label: 'Coaches binder' });
+    assert.strictEqual(await page.$$eval('#dlg input[data-bind]:checked', cs => cs.length), 0, 'N55: Coaches quick pick defaults to no classes');
     assert.deepStrictEqual(await page.$$eval('#dlg input[data-part]:checked', l => l.map(x => x.dataset.part)), ['binderClass', 'volunteers', 'binderAll', 'binderTeams', 'noteSheets']);
     await page.uncheck('#dlg input[data-part="volunteers"]'); assert.strictEqual(await page.inputValue('#bindQuick'), '', 'now Custom');
   });
