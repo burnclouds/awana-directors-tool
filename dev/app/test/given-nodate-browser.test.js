@@ -48,7 +48,7 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   });
   await test('the printed Achievement Record shows a check and "no date", never the day the box was ticked', async () => {
     await page.evaluate(({ id, AW2, today }) => { App.season.handbooks[id] = 'HG 260916'; Season.setGiven(App.season, id, AW2, today, { noDate: true }); },{ id: kid.id, AW2, today: '2026-11-03' });
-    await page.evaluate(({ id, room }) => { App.reportOptions({ group: 'Sparks', room, kid: id }); App.showReport('achievement'); }, { id: kid.id, room: kid.room }); await page.waitForTimeout(600);
+    await page.evaluate(({ id, room }) => { App.showReport('progressSheets'); App.reportOptions({ room, kid: id, books: 'all' }); }, { id: kid.id, room: kid.room }); await page.waitForTimeout(600);
     const text = (await page.textContent('#report')).replace(/\s+/g, ' ');
     assert(/\u2713 no date/.test(text), 'the record says "no date"');      // the record sheet prints "\u2713 no date" in the Given box (was "\u2713 (no date)") assert(!/11\/03\/26/.test(text), 'the ticked day 11/03/26 is not printed');
   });

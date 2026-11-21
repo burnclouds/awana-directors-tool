@@ -788,7 +788,7 @@
   const sel = $('rSel');
   // Report groups (the sub-tabs above the report box): each one shows only its own reports in the one list below, so the list and everything that picks a report from it (showReport, the tests) work as before.
   // The group of a report is looked up here, not stored with the report. The group chosen is for this visit only.
-  const RSUBS = { attend: ['attendance', 'attendDates'], teams: ['teams', 'binderTeams', 'standings'], binders: ['binderClass', 'binderAll', 'volunteers', 'photos', 'noteSheets'], progress: ['progressSheets', 'achievement', 'awardsByChild', 'ceremony', 'handOut', 'booksYear', 'handbooks', 'paceWatch'] };
+  const RSUBS = { attend: ['attendance', 'attendDates'], teams: ['teams', 'binderTeams', 'standings'], binders: ['binderClass', 'binderAll', 'volunteers', 'photos', 'noteSheets'], progress: ['progressSheets', 'awardsByChild', 'ceremony', 'handOut', 'booksYear', 'handbooks', 'paceWatch'] };
   const subOf = v => /^bundle:/.test(v) ? 'binders' : Object.keys(RSUBS).find(k => RSUBS[k].includes(v)) || 'other';      // everything else (uniforms, lessons, Planning Center changes) is "Other"
   let rsub = 'attend'; const lastIn = {};
   let binderSel = null, binderPrefs = null;      // binderSel: the binders chosen in the Print class binders pop-up ({ name, items }); binderPrefs: the pop-up's last settings, kept for the visit
@@ -801,7 +801,7 @@
   // Reports, then the club's report bundles (several reports printed as one job; defined on Options). Rebuilt when the data changes because the bundles live in the data file.
   function fillReportSel() {
     const keep = sel.value, bs = Reports.bundlesOf(App.season);
-    sel.innerHTML = Reports.LIST.map(r => '<option value="' + r.id + '">' + esc(r.title) + '</option>').join('') + '<optgroup label="Print several at once">' + (binderSel ? '<option value="bundle:picked">Last made in Print class binders: ' + esc(binderSel.name) + '</option>' : '') + bs.map((b, i) => '<option value="bundle:' + i + '">' + esc(b.name) + ' (bundle)</option>').join('') + '</optgroup>';
+    sel.innerHTML = Reports.LIST.filter(r => !r.hidden).map(r => '<option value="' + r.id + '">' + esc(r.title) + '</option>').join('') + '<optgroup label="Print several at once">' + (binderSel ? '<option value="bundle:picked">Last made in Print class binders: ' + esc(binderSel.name) + '</option>' : '') + bs.map((b, i) => '<option value="bundle:' + i + '">' + esc(b.name) + ' (bundle)</option>').join('') + '</optgroup>';
     sel.value = [...sel.options].some(o => o.value === keep) ? keep : (Reports.LIST[0] || {}).id;
     rsub = subOf(sel.value); applySub();
   }
@@ -815,7 +815,7 @@
     return room ? (b.items || []).filter(i => !(i.report === 'progressSheets' && Model.groupOf(room) === 'Puggles')).map(i => i.report === 'volunteers' ? i : Object.assign({}, i, { room })) : (b.items || []);
   }
   function renderBundle(b) {
-    ['oRoom', 'oGroup', 'oKid', 'calNote', 'oNoBook'].forEach(id => { $(id).hidden = true; });
+    ['oRoom', 'oGroup', 'oKid', 'calNote', 'oNoBook', 'oBooks', 'oBlanks'].forEach(id => { $(id).hidden = true; });
     // One quarter control in bundle mode: the Quarter pills choose the quarter to print (bundleQ). The lower bar shows only what the bundle's reports use: List order for the color team lists, Title for the pace watch list (MC-01, UX-01).
     const uses = id => (b.items || []).some(i => i.report === id), order = uses('teams'), title = uses('paceWatch'), perClass = !!b.perClass && b !== binderSel;
     $('dateBar').hidden = !(order || title); $('oOrder').hidden = !order; $('tWrap').hidden = !title;
@@ -907,7 +907,7 @@
     // A report with groupAll (Awards to hand out) has an "All groups" choice in the Group picker; a report without it never sees that choice.
     const gsel0 = $('oGroupSel'), allOpt = [...gsel0.options].find(x => x.value === '');
     if (o.includes('groupAll') && !allOpt) gsel0.insertBefore(new Option('All groups', ''), gsel0.firstChild); else if (!o.includes('groupAll') && allOpt) { const was = gsel0.value === ''; allOpt.remove(); if (was) gsel0.value = 'Sparks'; }
-    $('oGroup').hidden = !(o.includes('group') || o.includes('groupAll')); $('oKid').hidden = !o.includes('kid');    $('dateBar').hidden = !(o.includes('quarter') || o.includes('order') || o.includes('title') || o.includes('noBook')); $('oNoBook').hidden = !o.includes('noBook');
+    $('oGroup').hidden = !(o.includes('group') || o.includes('groupAll')); $('oKid').hidden = !o.includes('kid'); $('oBooks').hidden = !o.includes('books'); $('oBlanks').hidden = !(o.includes('books') && $('oBooksSel').value === 'blank');    $('dateBar').hidden = !(o.includes('quarter') || o.includes('order') || o.includes('title') || o.includes('noBook')); $('oNoBook').hidden = !o.includes('noBook');
     $('qWrap').hidden = $('calNote').hidden = !o.includes('quarter'); $('oOrder').hidden = !o.includes('order'); $('tWrap').hidden = !o.includes('title');
     const nights = Calendar.nights(calendar, settings.quarter).length;
     $('calNote').textContent = calendar.length ? nights + ' club nights in ' + settings.quarter + ' from the calendar' : '';
@@ -917,11 +917,14 @@
     const gsel = $('oGroupSel').value, rl = Reports.roomsOf(Reports.kids(master)).filter(r => (!(o.includes('group') || (o.includes('groupAll') && gsel !== '')) || Model.groupOf(r) === gsel) && !(def.id === 'progressSheets' && Model.groupOf(r) === 'Puggles'));      // Puggles have no progress sheets
     rs.innerHTML = '<option value="">All classes</option>' + rl.map(r => '<option>' + esc(r) + '</option>').join(''); rs.value = rl.includes(cur) ? cur : (def.id === 'progressSheets' && !psAll ? (rl[0] || '') : '');
     psAuto = def.id === 'progressSheets' && !rl.includes(cur) && !psAll && rs.value !== '';
-    if (def.id === 'progressSheets') { const all = sheetCount(''), mine = rs.value ? sheetCount(rs.value) : all; $('bNote').textContent = rs.value ? 'Showing ' + rs.value + ': ' + mine + ' sheet' + (mine === 1 ? '' : 's') + '. Print / Save as PDF prints this class. Choose All classes in Class for everyone (' + all + ' sheets).' : 'Showing everyone: ' + all + ' sheets.'; }
+    if (def.id === 'progressSheets') { const bm = $('oBooksSel').value, per = Math.max(1, Math.min(20, parseInt($('oBlanksNum').value, 10) || 3)), kidId = $('oKidSel').value;
+      // N57: pages per Books choice: current = one a child, every book = one a book started, blank = the count per class
+      const pagesFor = room => bm === 'blank' ? (room ? 1 : psRooms().length) * per : Reports.kids(master).filter(p => ['Cubbies', 'Sparks', 'T&T'].includes(Model.groupOf(Model.room(p))) && (!room || Model.room(p) === room) && (!kidId || p[X.ID] === kidId)).reduce((n, p) => n + (bm === 'all' ? Math.max(1, Season.booksStarted(App.season, p[X.ID], Model.groupOf(Model.room(p))).length) : 1), 0);
+      const all = pagesFor(''), mine = rs.value ? pagesFor(rs.value) : all; $('bNote').textContent = rs.value ? 'Showing ' + rs.value + ': ' + mine + ' sheet' + (mine === 1 ? '' : 's') + '. Print / Save as PDF prints this class. Choose All classes in Class for everyone (' + all + ' sheets).' : 'Showing everyone: ' + all + ' sheets.'; }
     const ks = $('oKidSel'), kcur = ks.value;
-    ks.innerHTML = '<option value="">Everyone in the ' + (rs.value && o.includes('room') ? 'class' : 'group') + '</option>' + master.people.filter(p => Model.isActive(p) && Model.isClubber(p) && Model.groupOf(Model.room(p)) === $('oGroupSel').value && (!rs.value || !o.includes('room') || Model.room(p) === rs.value))
+    ks.innerHTML = '<option value="">Everyone in the ' + (rs.value && o.includes('room') ? 'class' : 'group') + '</option>' + master.people.filter(p => Model.isActive(p) && Model.isClubber(p) && ((!o.includes('group') && !o.includes('groupAll')) || Model.groupOf(Model.room(p)) === $('oGroupSel').value) && (!rs.value || !o.includes('room') || Model.room(p) === rs.value))
       .sort(Model.byRoomThenName).map(p => '<option value="' + esc(p[X.ID]) + '">' + esc(Model.room(p) + ' \u2014 ' + Model.fullName(p)) + '</option>').join(''); ks.value = kcur;
-    const html = def.render({ master, settings, calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, book) => App.sheets.html(p, book), opts: { room: rs.value, order: $('oOrderSel').value, group: $('oGroupSel').value, kid: ks.value, noBook: o.includes('noBook') && $('oNoBookChk').checked } });      // the night only counts for reports that show the Night box
+    const html = def.render({ master, settings, calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, book) => App.sheets.html(p, book), opts: { room: rs.value, order: $('oOrderSel').value, group: $('oGroupSel').value, kid: ks.value, books: o.includes('books') ? $('oBooksSel').value : '', blanks: o.includes('books') && $('oBooksSel').value === 'blank' ? Math.max(1, Math.min(20, parseInt($('oBlanksNum').value, 10) || 3)) : 0, noBook: o.includes('noBook') && $('oNoBookChk').checked } });      // the night only counts for reports that show the Night box
     // Contact and medical details come from the last Planning Center export; say how old it is.
     $('report').innerHTML = ['binderClass', 'binderAll', 'volunteers', 'photos'].includes(def.id) && master && master.pcAsOf ?
       html.replace(/<\/h2>/g, '</h2><p class="sub asof">Planning Center data as of ' + esc(master.pcAsOf) + '</p>') : html;
@@ -967,6 +970,7 @@
   App.reportOptions = o => {      // set the pickers: Group first (it decides which classes are listed), then Class and Child, drawing again each time one changed
     renderReport();      // makes sure the pickers hold the choices this report has (for example All groups on the hand-out strips)
     const g = $('oGroupSel'), rs = $('oRoomSel'), ks = $('oKidSel');
+    if (o.books && $('oBooksSel').value !== o.books) { $('oBooksSel').value = o.books; renderReport(); }
     if ('group' in o && g.value !== o.group && [...g.options].some(x => x.value === o.group)) { g.value = o.group; renderReport(); }
     let again = false;
     if (sel.value === 'progressSheets') psAll = !o.room;      // no class asked for means everyone (N4)
@@ -977,7 +981,7 @@
   };
   App.showReport = id => { sel.value = id; showTab('reports'); };
   $('oRoomSel').addEventListener('change', () => { psAuto = false; if (sel.value === 'progressSheets') psAll = $('oRoomSel').value === ''; });      // before the shared redraw below, which reads psAll
-  [sel, $('oNoBookChk'), $('oRoomSel'), $('oOrderSel'), $('oGroupSel'), $('oKidSel')].forEach(el => el.addEventListener('change', renderReport));
+  [sel, $('oNoBookChk'), $('oRoomSel'), $('oOrderSel'), $('oGroupSel'), $('oKidSel'), $('oBooksSel'), $('oBlanksNum')].forEach(el => el.addEventListener('change', renderReport));
   // A group button shows that group's reports: the one used last in it, or its first.
   $('rSubs').addEventListener('click', e => {
     const b = e.target.closest('button[data-rsub]'); if (!b) return;
@@ -1432,10 +1436,10 @@
   // "Show binders" makes the choice a selection of the report list ("Your binders"), drawn like any bundle: the bundle quarter, the lock question and the page choice all work on it.
   const BINDER_PARTS = [['attendance', 'Attendance sheet'], ['binderClass', 'Roster with medical and contact'], ['volunteers', 'Volunteer contact list (a copy in each class binder)'], ['progressSheets', 'Progress sheet for each child (none for Puggles)'], ['binderAll', 'Everyone by name: emergency, medical, photos'], ['binderTeams', 'Color teams by group and color'], ['teams', 'Color teams list (Sparks, T&T)'], ['noteSheets', 'Coaches notes sheet: the whole quarter on one page (once)']];
   const BINDER_PER_CLASS = ['attendance', 'binderClass', 'volunteers', 'progressSheets'];      // pages made once per class when classes are ticked
-  const binderItems = (parts, classes) => {
-    const per = BINDER_PER_CLASS.filter(k => parts.includes(k)), items = [];
-    if (classes.length) classes.forEach(room => per.forEach(k => { if (k === 'progressSheets' && Model.groupOf(room) === 'Puggles') return; items.push({ report: k, room: k === 'volunteers' ? '' : room }); }));      // Puggles have no progress sheets
-    else per.forEach(k => items.push({ report: k }));
+  const binderItems = (parts, classes, blanks) => {
+    const per = BINDER_PER_CLASS.filter(k => parts.includes(k)), items = [], withBlanks = (k, it) => k === 'progressSheets' && blanks > 0 ? Object.assign(it, { blanks }) : it;      // N57: blank progress sheets after each class's own
+    if (classes.length) classes.forEach(room => per.forEach(k => { if (k === 'progressSheets' && Model.groupOf(room) === 'Puggles') return; items.push(withBlanks(k, { report: k, room: k === 'volunteers' ? '' : room })); }));      // Puggles have no progress sheets
+    else per.forEach(k => items.push(withBlanks(k, { report: k })));
     BINDER_PARTS.map(x => x[0]).filter(k => !BINDER_PER_CLASS.includes(k) && parts.includes(k)).forEach(k => items.push({ report: k }));
     return items;
   };
@@ -1448,7 +1452,7 @@
     const pr = binderPrefs; if (pr.quick !== '' && !bundles[+pr.quick]) pr.quick = '';
     dl.innerHTML = '<h3 style="margin-top:0">Print class binders</h3><p class="status">Pick a quick pick, change the pages if you want, and tick the classes. Nothing prints until you press Print on the Reports tab.</p>' +
       '<fieldset class="addgrp bindquick"><legend>1. Quick pick</legend><label>Pages for <select id="bindQuick">' + bundles.map((b, i) => '<option value="' + i + '"' + (pr.quick === String(i) ? ' selected' : '') + '>' + esc(b.name) + '</option>').join('') + '<option value=""' + (pr.quick === '' ? ' selected' : '') + '>Custom: the pages I tick below</option></select></label> <span class="status" id="bindQuickNote"></span></fieldset>' +
-      '<fieldset class="addgrp bindopt"><legend>2. Pages in each binder (an option, not a binder)</legend>' + BINDER_PARTS.map(([k, l]) => '<label class="pf chk"><input type="checkbox" data-part="' + k + '"' + (k === 'progressSheets' ? ' id="bindSheets"' : '') + (pr.parts.includes(k) ? ' checked' : '') + '> ' + esc(l) + '</label>').join('') + '</fieldset>' +
+      '<fieldset class="addgrp bindopt"><legend>2. Pages in each binder (an option, not a binder)</legend>' + BINDER_PARTS.map(([k, l]) => '<label class="pf chk"><input type="checkbox" data-part="' + k + '"' + (k === 'progressSheets' ? ' id="bindSheets"' : '') + (pr.parts.includes(k) ? ' checked' : '') + '> ' + esc(l) + '</label>').join('') + '<label class="pf">Blank progress sheets after each class\'s sheets <input type="number" id="bindBlanks" min="0" max="20" value="' + (pr.blanks === undefined ? 3 : pr.blanks) + '" style="width:4em"> <span class="status">(0 for none; a new child already has a sheet to start)</span></label></fieldset>' +
       '<fieldset class="addgrp bindpick"><legend>3. Classes to print</legend><p class="bar" style="margin:0 0 4px"><button type="button" id="bindAll">Select all</button><button type="button" id="bindNone">Select none</button><span class="status" id="bindCount"></span></p>' +
       rooms.map((c, i) => '<label class="pf chk"><input type="checkbox" data-bind="' + i + '" data-room="' + esc(c) + '"' + (pr.classes.includes(c) ? ' checked' : '') + '> ' + esc(c) + '</label>').join('') + '<p class="status" style="margin:4px 0 0">Leave all unticked to print the whole club in one set (the Coaches binder works this way).</p></fieldset>' +
       '<div class="dlgbtns"><button id="bindCancel">Cancel</button><button id="bindGo" class="primary">Show binders</button></div>';
@@ -1462,13 +1466,13 @@
     count(); $('bindCancel').onclick = () => dl.close();
     $('bindGo').onclick = () => {
       const q = quick(), b = q === '' ? null : bundles[+q], parts = partBoxes().filter(c => c.checked).map(c => c.dataset.part), classes = picks().filter(i => i.checked).map(i => i.dataset.room);
-      binderPrefs = { quick: q, parts, classes };
+      const blanks = Math.max(0, Math.min(20, parseInt($('bindBlanks').value, 10) || 0)); binderPrefs = { quick: q, parts, classes, blanks };
       let items, name;
       if (fixedBundle(b)) { items = (b.items || []).slice(); name = b.name; }
       else {
         if (!parts.length) return App.ask.alert('Tick at least one page to put in the binders.');
         if (b && b.perClass && !classes.length) return App.ask.alert('Tick at least one class for the ' + b.name + '.');
-        items = binderItems(parts, classes); name = (b ? b.name : 'Custom binders') + (classes.length ? ': ' + classes.join(', ') : '');
+        items = binderItems(parts, classes, blanks); name = (b ? b.name : 'Custom binders') + (classes.length ? ': ' + classes.join(', ') : '');
       }
       binderSel = { name, items }; dl.close(); bundleKey = ''; App.showTab('reports'); fillReportSel(); sel.value = 'bundle:picked'; rsub = 'binders'; applySub(); renderReport();      // it is the selected report now (B3: the paper and the page choice follow it)
     };

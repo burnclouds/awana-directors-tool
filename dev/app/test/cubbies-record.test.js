@@ -12,7 +12,7 @@ const cub = master.people.filter(p => M.isActive(p) && M.isClubber(p) && M.group
 test('Cubbies have an achievement record: one sheet per child with name, Apple Acres, Trail and six units', () => {
   assert(cub.length > 0, 'test data has Cubbies');
   const html = ach({ group: 'Cubbies' });
-  assert(/Cubbies Achievement Record/.test(html));
+  assert(html.includes(M.fullName(cub[0])) && html.includes('Cubbies \u00b7 '), 'the sheet heading carries the name, class and year');      // N57: the Achievement record is the Progress sheet with every book, one heading
   assert(!/No children in/.test(html));
   const one = ach({ group: 'Cubbies', kid: cub[0][M.X.ID] });
   assert(one.includes(M.fullName(cub[0])));
@@ -20,8 +20,8 @@ test('Cubbies have an achievement record: one sheet per child with name, Apple A
   assert(/Book:/.test(one));      // the record sheet's header line (was "Handbook:" on the old record)
 });
 test('Sparks and T&T records are still produced', () => {
-  assert(/Sparks Achievement Record/.test(ach({ group: 'Sparks' })));
-  assert(/T&amp;T Achievement Record|T&T Achievement Record/.test(ach({ group: 'T&T' })));
+  assert(/class="sheet portrait rec/.test(ach({ group: 'Sparks' })) && !/No children in/.test(ach({ group: 'Sparks' })));
+  assert(/class="sheet portrait rec/.test(ach({ group: 'T&T' })) && !/No children in/.test(ach({ group: 'T&T' })));
 });
 test('Pace does not support Cubbies, so no pace row exists for a Cubbies child', () => {
   assert.strictEqual(Pace.kid({ master, season, calendar }, cub[0]), null);

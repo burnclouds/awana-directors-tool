@@ -91,17 +91,17 @@
   const soCell = (n, date, nd, rv) => '<td class="so' + (rv ? ' rv' : '') + '"><i class="n">' + esc(n) + '</i><span class="ini"></span>' + LABELS + '<span class="dt">' + (nd ? '✓' : esc(mdyFull(date))) + '</span></td>';
   // opts.common: print the once-only blocks (Flight 3:16, Start Zone, Apple Acres); default = this is the group's first book.
   function recordBody(ctx, p, book, opts) {
-    const s = ctx.season, id = idOf(p), g = Season.bookGroup(s, book) || M.groupOf(M.room(p)), t = s.config.progress[g], bk = s.config.books[book] || {}, emblem = bk.emblem || '';
+    const s = ctx.season, blank = !!(opts && opts.blank), id = blank ? '' : idOf(p), g = blank ? opts.group : (Season.bookGroup(s, book) || M.groupOf(M.room(p))), t = s.config.progress[g],      // N57: a blank sheet has no child, no book and no data
+       bk = s.config.books[book] || {}, emblem = bk.emblem || '';
     if (!t) return '<p class="status">There is no progress sheet for this book.</p>';
     const H = REC_H[g] || 0.30, common = opts && opts.common !== undefined ? opts.common : (!book || Season.bookOrder(s, g)[0] === book);
-    const ledger = Season.awardLedger(s, id, g, ctx.calendar), L = { rows: new Map(ledger.map(r => [r.award, r])), earned: new Map() };
-    Season.completedBlocks(s, id, g).forEach(b => b.awards.forEach(a => L.earned.set(a, { date: b.date, noDate: b.noDate })));
-    Season.completionAwards(s, id, g).forEach(x => L.earned.set(x.award, { date: x.date, noDate: false }));
-    const jewels = g === 'Sparks' ? Season.sparkJewels(s, id, ctx.calendar).filter(j => j.book === book) : [];
+    const ledger = blank ? [] : Season.awardLedger(s, id, g, ctx.calendar), L = { rows: new Map(ledger.map(r => [r.award, r])), earned: new Map() };
+    if (!blank) { Season.completedBlocks(s, id, g).forEach(b => b.awards.forEach(a => L.earned.set(a, { date: b.date, noDate: b.noDate }))); Season.completionAwards(s, id, g).forEach(x => L.earned.set(x.award, { date: x.date, noDate: false })); }
+    const jewels = !blank && g === 'Sparks' ? Season.sparkJewels(s, id, ctx.calendar).filter(j => j.book === book) : [];
     jewels.forEach(j => L.earned.set(book + ' Blue Jewel ' + j.n, { date: j.date, noDate: false }));
     const rows = [], revRows = [];      // N12: a jewel's review rows are collected and printed after the last jewel, not under each jewel
     const addBlock = (b, scope) => {
-      const shown = Season.signsShown(s, id, scope), nds = Season.noDateSigns(s, id, scope), code = scope === 'common' ? '' : scope, names = b.awards.filter(a => a !== NO_AWARD).map(a => fillName(a, code, emblem));
+      const shown = blank ? {} : Season.signsShown(s, id, scope), nds = blank ? [] : Season.noDateSigns(s, id, scope), code = scope === 'common' ? '' : scope, names = b.awards.filter(a => a !== NO_AWARD).map(a => fillName(a, code, emblem));
       const mine = []; [{ keys: b.items, rev: false }].concat((b.review || []).length ? [{ keys: b.review, rev: true }] : []).forEach(sg => chunk4(sg.keys).forEach((ks, ci) => {
         const row = newRow(b.key), n = ks.length; row.boxes = ks.map((i, k) => { const key = b.key + '.' + i; return soCell(b.single ? '' : sg.rev ? ci * 4 + k + 1 : i, shown[key], nds.includes(key), sg.rev); }).join('') + (n < 4 ? '<td class="nb" colspan="' + (4 - n) + '"></td>' : '');
         mine.push({ row, rev: sg.rev }); }));
@@ -121,7 +121,7 @@
     t.perBook.forEach(b => addBlock(b, book));
     revRows.forEach(r => rows.push(r));
     if (g === 'Sparks' && t.bookReview) {
-      const rb = t.perBook.filter(b => (b.review || []).length), all = [].concat(...rb.map(b => b.items.concat(b.review).map(i => b.key + '.' + i))), shown = Season.signsShown(s, id, book), nds = Season.noDateSigns(s, id, book);
+      const rb = t.perBook.filter(b => (b.review || []).length), all = [].concat(...rb.map(b => b.items.concat(b.review).map(i => b.key + '.' + i))), shown = blank ? {} : Season.signsShown(s, id, book), nds = blank ? [] : Season.noDateSigns(s, id, book);
       textRow('BR', 'Review Emblem', all.filter(k => shown[k] || nds.includes(k)).length + ' of ' + all.length + ' signed: every box in the band at left, reviews too', fillName(t.bookReview.awards[0], book, emblem));
     }
     if (g === 'Sparks') {      // Blue Jewels: four cells in two rows (earned from nights present; then Given)
@@ -133,7 +133,7 @@
       rows.push(r1, r2);
     }
     if (g === 'T&T') TNT_PENDING_AWARDS.forEach(x => textRow('PEND', x.label, x.note || '', fillName(x.award, book, emblem)));
-    const ba = bookAwardFor(s, id, g, book);
+    const ba = blank ? '' : bookAwardFor(s, id, g, book);
     textRow('BA', 'Book award', g === 'Sparks' ? 'Rank and all 8 sections signed (reviews not needed)' : g === 'T&T' ? 'All 8 emblem blocks signed (Silver and Gold not needed)' : 'Trail and all 6 units signed', ba);
     // The left bands: what earns what. Outer = Book award (Sparks: from Rank to the last jewel box, reviews not needed); inner (Sparks) = Review Emblem: the review rows and the Review Emblem row. Found by row flag, not by key (a review row shares its jewel's key).
     const first = pred => rows.findIndex(pred), lastOf = pred => { for (let i = rows.length - 1; i >= 0; i--) if (pred(rows[i])) return i; return -1; };
@@ -142,32 +142,31 @@
     bands.forEach(([col, a, z, text]) => { if (a < 0 || z < a) return;
       rows[a]['b' + col] = '<td class="band" rowspan="' + (z - a + 1) + '"><div class="bt">' + esc(text) + '</div></td>'; for (let i = a + 1; i <= z; i++) rows[i]['b' + col] = ''; });
     const today = /^\d{4}-\d{2}-\d{2}$/.test(ctx.today || '') ? ctx.today : new Date().toLocaleDateString('en-CA'), bname = bk.name || '________';
-    const recv = Season.isReceivedNoDate(s, id, book) ? '✓ no date' : mdyFull(Season.receivedShown(s, id, book));
+    const recv = blank ? '' : Season.isReceivedNoDate(s, id, book) ? '✓ no date' : mdyFull(Season.receivedShown(s, id, book));
     return '<div class="rhead"><div class="r2"><span>Book: <b>' + esc(bname) + '</b></span><span>Received: <b class="rc">' + (recv ? esc(recv) : '') + '</b></span><span class="pr">Printed ' + esc(mdyFull(today)) + '</span></div>' +
       '<div class="r3">Each box: initials | date. Shaded box = review. Thick award box = earned, hand it out.</div></div>' +
       '<table class="rec"><colgroup><col style="width:0.12in"><col style="width:0.92in"><col style="width:0.95in"><col style="width:0.95in"><col style="width:0.95in"><col style="width:0.95in"><col style="width:0.10in"><col style="width:0.96in"><col style="width:0.65in"><col style="width:0.45in"></colgroup><tbody>' +
       rows.map(r => '<tr style="height:' + H + 'in">' + r.b1 + r.name + r.boxes + r.br + r.rail + '</tr>').join('') + '</tbody></table>';
   }
   // One page: the child's name, class and club year as the title, then the record body. The Progress Sheets report prints the current book.
-  function recordSheet(ctx, p, book) {
-    return '<section class="sheet portrait rec punch"><h2>' + esc(M.fullName(p) + ' — ' + M.room(p) + ' · ' + ctx.season.year) + '</h2>' + recordBody(ctx, p, book) + '</section>';
+  function recordSheet(ctx, p, book, opts) {
+    return '<section class="sheet portrait rec punch"><h2>' + esc(M.fullName(p) + ' — ' + M.room(p) + ' · ' + ctx.season.year) + '</h2>' + recordBody(ctx, p, book, opts) + '</section>';
   }
+  // N57: a blank sheet for a class: the class and the club year are printed, the name and the book are written in, nothing else is filled.
+  function blankSheet(ctx, room) {
+    return '<section class="sheet portrait rec punch"><h2>' + esc('______________ \u2014 ' + room + ' \u00b7 ' + ctx.season.year) + '</h2>' + recordBody(ctx, null, '', { blank: true, group: M.groupOf(room) }) + '</section>';
+  }
+  // The books a child has started (the handbook's book first, then every book with a sign-off), for the "every book" choice; a child with none gets one page for the current book.
+  function startedBooks(ctx, p) { const books = Season.booksStarted(ctx.season, idOf(p), M.groupOf(M.room(p))); return books.length ? books : ['']; }
 
   // ---------- the paper Achievement Record, filled in with recorded dates ----------
   // The body is recordBody (above): sign-off boxes, Given boxes, the earned / given states. Given with no known date prints a check and "no date"; announced dates are not printed.
   const NO_AWARD = 'Flight 3:16';      // finished, never handed out: the sheet has no Given box for it (as on the Progress sheet and the child's Awards)
+  // N57: the Achievement record IS the Progress sheets report with every book started. It stays as a hidden alias (saved bundles, the Person tab's Print record) with its Group and Child pickers.
   function achievement(ctx) {
-    const { master, season, opts } = ctx;
-    if (!season) return need;
-    const g = opts.group === 'T&T' ? 'T&T' : opts.group === 'Cubbies' ? 'Cubbies' : 'Sparks';
-    const kids = inGroup(master, g).filter(p => (!opts.room || M.room(p) === opts.room) && (!opts.kid || idOf(p) === opts.kid));
-    return kids.map(p => {
-      const id = idOf(p), prog = season.progress[id] || {}, hb = Season.parseHandbook(season.handbooks[id]);
-      const inG = c => ((season.config.books[c] || {}).group || g) === g;      // Sparks: one page per Sparks book started; T&T: one page per T&T book started
-      const books = [...new Set([Season.bookKey(season, hb.code)].concat(Object.keys(season.config.books).filter(c => prog[c])).filter(c => c && inG(c)))];
-      const pages = (books.length ? books : ['']).map((code, n) => sheet(M.fullName(p) + ' — ' + g + ' Achievement Record', recordBody(ctx, p, code, { common: n === 0 }), 'portrait punch', esc(M.room(p)) + ' · Club year ' + esc(season.year) + (books.length > 1 ? ' · page ' + (n + 1) : '')));
-      return pages.join('');
-    }).join('') || '<p class="status">No children in ' + esc(g) + '.</p>';
+    const g = ctx.opts.group === 'T&T' ? 'T&T' : ctx.opts.group === 'Cubbies' ? 'Cubbies' : 'Sparks';
+    const html = R.LIST.find(r => r.id === 'progressSheets').render(Object.assign({}, ctx, { opts: Object.assign({}, ctx.opts, { books: 'all', _group: g }) }));
+    return html || '<p class="status">No children in ' + esc(g) + '.</p>';
   }
 
   // ---------- end-of-year awards: each end-of-year award, with the children it goes to (earned or announced, not yet presented) ----------
@@ -315,13 +314,14 @@
     { id: 'announceList', title: 'Awards to announce (read from on club night)', render: announceList, opts: ['groupAll', 'room'] },
     { id: 'ceremony', title: 'End-of-year awards (list)', render: ceremony, opts: ['group', 'room'] },
     { id: 'awardsByChild', title: 'Awards earned (one page per child)', render: awardsByChild, opts: ['group', 'room', 'kid'] },
-    { id: 'achievement', title: 'Achievement records (Cubbies, Sparks, T&T)', render: achievement, opts: ['group', 'room', 'kid'] },
+    { id: 'achievement', title: 'Achievement records (Cubbies, Sparks, T&T)', render: achievement, opts: ['group', 'room', 'kid'], hidden: true },      // N57: an alias of Progress sheets with every book; not offered in the picker
     { id: 'standings', title: 'Game standings', render: standings, opts: ['quarter'] },      // N54: no Group picker: both groups print, one page each, and Choose pages picks
     { id: 'attendDates', title: 'Dates attended, by class', render: attendDates, opts: ['group', 'room'] },
     { id: 'handbooks', title: 'Handbooks by book', render: handbooks, opts: ['noBook'] },
     { id: 'paceWatch', title: 'Pace watch list (Sparks, T&T)', render: paceWatch, opts: ['group', 'room', 'title'] });      // 'title': the club title is typed on the Reports bar; this is the report that prints it now that the master schedule is gone
 
   R.recordSheet = recordSheet;      // the Progress Sheets report (reports.js) draws its pages with this
-  const api = { awardsByChild, achievement, standings, handbooks, paceWatch, pretty, paper, recordSheet, recordBody, bookAwardFor, TNT_PENDING_AWARDS };
+  R.blankSheet = blankSheet; R.startedBooks = startedBooks;      // N57: blank sheets, and the books a child has started
+  const api = { awardsByChild, achievement, standings, handbooks, paceWatch, pretty, paper, recordSheet, recordBody, blankSheet, startedBooks, bookAwardFor, TNT_PENDING_AWARDS };
   if (typeof module !== 'undefined') module.exports = api; else root.ReportsSeason = api;
 })(this);

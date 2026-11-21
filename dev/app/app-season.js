@@ -1191,7 +1191,7 @@
       return;
     }
     if (e.target.id === 'btnPaceWatch') { e.preventDefault(); const k = App.master.people.find(p => idOf(p) === ui.prKid), rm = Model.room(k); App.reportOptions({ group: Model.groupOf(rm), room: rm }); App.showReport('paceWatch'); return; }
-    if (e.target.id === 'btnPrPrint') { App.reportOptions({ group: Model.groupOf(Model.room(App.master.people.find(p => idOf(p) === ui.prKid))), kid: ui.prKid }); App.showReport('achievement'); }
+    if (e.target.id === 'btnPrPrint') { const kid = App.master.people.find(p => idOf(p) === ui.prKid); App.showReport('progressSheets'); App.reportOptions({ room: Model.room(kid), kid: ui.prKid, books: 'all' }); }      // N57: the child's whole record is Progress sheets with every book
   });
 
   // ---------- history ----------

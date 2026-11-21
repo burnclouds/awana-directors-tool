@@ -72,7 +72,7 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     await page.locator('#progressWrap input[data-recvnd="HG"]').click(); await page.waitForTimeout(300);
     assert.strictEqual(await page.evaluate(id => App.season.received[id].HG, kid), 'no date'); assert.strictEqual(await page.locator('#progressWrap input[data-recv="HG"]').inputValue(), '', 'no day in the box');
     assert.strictEqual(await page.locator('#progressWrap button[data-recvtoday="HG"]').count(), 0, 'Today goes once the book is received'); assert.strictEqual(await page.locator('#progressWrap input[data-recvnd="HG"]').isChecked(), true);
-    await page.evaluate(({ id, room }) => { App.reportOptions({ group: 'Sparks', room, kid: id }); App.showReport('achievement'); }, { id: kid, room: await page.evaluate(id => Model.room(App.master.people.find(p => p.x_ClubberID === id)), kid) }); await page.waitForTimeout(500);
+    await page.evaluate(({ id, room }) => { App.showReport('progressSheets'); App.reportOptions({ room, kid: id, books: 'all' }); }, { id: kid, room: await page.evaluate(id => Model.room(App.master.people.find(p => p.x_ClubberID === id)), kid) }); await page.waitForTimeout(500);
     assert(/Received: <b class="rc">✓ no date<\/b>/.test(await page.evaluate(() => document.getElementById('report').innerHTML.replace(/&#10003;/g, '✓'))), 'the printed record says no date');      // the record sheet header (was "Received: ✓ (no date)")
     await page.evaluate(() => document.querySelector('.tabs button[data-tab="person"]').click()); await page.waitForTimeout(400);
     await page.locator('#progressWrap input[data-recvnd="HG"]').click(); await page.waitForTimeout(300);

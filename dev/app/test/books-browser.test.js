@@ -32,7 +32,7 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     const r = await page.$$eval('input[data-bookdone]', els => els.map(e => ({ n: e.getAttribute('aria-label'), h: e.closest('.bdone').getBoundingClientRect().height }))); assert(r.length >= 1 && r.every(x => x.n && x.h >= 43), r.length + ' ' + JSON.stringify(r));      // one tick on the open sheet
   });
   await test('the T&T Achievement Record prints one page per book the child has started', async () => {
-    await page.evaluate(id => { window.App.reportOptions({ group: 'T&T', kid: id }); window.App.showReport('achievement'); }, kid); await page.waitForTimeout(600);
+    await page.evaluate(id => { window.App.showReport('progressSheets'); window.App.reportOptions({ room: Model.room(App.master.people.find(p => p[Model.X.ID] === id)), kid: id, books: 'all' }); }, kid); await page.waitForTimeout(600);
     const t = await page.evaluate(() => document.body.innerText); assert(/Discovery of Grace/.test(t) && /Start Zone/.test(t), 'book and Start Zone shown');
   });
   await test('no script errors', () => assert.deepStrictEqual(errs, []));

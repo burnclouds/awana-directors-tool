@@ -542,6 +542,11 @@
     if (((s.doneBooks || {})[id] || []).length) return true;
     return !!s.handbooks[id];
   }
+  // N57: the books of `group` this child has started: the handbook's book first, then every book with a sign-off (the "every book" choice of Progress sheets; the records files). Empty when none.
+  function booksStarted(s, id, group) {
+    const prog = s.progress[id] || {}, hb = parseHandbook(s.handbooks[id]), inG = c => ((s.config.books[c] || {}).group || group) === group;
+    return [...new Set([bookKey(s, hb.code)].concat(Object.keys(s.config.books).filter(c => prog[c])).filter(c => c && inG(c)))];
+  }
   function sheetsOf(s, id, group) {
     const set = new Set(), kid = s.progress[id] || {}, hb = bookKey(s, parseHandbook(s.handbooks[id]).code);
     if (hb) set.add(hb);
@@ -1609,7 +1614,7 @@
     return { keep, skipped: items.filter(it => it !== keep) };
   }
   const api = { SECTIONS, KNOWN_TOP, nightStatus, volunteerNights, volunteerExpected, addAbsence, clearAbsenceNights, clearAbsence, absenceList, FLAG_LEVELS, FLAG_NO_KID, shiftDates, freshenFake, FORMAT, VERSION, fileName, MARKS, QUARTERS, TEAMS, blank, toJson, fromJson, isRealDate, badDates, guessDate, dateClashes, fixDates, newSeason, turnoutCounts, addPastYear, addEarlierYear, seasonStart, sectionsThisSeason, defaultYear, setMark, hasNight, heldNights, newest, totals, blueJewels,
-    toHandOut, jewelWaitsForWing, addFlagReply, orphanHandbook, setHandbook, noDateBookKids, resetNoDateBooks, oddballs, fixOddball, readableCopy, setFlagReply, removeFlagReply, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
+    booksStarted, toHandOut, jewelWaitsForWing, addFlagReply, orphanHandbook, setHandbook, noDateBookKids, resetNoDateBooks, oddballs, fixOddball, readableCopy, setFlagReply, removeFlagReply, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
     setProgress, addExtraSheet, blueWingPlan, sparkJewels, heldGems, grantBlue, dropBlue, isAnnNoDate, setAnnNoDate, noDateSigns, isSignNoDate, signShown, signsShown, unsignedIn, markSignsNoDate, baseAward, jewelName, awardLabel, childBook, sparksCurrent, receivedOf, receivedShown, isReceivedNoDate, setReceived, completedBlocks, finishedBooks, bookStatus, completionAwards, setBookDone, suggestedAwards, firstNight, pastYearAwards, markPastYearsGiven, counted,
     normDriveDirs, isGivenNoDate, givenShown, isHeld, setHold, addFlag, setFlagNote, clearFlag, setFlagHidden, isFlagHidden, todoNotes, notAnAward, NOT_AWARDS, upgradeNotAwards, setBugStatus, addBugReply, removeBugReply, bugThread, bugStatusOf, BUG_STATUS, BUG_BY, noteList, bugList, flagList, flagsOf, flagsAt, flagsAtPlace, renameAward, snapshot, diff, merge3, applyChanges, record, labelOf, at, replayDiff, reconcile, tag, restoreTo, compare, kindOf, describe, MERGE_MINUTES };
   if (typeof module !== 'undefined') module.exports = api; else root.Season = api;

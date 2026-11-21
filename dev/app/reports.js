@@ -165,15 +165,26 @@
   }
   // One printable progress sheet per child, in class order, for the classes in Cubbies, Sparks and T&T. Each sheet opens on the child's current book.
   // Drawn by recordSheet (reports-season.js, which adds itself to this module): the printed record, one page per child. The on-screen entry form (App.sheets.html) is not printed any more.
+  // N57 (Mike, 2026-11-20): ONE report. opts.books: 'current' (default: the child's current book, one page each: the class binder), 'all' (a page for every book the child has started: the records files) or 'blank'
+  // (blank sheets with the class and year printed, the name and book written in: opts.blanks a class, default 3). opts.blanks with 'current' adds that many blanks after each class's sheets (the class binder).
+  // The hidden Achievement record alias passes opts._group (and uses opts.kid) to pick one group or one child.
   function progressSheets(ctx) {
     const { master, season, opts } = ctx; if (!season) return '<p class="empty">Open or start a data file first.</p>';
     if (!api.recordSheet) return '<p class="empty">Progress sheets are not available here.</p>';
+    const mode = opts.books === 'all' ? 'all' : opts.books === 'blank' ? 'blank' : 'current', nBlank = Math.max(0, parseInt(opts.blanks, 10) || 0);
     let list = kids(master).filter(p => ['Cubbies', 'Sparks', 'T&T'].includes(M.groupOf(M.room(p))));
     if (opts.room) list = list.filter(p => M.room(p) === opts.room);
-    return list.sort((a, b) => M.byRoomThenName(a, b)).map(p => {
-      const g = M.groupOf(M.room(p)), id = p[M.X.ID], book = Season.childBook(season, id) || (Season.sheetsOf(season, id, g) || [])[0] || '';
-      // onepage: the print CSS starts each child on a new page (style.css, .onepage); no script is involved.
-      return '<div class="onepage">' + api.recordSheet(ctx, p, book) + '</div>';
+    if (opts._group) list = list.filter(p => M.groupOf(M.room(p)) === opts._group);
+    if (opts.kid) list = list.filter(p => p[M.X.ID] === opts.kid);
+    const byRoom = []; list.sort((a, b) => M.byRoomThenName(a, b)).forEach(p => { const room = M.room(p), last = byRoom[byRoom.length - 1]; if (last && last.room === room) last.kids.push(p); else byRoom.push({ room, kids: [p] }); });
+    // onepage: the print CSS starts each child on a new page (style.css, .onepage); no script is involved.
+    const page = html => '<div class="onepage">' + html + '</div>', blanks = (room, n) => Array.from({ length: n }, () => page(api.blankSheet(ctx, room))).join('');
+    return byRoom.map(({ room, kids: ks }) => {
+      if (mode === 'blank') return blanks(room, nBlank || 3);
+      const sheets = ks.map(p => { const g = M.groupOf(M.room(p)), id = p[M.X.ID];
+        if (mode === 'all') return api.startedBooks(ctx, p).map((b, n) => page(api.recordSheet(ctx, p, b, { common: n === 0 }))).join('');
+        const book = Season.childBook(season, id) || (Season.sheetsOf(season, id, g) || [])[0] || ''; return page(api.recordSheet(ctx, p, book)); }).join('');
+      return sheets + (nBlank ? blanks(room, nBlank) : '');
     }).join('');
   }
   function binderAll(ctx) {
@@ -281,7 +292,7 @@
     { id: 'binderAll', title: 'Emergency, medical and photos, everyone by name (coaches binder)', render: binderAll, opts: ['quarter'] },
     { id: 'binderTeams', title: 'Color teams by group and color (coaches binder)', render: binderTeams, opts: ['order', 'quarter'] },
     { id: 'noteSheets', title: 'Coaches binder notes (a block for each club night)', render: noteSheets, opts: ['quarter'] },
-    { id: 'progressSheets', title: 'Progress sheets, each child, by class (class binder)', render: progressSheets, opts: ['room'] },
+    { id: 'progressSheets', title: 'Progress sheets, each child, by class (class binder)', render: progressSheets, opts: ['room', 'kid', 'books'] },
     { id: 'photos', title: 'No photos', render: photos },
     { id: 'uniforms', title: 'Uniform tracking', render: uniforms },
     { id: 'lessons', title: 'Lessons by week', render: lessons },
@@ -318,7 +329,7 @@
     // "Planning Center data as of" goes only under the pages that carry Planning Center contact and medical data (the same pages as a single report), not under attendance sheets or team lists.
     const CONTACT = ['binderClass', 'binderAll', 'volunteers', 'photos'], asOf = html => ctx.master && ctx.master.pcAsOf ? html.replace(/<\/h2>/g, '</h2><p class="sub asof">Planning Center data as of ' + esc(ctx.master.pcAsOf) + '</p>') : html;
     (bundle.items || []).forEach(it => { const def = LIST.find(r => r.id === it.report); if (!def) return;
-      const h = def.render(Object.assign({}, ctx, { settings, opts: Object.assign({}, ctx.opts, { room: it.room || '', group: it.group || (def.opts && def.opts.includes('groupAll') ? '' : ctx.opts.group), date, asOfFirst: !!date }) })); out.push(CONTACT.includes(def.id) ? asOf(h) : h); });
+      const h = def.render(Object.assign({}, ctx, { settings, opts: Object.assign({}, ctx.opts, { room: it.room || '', group: it.group || (def.opts && def.opts.includes('groupAll') ? '' : ctx.opts.group), date, asOfFirst: !!date, blanks: it.blanks || 0, books: it.books || '' }) })); out.push(CONTACT.includes(def.id) ? asOf(h) : h); });
     return out.join('');
   }
   const api = { LIST, DEFAULT_BUNDLES, bundlesOf, runBundle, nextQuarter, firstNightOf, esc, NIGHTS_PER_PAGE, rowsFor, TEAM_COLORS, kids, roomsOf, nightDates, uniformRows, uniformHead, UNI_HEAD, table };

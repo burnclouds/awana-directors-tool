@@ -595,7 +595,7 @@ const server = http.createServer((req, res) => {
     await page.selectOption('#awGroup', 'T&T'); await page.waitForTimeout(200); assert.strictEqual(await page.inputValue('#awRoom'), '', 'changing group clears the class');
     await page.selectOption('#awGroup', 'Sparks'); await page.waitForTimeout(150); await page.selectOption('#awRoom', rooms[1]); await page.waitForTimeout(150); await page.click('#btnAwHandPrint'); await page.waitForTimeout(300);
     assert.strictEqual(await page.evaluate(() => App.tab), 'reports'); assert.strictEqual(await page.inputValue('#oRoomSel'), rooms[1]); assert(new RegExp(rooms[1]).test(await page.textContent('#report')), 'the report is for that class');
-    for (const id of ['awardsByChild', 'achievement']) { await page.selectOption('#rSel', id); await page.waitForTimeout(200); assert(await page.isVisible('#oRoom'), id + ' has a Class picker'); }
+    for (const id of ['awardsByChild', 'progressSheets']) { await page.selectOption('#rSel', id); await page.waitForTimeout(200); assert(await page.isVisible('#oRoom'), id + ' has a Class picker'); }
     await page.selectOption('#rSel', 'awardsByChild'); await page.selectOption('#oRoomSel', rooms[1]); await page.waitForTimeout(250);
     const kidsOnPage = await page.$$eval('#report section.sheet .achild', h => h.length), inRoom = await page.evaluate(r => App.master.people.filter(p => Model.isClubber(p) && Model.isActive(p) && Model.room(p) === r).length, rooms[1]); assert.strictEqual(kidsOnPage, inRoom, 'one block per child in that class (B9: children share pages)');
     await page.close();

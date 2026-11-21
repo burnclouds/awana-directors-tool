@@ -24,8 +24,8 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   await test('coaches notes use the whole page (0.25in), with no punch margin', async () => {
     const css = await marginFor('noteSheets'); assert(!/0\.85in/.test(css), 'notes: ' + css.slice(0, 200)); assert(/@page \{ size: portrait; margin: 0\.25in;/.test(css), 'notes margin: ' + css.slice(0, 200));
   });
-  await test('progress sheets and achievement records keep the 0.85in punch margin', async () => {
-    for (const r of ['progressSheets', 'achievement']) { const css = await marginFor(r); assert(/0\.85in/.test(css), r + ': ' + css.slice(0, 200)); }
+  await test('progress sheets (current book or every book) keep the 0.85in punch margin', async () => {
+    for (const r of ['progressSheets']) { const css = await marginFor(r); assert(/0\.85in/.test(css), r + ': ' + css.slice(0, 200)); }
   });
   await test('attendance (landscape) is punched along the top, so it keeps 0.4in at the sides', async () => {
     const css = await marginFor('attendance'); assert(!/0\.85in/.test(css), 'attendance: ' + css.slice(0, 200)); assert(/size: landscape; margin: 0\.4in/.test(css), css.slice(0, 200));

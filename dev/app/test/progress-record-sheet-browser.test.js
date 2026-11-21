@@ -38,7 +38,7 @@ const TICK = '2026-10-30', ANN = '2026-12-24';      // the hidden day of a no-da
     });
     return out;      // no App.touch() here: on the Roster tab it leaves an unapplied draft, and the app then asks before the Reports tab can open (the data is already in memory)
   }, [TICK, ANN]);
-  const show = async (room, report, group, kid) => { await page.evaluate(() => document.querySelector('.tabs button[data-tab="reports"]').click()); await page.evaluate(([r, v, g, k]) => { App.reportOptions({ room: r, group: g, kid: k || '' }); App.showReport(v); }, [room, report, group, kid]); await page.waitForTimeout(700); };
+  const show = async (room, report, group, kid) => { await page.evaluate(() => document.querySelector('.tabs button[data-tab="reports"]').click()); await page.evaluate(([r, v, g, k]) => { if (v === 'achievement') { App.showReport('progressSheets'); App.reportOptions({ room: r, kid: k || '', books: 'all' }); } else { App.reportOptions({ room: r, group: g, kid: k || '' }); App.showReport(v); } }, [room, report, group, kid]); await page.waitForTimeout(700); };      // N57: the Achievement record is Progress sheets with every book
   const printed = async (room, report, group) => {
     await show(room, report, group);
     const sheets = await page.$$eval('#report .onepage', e => e.length);

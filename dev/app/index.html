@@ -234,6 +234,8 @@
       <label id="oGroup">Group <select id="oGroupSel"><option>Sparks</option><option>T&amp;T</option><option>Cubbies</option><option>Puggles</option></select></label>
       <label id="oRoom">Class <select id="oRoomSel"></select></label>
       <label id="oKid">Child <select id="oKidSel"></select></label>
+      <label id="oBooks" hidden>Books <select id="oBooksSel"><option value="current">Current book (class binders)</option><option value="all">Every book started (records files)</option><option value="blank">Blank sheets</option></select></label>
+      <label id="oBlanks" hidden>Blank sheets per class <input type="number" id="oBlanksNum" min="1" max="20" value="3" style="width:4em"></label>
       <span id="dateBar" class="barset">
       <label id="oNoBook" hidden><input type="checkbox" id="oNoBookChk"> Also list children who have not received a book</label>
       <label id="oOrder">List order <select id="oOrderSel"><option value="color">Color, then first name</option><option value="colorLast">Color, then last name</option></select></label>
@@ -673,7 +675,7 @@
         <li><b>Lessons by week</b></li>
         <li><b>Volunteer contact list</b></li>
         <li><b>Changes needed in Planning Center</b></li>
-        <li><b>Awards to hand out</b> (a strip per child, cut apart: earned and not given), <b>End-of-year awards</b> (list), <b>Awards earned</b> (one page per child), <b>Achievement records</b> (Sparks, T&amp;T, filled in with recorded dates), <b>Handbooks by book</b> (tick <i>Also list children who have not received a book</i> to add, under each group, who has no book or no date received)</li>
+        <li><b>Awards to hand out</b> (a strip per child, cut apart: earned and not given), <b>End-of-year awards</b> (list), <b>Awards earned</b> (one page per child), <b>Progress sheets</b> (Cubbies, Sparks and T&amp;T; the <i>Books</i> box picks the current book for the class binders, every book a child has started for the records files, or blank sheets, 3 a class unless you change the count; a child's <i>Print record</i> on the Person tab opens every book), <b>Handbooks by book</b> (tick <i>Also list children who have not received a book</i> to add, under each group, who has no book or no date received)</li>
         <li><b>Pace watch list (Sparks, T&amp;T)</b>: one page per class listing the children to look at: <i>needs encouragement</i>, <i>capable, slowed</i> (had a fast stretch, now quiet) and <i>steadily slow</i> (the ones who may need softer limits), each with nights attended, overall and recent pace, trend, last sign-off and core / extra counts. Choose the group and, if you like, one class. Pace is core sections signed per night attended; the page footer says how each list is decided. It is a prompt for a conversation with the teacher, not a verdict.</li>
       </ul>
       <p>The medical, emergency-contact, volunteer-contact, no-photos and color-team reports state &ldquo;Planning Center data as of&rdquo; the export date, so a printed sheet says how fresh it is. These sheets contain children&rsquo;s private details: handle the paper accordingly.</p>

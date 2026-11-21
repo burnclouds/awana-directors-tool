@@ -19,6 +19,7 @@ const hasPdftotext = (() => { try { return cp.spawnSync('pdftotext', ['-v']).sta
   await new Promise(r => server.listen(0, r));
   const browser = await chromium.launch(), page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage(), errs = []; page.on('pageerror', e => errs.push(e.message)); page.on('dialog', d => d.accept());
   await page.goto('http://localhost:' + server.address().port + '/index.html'); await page.setInputFiles('#splashFiles', [DATA]); await page.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent));
+  await page.evaluate(() => App.showTab('reports'));      // not a staged tab: the seeds below call App.touch(), and on Roster (or Options, Person...) that would leave an unapplied draft that blocks the next tab switch
   const printed = async (room, report) => {
     await page.evaluate(() => document.querySelector('.tabs button[data-tab="reports"]').click()); await page.waitForTimeout(300);
     await page.evaluate(([r, v]) => { App.reportOptions({ room: r }); App.showReport(v); }, [room, report]); await page.waitForTimeout(800);
@@ -55,7 +56,7 @@ const hasPdftotext = (() => { try { return cp.spawnSync('pdftotext', ['-v']).sta
   await test('no report prints a blank first page (a named page on the first sheet makes Chromium print one), and the paper matches the first sheet', async () => {
     if (!hasPdftotext) { console.log('       (skipped: pdftotext is not installed)'); return; }
     const r = await room('Sparks'), bad = [];
-    for (const [id, paper] of [['attendance', 'L'], ['binderClass', 'P'], ['achievement', 'P'], ['volunteers', 'P'], ['progressSheets', 'P'], ['emergency', 'L']]) {
+    for (const [id, paper] of [['attendance', 'L'], ['binderClass', 'P'], ['volunteers', 'P'], ['progressSheets', 'P'], ['emergency', 'L']]) {
       const { buf } = await printed(r, id), f = path.join(os.tmpdir(), 'awana-blank-' + process.pid + '.pdf'); fs.writeFileSync(f, buf);
       const first = cp.spawnSync('pdftotext', ['-f', '1', '-l', '1', f, '-'], { encoding: 'utf8' }).stdout.replace(/\s/g, ''), box = /MediaBox\s*\[\s*0\s+0\s+(\d+)\s+(\d+)\s*\]/.exec(buf.toString('latin1')); fs.unlinkSync(f);
       if (!first.length) bad.push(id + ': page 1 is blank'); if (box && ((+box[1] > +box[2]) ? 'L' : 'P') !== paper) bad.push(id + ': first page is ' + box[1] + 'x' + box[2]);

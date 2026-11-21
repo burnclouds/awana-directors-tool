@@ -22,7 +22,7 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   const PAPER = 790, PAGE_H = 9.9 * 96;      // the window a little wider than the 7.5in of paper, for the scrollbar and page padding the print view adds; checked against a real PDF (one page per book)      // 8.5in less 0.5in margins wide; 11in less margins high, a little to spare
   for (const [group, id, books] of [['Sparks', ids.sp, 2], ['T&T', ids.tt, 2]]) {
     await test(group + ': one sheet per book, each short enough for one page, with the sheet\'s own record on it', async () => {
-      await page.evaluate(([g, i]) => { App.reportOptions({ group: g, kid: i }); App.showReport('achievement'); }, [group, id]); await page.waitForTimeout(600);
+      await page.evaluate(([g, i]) => { App.showReport('progressSheets'); App.reportOptions({ room: Model.room(App.master.people.find(p => p[Model.X.ID] === i)), kid: i, books: 'all' }); }, [group, id]); await page.waitForTimeout(600);
       await page.setViewportSize({ width: PAPER, height: 1000 }); await page.emulateMedia({ media: 'print' }); await page.waitForTimeout(300);
       const h = await page.$$eval('#report .sheet', e => e.map(x => Math.round(x.getBoundingClientRect().height)));
       await page.emulateMedia({ media: 'screen' }); await page.setViewportSize({ width: 1280, height: 900 });
@@ -31,7 +31,7 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   }
   await test('the Pilot Wing and Red Jewel 1 are one cell, Wings/Red 1 (N56), with its own Given boxes: given when both are given (no book code)', async () => {
     await page.evaluate(id => { const A = App, S = Season; S.addAward(A.season, '2026-10-21', id, 'WR Pilot Wing'); S.addAward(A.season, '2026-10-21', id, 'WR Red Jewel 1'); S.setGiven(A.season, id, 'WR Red Jewel 1', '2026-10-28'); A.touch(); }, ids.sp);
-    const cell = async () => { await page.evaluate(i => { App.reportOptions({ group: 'Sparks', kid: i }); App.showReport('achievement'); }, ids.sp); await page.waitForTimeout(600);
+    const cell = async () => { await page.evaluate(i => { App.showReport('progressSheets'); App.reportOptions({ room: Model.room(App.master.people.find(p => p[Model.X.ID] === i)), kid: i, books: 'all' }); }, ids.sp); await page.waitForTimeout(600);
       return page.evaluate(() => { const sheet = [...document.querySelectorAll('#report .sheet')].find(x => /Wingrunner/.test(x.textContent)), all = [...sheet.querySelectorAll('td.an')].map(x => x.querySelector('span').textContent), a = [...sheet.querySelectorAll('td.an')].find(x => x.querySelector('span').textContent === 'Wings/Red 1'); return { all, cls: a ? a.className : '', date: a ? a.nextElementSibling.querySelector('.v').textContent : '', boxes: a ? a.nextElementSibling.classList.contains('gd') && a.nextElementSibling.nextElementSibling.classList.contains('gi') : false }; }); };
     let c = await cell(); assert(c.all.includes('Wings/Red 1') && !c.all.some(x => /Pilot Wing$|Red Jewel 1$/.test(x)), 'one merged cell: ' + c.all.join(' | ')); assert(c.boxes, 'its two Given boxes (date and initials)');
     assert(/\be\b/.test(c.cls) && !/\bg\b/.test(c.cls), 'only Red Jewel 1 is given, so the cell is still earned, not given: ' + c.cls);

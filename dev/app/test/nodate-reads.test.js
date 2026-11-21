@@ -62,8 +62,6 @@ const ALLOWED = [   // [file, enclosing function or const, why it is safe]
   ['app-season.js', 'all', 'presence test for the Given box; the earned date uses er.noDate'],
   ['app-season.js', 'slots', 'presence test, together with isGivenNoDate'],
   ['pace.js', 't', 'reads the keys, then takes dates from Season.signsShown'],
-  ['reports-season.js', 'id', 'reads the sign-offs, dates come from Season.signsShown'],
-  ['reports-season.js', 'books', 'presence test to decide which books to list'],
   ['reports-season.js', 'missing', 'presence test: has the child received the book'],
   ['reports.js', 'k', 'prints a check mark with "(no date)" for the uniform flag'],
   ['stats.js', 'sections', 'counts sign-offs, shows no date'],
