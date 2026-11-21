@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-todo.js'] = '1.23.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-todo.js'] = '1.24.0';
 // To do tab: opens when a Planning Center export has been imported. Shows the file check for that export, what the import did,
 // and everything that still needs doing (todo.js computes it from the roster, so it stays right as you fix things).
 // An item can be ignored (accepted as it is): it is hidden and not counted until you bring it back. Ignored items are kept in the data file (config.todoIgnored), so they stay ignored next week; without a data file they last for the session.
