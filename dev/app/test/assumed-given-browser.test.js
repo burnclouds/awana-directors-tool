@@ -22,11 +22,11 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   await tab('debug'); await page.waitForTimeout(400);
   await test('Count finds the Given dates the History never saw, with the children and the days', async () => {
     await page.click('#dbgAssumedCount'); await page.waitForTimeout(300); const t = await page.textContent('#debugWrap');
-    assert(/3 Given dates for 2 children, on 10\/28 \(3\)/.test(t), t.slice(t.indexOf('Given dates nobody'), t.indexOf('Given dates nobody') + 400));
+    assert(/3 Given entries for 2 children, on 10\/28 \(3\)/.test(t), t.slice(t.indexOf('Given dates missing from History'), t.indexOf('Given dates missing from History') + 400));
   });
   await test('a Given date a person ticks is not counted; Clear removes the others, the awards stay announced, and Undo brings them back', async () => {
     await tab('awards'); await page.waitForTimeout(300); await page.evaluate(id => { Season.setGiven(App.season, id, 'HG Green Jewel 1', '2026-11-03'); App.touch(); }, ids[0]);
-    await tab('debug'); await page.waitForTimeout(300); await page.click('#dbgAssumedCount'); await page.waitForTimeout(300); assert(/3 Given dates for 2 children/.test(await page.textContent('#debugWrap')), 'three of the four');
+    await tab('debug'); await page.waitForTimeout(300); await page.click('#dbgAssumedCount'); await page.waitForTimeout(300); assert(/3 Given entries for 2 children/.test(await page.textContent('#debugWrap')), 'three of the four');
     await page.click('#dbgAssumedClear'); await page.waitForTimeout(400);
     const r = await page.evaluate(([a, b]) => ({ g: JSON.stringify(App.season.given), ann: Object.keys(App.season.awards['2026-10-28']).length }), ids); assert.strictEqual(r.ann, 2, 'still announced'); assert.strictEqual(r.g, JSON.stringify({ [ids[0]]: { 'HG Green Jewel 1': '2026-11-03' } }), 'only the one a person entered is left: ' + r.g);
     await tab('awards'); await page.waitForTimeout(300); await page.click('#btnUndo'); await page.waitForTimeout(400); assert.strictEqual(await page.evaluate(() => Object.values(App.season.given).reduce((n, g) => n + Object.keys(g).length, 0)), 4, 'Undo restores them');

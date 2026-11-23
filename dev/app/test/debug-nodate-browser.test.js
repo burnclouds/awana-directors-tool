@@ -1,4 +1,4 @@
-// Debug tab: "Books with no dates" counts the bare book codes with no dates, lists them, and Reset clears them (a child with a date is not touched). Invented test club only.
+// Debug tab: "Records that look wrong" lists bare handbook codes and offers to clear them (a child with a date is not touched). Invented test club only.
 // Usage: NODE_PATH=<dir with playwright> node test/debug-nodate-browser.test.js
 const assert = require('assert'), fs = require('fs'), http = require('http'), path = require('path');
 const { chromium } = require('playwright');
@@ -17,11 +17,13 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     App.season.handbooks[a] = 'WR'; App.season.handbooks[b] = 'AS'; App.season.progress[b] = { AS: { 'AS1.1': '2026-11-05' } }; delete App.season.progress[a]; App.touch(); return { a, b }; });
   await page.evaluate(() => App.tabs.debug()); await page.waitForTimeout(200);
   await test('the count finds the bare code with no dates, and lists the child', async () => {
-    await page.evaluate(() => document.getElementById('dbgNoDateCount').click()); await page.waitForTimeout(200);
-    const t = await page.textContent('#debugWrap'); const sec = t.slice(t.indexOf('Books with no dates'), t.indexOf('Open now')); assert(/\d+ child/.test(sec) && /WR/.test(sec), sec.slice(0, 300));
+    await page.evaluate(() => document.getElementById('dbgOddCheck').click()); await page.waitForTimeout(200);
+    const heading = page.getByRole('heading', { name: /^Handbook code with no book records \(\d+\)$/ });
+    assert(await heading.isVisible());
+    assert.match(await heading.locator('xpath=following-sibling::p[1]').textContent(), /WR alone/);
   });
   await test('Reset clears the bare code; a child with a sign-off keeps theirs', async () => {
-    await page.evaluate(() => document.getElementById('dbgNoDateReset').click()); await page.waitForTimeout(300);
+    await page.locator('[data-oddfix="bare-handbook"]').click(); await page.waitForTimeout(300);
     const h = await page.evaluate(([a, b]) => [App.season.handbooks[a], App.season.handbooks[b]], [ids.a, ids.b]);
     assert.strictEqual(h[0], undefined, 'bare code cleared'); assert.strictEqual(h[1], 'AS', 'child with a sign-off unchanged');
   });

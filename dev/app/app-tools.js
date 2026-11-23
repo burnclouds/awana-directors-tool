@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.10.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.10.3';
 // Debug and Validate tabs. Debug: which version of every file is running, what is open, and the dates of the CSV/JSON files.
 // Validate: check a data file, Planning Center export or older CSV for problems without opening it into the app.
 (function () {
@@ -47,65 +47,82 @@
   let assumed = null;
   function assumedHtml() {
     const s = App.season; if (!s) return '';
-    let h = '<h3>Given dates nobody entered</h3><p class="status">Given is only ever entered by a person. An older version of the app, opening a file from before Given was tracked, marked every announced award as given on the night it was announced. <b>Count</b> finds the Given dates the History never shows anyone entering; <b>Clear</b> removes them, and those awards then wait under <i>Announced, not yet given</i>.</p>';
+    let h = '<h3>Given dates missing from History</h3>' +
+      '<p class="status">Counts Given entries for this season that have no matching entry in History. An older version marked imported awards Given on the night they were announced. For example, a patch announced on Oct 7 could also show Given on Oct 7 without a History entry for that action.</p>' +
+      '<p class="status"><b>Clear these Given entries</b> removes those Given marks and preserves the announcements. Announced awards that still need handing out can return to <i>Announced, not yet given</i>. Use Undo to restore the marks.</p>';
     if (!assumed) return h + '<p><button type="button" id="dbgAssumedCount">Count them</button></p>';
-    if (!assumed.n) return h + '<p class="ok">None: every Given date in this file was entered by a person.</p><p><button type="button" id="dbgAssumedCount">Count again</button></p>';
-    return h + '<p><b>' + assumed.n + ' Given date' + (assumed.n === 1 ? '' : 's') + '</b> for ' + assumed.kids + ' child' + (assumed.kids === 1 ? '' : 'ren') + ', on ' + assumed.days.map(d => esc(d[0].slice(5).replace('-', '/')) + ' (' + d[1] + ')').join(', ') + '.</p>' +
-      '<p><button type="button" id="dbgAssumedClear" class="primary">Clear these ' + assumed.n + ' Given dates</button> <button type="button" id="dbgAssumedCount">Count again</button></p>';
+    if (!assumed.n) return h + '<p class="ok">No matching Given entries found.</p><p><button type="button" id="dbgAssumedCount">Count again</button></p>';
+    return h + '<p><b>' + assumed.n + ' Given entr' + (assumed.n === 1 ? 'y' : 'ies') + '</b> for ' + assumed.kids + ' child' + (assumed.kids === 1 ? '' : 'ren') + ', on ' + assumed.days.map(d => esc(d[0].slice(5).replace('-', '/')) + ' (' + d[1] + ')').join(', ') + '.</p>' +
+      '<p><button type="button" id="dbgAssumedClear" class="primary">Clear these ' + assumed.n + ' Given entr' + (assumed.n === 1 ? 'y' : 'ies') + '</button> <button type="button" id="dbgAssumedCount">Count again</button></p>';
   }
-  // Books with no dates (N38 follow-up): a handbook that is only a book code, for a child with no date of any kind. Counted first, reset only on your say-so; Undo takes it back.
-  let noDate = null;
-  function noDateHtml() {
-    const s = App.season; if (!s) return '';
-    let h = '<h3>Books with no dates</h3><p class="status">A child whose only book is a bare code (for example WR) with no date and nothing else recorded: the Progress sheet opens on that code. <b>Reset</b> clears those codes so the sheet opens on the group\'s default book (Hangglider for Sparks, the club book for Cubbies and T&amp;T). Children with any date are never touched. Undo takes it back.</p>';
-    if (!noDate) return h + '<p><button type="button" id="dbgNoDateCount">Count them</button></p>';
-    if (!noDate.n) return h + '<p class="ok">None: no child has a bare book code with no dates.</p><p><button type="button" id="dbgNoDateCount">Count again</button></p>';
-    return h + '<p><b>' + noDate.n + ' child' + (noDate.n === 1 ? '' : 'ren') + '</b>:</p><ul>' + noDate.rows.map(r => '<li>' + esc(r.name) + ' (' + esc(r.room) + '): ' + esc(r.code) + '</li>').join('') + '</ul>' +
-      '<p><button type="button" id="dbgNoDateReset" class="primary">Reset these ' + noDate.n + ' book' + (noDate.n === 1 ? '' : 's') + '</button> <button type="button" id="dbgNoDateCount">Count again</button></p>';
-  }
-  // N39: records that look wrong. Season.oddballs lists them (nothing is changed by listing); a fix button appears only for a check whose fix loses nothing, and one click is one Undo step. Names are shown on this screen only.
-  // A bare handbook code is the "Books with no dates" section above, so it is not listed twice here.
   let odd = null;
   const ODD = {
-    'uniform-given-conflict': ['Uniform Given out date with a no-date flag', 'Clear the no-date flag and keep the recorded Given out date.'],
-    'cubbies-handbook': ['Received Cubbies book differs from current handbook', 'The received date alone does not mark a Cubbies book current. Assign a handbook where exactly one unfinished book was received and the handbook field is empty. Review the other records on the Person tab.'],
-    'handbook-group': ['Handbook for another class\'s book', 'The handbook names a book that belongs to a different group from the child\'s class. A bare code can be cleared; one with a date or a note is left for you to look at.'],
-    'received-book': ['Received date with no matching book', 'A received date for a book that is not in the book list, or belongs to another group. These hold a date, so they are only shown: fix the book list or the date on the child\'s Person page.'],
-    'progress-book': ['Sign-offs under an unknown book', 'Sign-off dates kept under a book that is no longer in the book list. They are only shown: add the book back in Options, or move the dates by hand.'],
-    'flag-target': ['Notes about a missing child or book', 'A note or flag whose child has left the roster or whose book is no longer in the book list. A note is what a leader wrote, so these are only shown.'],
-    'team-color': ['Color that is not one of the four', 'A quarter\'s color that is not Red, Blue, Green or Yellow. Only shown: change it on the Teams tab or the child\'s Person page.'],
-    'award-duplicate': ['Same award listed twice in one night', 'An award repeated in one night\'s announced list. One copy is kept.'],
-    'note-with-reply-text': ['Note that contains its own reply', 'An older Edit copied a note\'s replies into the note\'s text. Only shown: open the note on To do, press Edit, and remove the copied reply text (the replies themselves are kept as separate messages).'],
-    'award-twice': ['Same award announced on more than one night', 'The same award announced on two nights. It may be right (a repeat announcement), so it is only shown.']
+    'uniform-given-conflict': ['Uniform Given out date with a no-date flag',
+      'Finds uniforms marked both with a Given out date and as given with no date. For example, a vest shows Oct 7 and still has the no-date box checked.',
+      'Clear uniform no-date flags clears the checkbox and keeps Oct 7.'],
+    'started-book-no-records': ['Red book tabs without receipt or sign-offs',
+      'Finds red book tabs under Person → Progress with neither a received entry nor sign-offs. For example, a Sparks child working in Wingrunner can have a red Hangglider tab from a Reviews completed before joining mark alone.',
+      'Review the book under Person → Progress.'],
+    'bare-handbook': ['Handbook code with no book records',
+      'Finds a handbook code on a record with no handbook date or note, book receipt, book sign-offs, completion marks, or extra sheets. For example, WR alone can make Progress open on Wingrunner.',
+      'Clear handbook codes empties the Handbook field. Progress can then open on the group’s default book.'],
+    'handbook-group': ['Handbook for another class’s book',
+      'Finds a handbook code from another club group. For example, a T&T child has WR (Wingrunner), a Sparks book.',
+      'Clear handbook codes empties the Handbook field on rows marked for the fix. Review assignments with a date or note under Person.'],
+    'received-book': ['Received date with no matching book',
+      'Finds received entries for unknown books or books from another group. For example, a Cubbies child has a received entry for Hangglider.',
+      'Review the received entry under Person → Progress or check the book list in Options.'],
+    'progress-book': ['Sign-offs under an unknown book',
+      'Finds sign-offs stored under a code missing from Options. For example, a signed section still uses the code ZZ after that book was removed.',
+      'Review the book list in Options and restore the book if the code is correct.'],
+    'flag-target': ['Notes about a missing child or book',
+      'Finds notes linked to a child or book missing from the file. For example, a note is tied to a progress sheet for a book removed from Options.',
+      'Review the original note on To do.'],
+    'team-color': ['Unknown team color',
+      'Finds quarterly team colors outside Red, Blue, Green and Yellow. For example, a child’s Q2 entry says Purple.',
+      'Correct the quarter under Color team games or on the child’s Person page.'],
+    'award-duplicate': ['Same award listed twice in one night',
+      'Finds repeated announcements for the same child and night. For example, a child has two entries for the same patch on Oct 7.',
+      'Keep one announcement removes extra copies of each repeated award from that child’s list for that night. Announcements for other nights and Given entries stay recorded.'],
+    'note-with-reply-text': ['Note that contains its own reply',
+      'Finds notes containing the text of a saved reply. For example, “Spoke with the parent” appears in both the note and its reply.',
+      'If the text was copied there by mistake, edit the original note on To do. The reply has its own record.'],
+    'award-twice': ['Same award announced on more than one night',
+      'Finds the same child and award on different announcement dates. For example, the same patch was announced Oct 7 and Oct 14.',
+      'Review both dates on Person → Progress. A repeated announcement may be intentional.']
   };
   const plural = n => n === 1 ? '' : 's';
   const FIXWORD = {
-    clearHandbook: n => 'Clear these ' + n + ' handbook code' + plural(n),
-    dedupeAwards: n => 'Keep one copy in these ' + n,
-    clearUniformGivenFlag: n => 'Clear ' + n + ' uniform no-date flag' + plural(n),
-    assignCubbiesHandbook: n => 'Assign ' + n + ' received Cubbies handbook' + plural(n)
+    clearHandbook: n => 'Clear ' + n + ' handbook code' + plural(n),
+    dedupeAwards: n => 'Keep one announcement per award in ' + n + ' list' + plural(n),
+    clearUniformGivenFlag: n => 'Clear ' + n + ' uniform no-date flag' + plural(n)
   };
   const FIXLOG = {
     clearHandbook: n => 'cleared ' + n + ' handbook code' + plural(n),
     dedupeAwards: n => 'kept one copy of ' + n + ' award list' + plural(n),
-    clearUniformGivenFlag: n => 'cleared ' + n + ' uniform no-date flag' + plural(n),
-    assignCubbiesHandbook: n => 'assigned ' + n + ' received Cubbies handbook' + plural(n)
+    clearUniformGivenFlag: n => 'cleared ' + n + ' uniform no-date flag' + plural(n)
   };
   const oddGroup = id => { const p = App.master && App.master.people.find(x => x[Model.X.ID] === id); return p && Model.isClubber(p) ? Model.groupOf(Model.room(p)) : ''; };
-  const oddList = s => Season.oddballs(s, oddGroup).filter(r => r.check !== 'bare-handbook');
+  const oddList = s => Season.oddballs(s, oddGroup);
   function oddHtml() {
     const s = App.season; if (!s) return '';
-    let h = '<h3>Records that look wrong</h3><p class="status">Checks uniform dates, handbook assignments, book dates, notes, team colors and awards. <b>Check</b> only looks. A fix button appears where the correction preserves recorded information. Undo takes a fix back.</p>';
-    if (!odd) return h + '<p><button type="button" id="dbgOddCheck">Check the file</button></p>';
-    if (!odd.length) return h + '<p class="ok">None found.</p><p><button type="button" id="dbgOddCheck">Check again</button></p>';
+    const explain = ([, example, action]) => '<p class="status">' + esc(example) + '</p><p class="status">' + esc(action) + '</p>';
+    const guide = '<details><summary>What this checks</summary>' + Object.values(ODD).map(check =>
+      '<h4>' + esc(check[0]) + '</h4>' + explain(check)).join('') + '</details>';
+    const button = '<p><button type="button" id="dbgOddCheck">' + (odd ? 'Check again' : 'Check the file') + '</button></p>';
+    let h = '<h3>Records that look wrong</h3><p class="status">Check the file to preview the findings. Each fix button shows how many records it will change. Use Undo to reverse a fix.</p>' + button;
+    if (!odd) return h + guide;
+    if (!odd.length) return h + '<p class="ok">None found.</p>' + guide;
     const name = id => { const p = App.master && App.master.people.find(x => x[Model.X.ID] === id); return p ? Model.fullName(p) + (Model.room(p) ? ' (' + Model.room(p) + ')' : '') : id ? '(not on the roster)' : '(no child)'; };
-    h += Object.keys(ODD).map(c => {
+    h += Object.entries(ODD).map(([c, check]) => {
       const rs = odd.filter(r => r.check === c); if (!rs.length) return '';
       const fixes = rs.filter(r => r.fix), kind = fixes.length && fixes[0].fix;
-      return '<h4>' + esc(ODD[c][0]) + ' (' + rs.length + ')</h4><p class="status">' + esc(ODD[c][1]) + '</p><ul>' + rs.map(r => '<li>' + esc(name(r.id)) + ': ' + esc(r.text) + '</li>').join('') + '</ul>' +
+      const mixed = fixes.length > 0 && fixes.length < rs.length;
+      return '<h4>' + esc(check[0]) + ' (' + rs.length + ')</h4>' + explain(check) +
+        '<ul>' + rs.map(r => '<li>' + esc(name(r.id)) + ': ' + esc(r.text) + (mixed ? ' <b>' + (r.fix ? 'Included in fix' : 'Review manually') + '</b>' : '') + '</li>').join('') + '</ul>' +
         (fixes.length ? '<p><button type="button" class="primary" data-oddfix="' + c + '">' + esc(FIXWORD[kind](fixes.length)) + '</button></p>' : '');
     }).join('');
-    return h + '<p><button type="button" id="dbgOddCheck">Check again</button></p>';
+    return h + guide;
   }
   // N40 Option A: a second, read-only copy of the data file with every code spelled out. Made on request, downloaded to this computer (never to Google Drive), and the data file is not changed.
   function readableHtml() {
@@ -152,7 +169,7 @@
       '<p><a href="version-history.html" target="_blank" rel="noopener">Version history: every version and lettered sub-version, from 1.44 on</a></p>' +
       '<h3>Scripts on this page (' + scripts.length + ')</h3>' + table(['Script', 'Version'], scripts) +
       '<h3>Planning Center columns</h3>' + (App.master ? App.pcColumns.html() : '<p class="status">No roster is open.</p>') +
-      assumedHtml() + noDateHtml() + oddHtml() + readableHtml() + '<h3>Open now</h3>' + (open ? table(['', ''], open) : '<p class="status">No data file is open.</p>') +
+      assumedHtml() + oddHtml() + readableHtml() + '<h3>Open now</h3>' + (open ? table(['', ''], open) : '<p class="status">No data file is open.</p>') +
       '<h3>Files opened this session</h3>' + (App.opened.length ? table(FILE_HEAD, App.opened.map(fileRow)) : '<p class="status">None yet. Import files from the top bar, or check some here.</p>') +
       '<p><label class="btn">Check files&hellip;<input type="file" id="dbgFiles" multiple class="vh" accept=".csv,.json,.txt,text/csv,application/json,text/plain"></label> <span class="status">reads the dates and counts inside each file; nothing is opened into the app</span></p>' +
       '<h3>Browser</h3>' + table(['', ''], [['Address', esc(location.protocol + '//' + (location.host || '') + location.pathname)], ['Time zone', esc(Intl.DateTimeFormat().resolvedOptions().timeZone)],
@@ -179,14 +196,12 @@
   });
   $('debugWrap').addEventListener('click', e => {
     const id = e.target.id, s = App.season;
-    if (s && id === 'dbgNoDateCount') { const ids = Season.noDateBookKids(s); noDate = { n: ids.length, rows: ids.map(kid => { const p = App.master && App.master.people.find(x => x[Model.X.ID] === kid); return { name: p ? Model.fullName(p) : '(not on the roster)', room: p ? Model.room(p) : '', code: String(s.handbooks[kid] || '').trim().split(/\s+/)[0] }; }) }; renderDebug(); return; }
-    if (s && id === 'dbgNoDateReset') { if (!noDate || !noDate.n) return; const n = Season.resetNoDateBooks(s); noDate = null; App.touch(); renderDebug(); App.done(n + ' book code' + (n === 1 ? '' : 's') + ' with no dates cleared. Each sheet opens on its group\'s default book now. Undo takes it back.'); return; }
     if (s && id === 'dbgOddCheck') { odd = oddList(s); renderDebug(); return; }
     if (s && id === 'dbgReadable') { App.testGate(e.target, () => App.download('awana-' + s.year + '-READABLE-' + App.today().replace(/-/g, '') + '.json', JSON.stringify(Season.readableCopy(s), null, 1), 'application/json', { local: true })); return; }
     const fixCheck = e.target.dataset && e.target.dataset.oddfix;
     if (s && fixCheck) {      // one click is one History entry of its own (labelled, never folded into an earlier edit) and one Undo step
       const rows = oddList(s).filter(r => r.check === fixCheck && r.fix);
-      const fixed = rows.filter(r => Season.fixOddball(s, r, oddGroup));
+      const fixed = rows.filter(r => Season.fixOddball(s, r));
       const n = fixed.length;
       if (n && fixed[0].fix === 'clearUniformGivenFlag') {
         // History syncs from the live roster, so apply the correction there as well.
@@ -199,7 +214,7 @@
     if (!s || !['dbgAssumedCount', 'dbgAssumedClear'].includes(id)) return;
     if (id === 'dbgAssumedCount') { const l = Season.assumedGiven(s), by = {}; l.forEach(x => { by[x.date] = (by[x.date] || 0) + 1; }); assumed = { n: l.length, kids: new Set(l.map(x => x.id)).size, days: Object.keys(by).sort().map(d => [d, by[d]]) }; renderDebug(); return; }
     if (!assumed) return;      /* the count came first; clearing is done at once, with Undo (UX-20) */
-    const n = Season.clearAssumedGiven(s); assumed = null; App.touch(); renderDebug(); App.done(n + ' Given date' + (n === 1 ? '' : 's') + ' that nobody entered cleared. The awards stay announced and wait under "Announced, not yet given".');
+    const n = Season.clearAssumedGiven(s); assumed = null; App.touch(); renderDebug(); App.done(n + ' Given entr' + (n === 1 ? 'y' : 'ies') + ' cleared. Announcement records kept. Undo restores the Given marks.');
   });
   $('debugWrap').addEventListener('change', async e => {
     if (e.target.dataset && e.target.dataset.bugstatus && App.season) {      /* a status pick is saved at once; the list follows it so the report stays in view */

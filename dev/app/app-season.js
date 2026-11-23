@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.99.5';
+(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.99.6';
 // Season tabs: Attendance, Games, Awards, Progress, History. Talks to app.js through window.App.
 // The data JSON is the only file we write: season records, roster extras, calendar and rotation. Every edit goes through touchSeason().
 (function () {
@@ -1067,9 +1067,7 @@
     const p = App.master && App.master.people.find(x => idOf(x) === ui.prKid);
     if (!p || !progressAllowed(p)) { el.innerHTML = '<p class="status">' + (p ? esc(Model.fullName(p)) + ' has no progress sheet (Puggles and volunteers do not). Their registration and attendance are on the other tabs.' : 'Pick a child first.') + '</p>'; return; }
     const g = Model.groupOf(Model.room(p));      // the child's own group picks the record (Sparks books or T&T)
-    const id = idOf(p), t = season.config.progress[g], prog = season.progress[id] || {}, codes0 = g === 'T&T' ? Season.bookOrder(season, 'T&T') : g === 'Cubbies' ? ['AS', 'HC'].filter(c => season.config.books[c]).concat(Object.keys(season.config.books).filter(c => !['AS', 'HC'].includes(c) && Season.bookGroup(season, c) === 'Cubbies')) : ['HG', 'WR', 'SS'].filter(c => season.config.books[c]).concat(Object.keys(season.config.books).filter(c => !['HG', 'WR', 'SS', 'HC'].includes(c) && (!season.config.books[c].group || season.config.books[c].group === 'Sparks')));
-    // Books of this child's sheets that are not in the group's list (a sheet added by hand from another group) are shown too.
-    const codes = codes0.concat(Season.sheetsOf(season, id, g).filter(c => !codes0.includes(c)));
+    const id = idOf(p), prog = season.progress[id] || {}, codes = Season.progressTabBooks(season, id, g);
     // The book shown first is the child's current one: the handbook on file, else the book they have the most recent progress in, else the first. It only changes when you move to another child (or change their handbook), so a book tab you pick stays picked.
     if (codes.length && (!codes.includes(ui.prBook) || ui._lastKid !== id)) ui.prBook = currentBook(id, codes, prog);
     ui._lastKid = id;
@@ -1080,11 +1078,11 @@
     // blue = the book they are working on now; plain = not started. A finished book stays green even while it is still the child's current book. The tab being looked at has an outline, so it is never mistaken for blue.
     // A check mark (or two) and the tooltip say the same in words, for anyone who cannot tell red from green.
     const tabState = c => {      // [class, mark, tooltip]
-      const s = Season.bookStatus(season, id, c);
+      const s = Season.bookTabStatus(season, id, c, cur);
       if (s === 'review') return ['st-rev', ' ✓✓', 'Finished, with the Book Review'];
       if (s === 'done') return ['st-done', ' ✓', 'Finished'];
-      if (c === cur) return ['st-cur', '', 'The book this child is in'];
-      if (s === 'started') return ['st-open', '', 'Started, not finished, and not the book they are working on'];
+      if (s === 'current') return ['st-cur', '', 'The book this child is in'];
+      if (s === 'open') return ['st-open', '', 'Started, not finished, and not the book they are working on'];
       return ['', '', ''];
     };
     const tabs = '<div class="booktabs">' + codes.map(c => { const st = tabState(c);

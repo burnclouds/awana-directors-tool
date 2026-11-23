@@ -28,7 +28,10 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   });
   await test('only a fix that loses nothing gets a button (the received date has none)', async () => {
     const btns = await page.evaluate(() => [...document.querySelectorAll('#debugWrap [data-oddfix]')].map(b => b.dataset.oddfix).sort());
-    assert.deepStrictEqual(btns, ['award-duplicate', 'handbook-group']);
+    assert.deepStrictEqual(btns.filter(b => b !== 'bare-handbook'), ['award-duplicate', 'handbook-group']);
+    const duplicate = page.getByRole('heading', { name: /^Same award listed twice in one night \(\d+\)$/ });
+    assert.match(await duplicate.locator('xpath=following-sibling::p[1]').textContent(), /two entries for the same patch on Oct 7/);
+    assert.match(await duplicate.locator('xpath=following-sibling::p[2]').textContent(), /removes extra copies/);
   });
   await test('one click clears the handbook: one History step, the date and the received book untouched, Undo brings it back', async () => {
     const before = await page.evaluate(() => App.season.history.length);
@@ -43,7 +46,7 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     await page.evaluate(() => document.querySelector('#debugWrap [data-oddfix="award-duplicate"]').click()); await page.waitForTimeout(300);
     assert.deepStrictEqual(await page.evaluate(a => App.season.awards['2026-10-07'][a], ids.a), ['Test Award 1']);
   });
-  await test('Debug corrects legacy uniform flags and missing Cubbies assignments, with Undo', async () => {
+  await test('Debug can correct legacy uniform flags and leaves Cubbies handbooks alone', async () => {
     const date = '2026-10-09';
     const id = await page.evaluate(date => {
       const p = App.master.people.find(p => Model.isClubber(p) && Model.groupOf(Model.room(p)) === 'Cubbies');
@@ -58,7 +61,6 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     }, date);
     await page.click('#dbgOddCheck');
     const uniform = page.locator('[data-oddfix="uniform-given-conflict"]');
-    const handbook = page.locator('[data-oddfix="cubbies-handbook"]');
     const honeyComb = page.locator('#progressWrap button[data-book="HC"]');
     const showProgress = () => page.evaluate(id => App.showPerson(id, { sub: 'progress' }), id);
     const values = () => page.evaluate(id => {
@@ -66,6 +68,7 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
       const v = App.season.roster.people[id].v;
       return [p[Model.UNI.GIVEN], p[Model.UNI.GIVEN_FLAG], v[Model.UNI.GIVEN_FLAG] || '', Season.childBook(App.season, id), Season.receivedShown(App.season, id, 'HC')];
     }, id);
+    const current = (await values())[3];
     await uniform.click();
     assert.deepStrictEqual((await values()).slice(0, 3), [date, '', '']);
     await page.click('#btnUndo');
@@ -74,15 +77,8 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     await showProgress();
     assert.match(await honeyComb.getAttribute('class'), /\bst-open\b/);
     await page.evaluate(() => App.showTab('debug'));
-    await handbook.click();
-    assert.deepStrictEqual((await values()).slice(3), ['HC', date]);
-    await showProgress();
-    assert.match(await honeyComb.getAttribute('class'), /\bst-cur\b/);
-    await page.click('#btnUndo');
-    assert.notStrictEqual((await values())[3], 'HC');
-    assert.match(await honeyComb.getAttribute('class'), /\bst-open\b/);
-    await page.evaluate(() => App.showTab('debug'));
-    assert(await handbook.isVisible());
+    assert(!(await section()).includes('Received Cubbies book differs'));
+    assert.deepStrictEqual((await values()).slice(3), [current, date]);
   });
   await test('no script errors', async () => { assert.strictEqual(errs.length, 0, errs.join(' | ')); });
   await browser.close(); server.close();

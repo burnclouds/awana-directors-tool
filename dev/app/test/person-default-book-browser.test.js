@@ -1,7 +1,7 @@
 // N38: which book tab a child's Progress sheet opens on, in the real app, on invented TEST data.
 //  - a Sparks child with no handbook, no progress and no received date opens on Hangglider (the first Sparks book);
 //  - a bare code left in the handbook ("WR", nothing else recorded) makes it open on WingRunner (the reported case);
-//  - Debug, Books with no dates, Reset clears that code and the sheet opens on Hangglider again.
+//  - Debug, Records that look wrong, Clear handbook codes clears that code and the sheet opens on Hangglider again.
 //  - Cubbies and T&T open on this year's book when one is set, else on the first book of the group.
 // Usage: NODE_PATH=<dir with playwright> node test/person-default-book-browser.test.js
 const assert = require('assert'), fs = require('fs'), http = require('http'), path = require('path');
@@ -29,10 +29,10 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     await page.evaluate(i => { App.season.handbooks[i] = 'WR'; }, id);
     const got = await opensOn(); assert.strictEqual(got, 'WR', 'opens on "' + got + '"');
   });
-  await test('Debug, Books with no dates, Reset clears the code and the sheet opens on Hangglider again', async () => {
+  await test('Debug, Records that look wrong, Clear handbook codes clears the code and the sheet opens on Hangglider again', async () => {
     await page.evaluate(() => App.showTab('debug')); await page.waitForTimeout(200);
-    await page.evaluate(() => document.getElementById('dbgNoDateCount').click()); await page.waitForTimeout(150);
-    await page.evaluate(() => document.getElementById('dbgNoDateReset').click()); await page.waitForTimeout(250);
+    await page.evaluate(() => document.getElementById('dbgOddCheck').click()); await page.waitForTimeout(150);
+    await page.locator('[data-oddfix="bare-handbook"]').click(); await page.waitForTimeout(250);
     assert.strictEqual(await page.evaluate(i => App.season.handbooks[i], id), undefined);
     const got = await opensOn(); assert.strictEqual(got, 'HG', 'opens on "' + got + '"');
   });

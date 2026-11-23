@@ -23,24 +23,29 @@ test('an old uniform conflict offers a correction that preserves the date', () =
   assert.strictEqual(S.fixOddball(s, found[0]), false);
 });
 
-test('a received Cubbies book can fill an empty handbook only when the choice is unambiguous', () => {
-  const s = fresh(), cubbies = () => 'Cubbies';
+test('a red tab is listed only when it has neither a received entry nor sign-offs', () => {
+  const s = fresh(), date = '2026-10-07';
+  const list = () => rows(s, 'started-book-no-records');
+  S.setHandbook(s, 'b', { code: 'WR' });
+  S.setReviewsDone(s, 'b', 'HG', true);
+  assert.strictEqual(S.bookTabStatus(s, 'b', 'HG', S.childBook(s, 'b')), 'open');
+  assert.deepStrictEqual(list(), [{ check: 'started-book-no-records', id: 'b', text: 'Hangglider has a red tab with no received entry or sign-offs.', fix: '' }]);
+  assert.strictEqual(S.fixOddball(s, list()[0]), false);
+
+  S.setReceived(s, 'b', 'HG', date);
+  assert.deepStrictEqual(list(), []);
+  S.setReceived(s, 'b', 'HG', '', { noDate: true });
+  assert.deepStrictEqual(list(), []);
+  S.setReceived(s, 'b', 'HG', '');
+  S.setProgress(s, 'b', 'HG', 'RANK.1', date);
+  assert.deepStrictEqual(list(), []);
+});
+
+test('a received Cubbies book leaves an empty handbook alone', () => {
+  const s = fresh();
   S.setReceived(s, 'a', 'HC', '2026-10-07');
-  S.setReceived(s, 'b', 'HC', '2026-10-08');
-  const list = () => S.oddballs(s, cubbies).filter(r => r.check === 'cubbies-handbook');
-  const a = list()[0];
-  S.setHandbook(s, 'a', { code: 'AS', note: 'Keep this note' });
-  assert.strictEqual(S.fixOddball(s, a, cubbies), false);
-  assert.strictEqual(list().find(r => r.id === 'a').fix, '');
-  const b = list().find(r => r.id === 'b');
-  S.setReceived(s, 'b', 'AS', '2026-10-01');
-  assert.strictEqual(S.fixOddball(s, b, cubbies), false);
-  assert.strictEqual(list().find(r => r.id === 'b').fix, '');
-  S.setReceived(s, 'b', 'AS', '');
-  assert.strictEqual(S.fixOddball(s, b, groupOf), false);
-  assert.strictEqual(S.fixOddball(s, b, cubbies), true);
-  assert.strictEqual(S.childBook(s, 'b'), 'HC');
-  assert.strictEqual(S.receivedOf(s, 'b', 'HC'), '2026-10-08');
+  assert.deepStrictEqual(S.oddballs(s, () => 'Cubbies'), []);
+  assert.strictEqual(s.handbooks.a, undefined);
 });
 
 // 1. a handbook code with nothing behind it (the N38 case)
