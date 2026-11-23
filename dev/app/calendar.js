@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.4.1';
+(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.5.0';
 // Club calendar: one row per club night or event. Stored as its own CSV so it can be rolled forward each year.
 (function (root) {
   const Csv = root.Csv || (typeof require !== 'undefined' ? require('./csv.js') : null);
@@ -8,24 +8,42 @@
   const GROUPS = ['Puggles', 'Cubbies', 'Sparks', 'T&T'], lessonCol = g => g + ' Lesson';
   const coloringCol = group => group + ' Coloring PDF';
   const coloringCols = GROUPS.map(coloringCol);
+  const extraCols = coloringCols.concat(['Start Time', 'End Time', 'Cancelled', 'No Club By Hand', 'Generated Break', 'Holiday']);
   const TYPES = ['Club night', 'Event'];
   const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
 
   function load(text) {
     const { cols, records } = Csv.toRecords(Csv.parse(text));
     if (!cols.includes('Date') || !cols.includes('Quarter')) throw new Error('Not a calendar CSV: needs Date and Quarter columns.');
-    const fields = COLS.concat(coloringCols.filter(c => cols.includes(c)));
+    const fields = COLS.concat(extraCols.filter(c => cols.includes(c)));
     const rows = records.map(r => { const o = {}; fields.forEach(c => { o[c] = r[c] || ''; }); if (!o['Puggles Lesson']) o['Puggles Lesson'] = [r['Puggles #'], r['Puggles Title']].filter(Boolean).join(' '); return o; });      // an older CSV with Puggles # and Puggles Title joins them
     rows.forEach(r => { if (!/^\d{4}-\d{2}-\d{2}$/.test(r.Date)) throw new Error('Bad date "' + r.Date + '" (use YYYY-MM-DD).'); });
     return sort(rows);
   }
   const sort = rows => rows.sort((a, b) => a.Date.localeCompare(b.Date));
   function toCsv(rows) {
-    const fields = COLS.concat(coloringCols.filter(c => rows.some(r => r[c])));
+    const fields = COLS.concat(extraCols.filter(c => rows.some(r => r[c])));
     return Csv.serialize([fields].concat(sort(rows.slice()).map(r => fields.map(c => r[c]))), true);
   }
 
   const isNight = r => r.Type !== 'Event' && r['No Club'] !== '1';
+  const stateOf = r => r.Type === 'Event' ? 'event' : isNight(r) ? 'meets' : r.Cancelled ? 'cancelled' : 'planned';
+  function setState(row, state, reason) {
+    if (row.Type === 'Event' || !['meets', 'planned', 'cancelled'].includes(state)) throw new Error('Choose Meets, No club or Cancelled for a club night.');
+    const next = Object.assign({}, row, { 'No Club': state === 'meets' ? '' : '1', 'No Club By Hand': '1' });
+    if (state === 'cancelled') next.Cancelled = String(reason || '').trim() || 'Cancelled';
+    else delete next.Cancelled;
+    delete next['Generated Break'];
+    return next;
+  }
+  const validTime = value => typeof value === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+  function timeText(start, end) {
+    const fmt = time => {
+      const [hours, minutes] = time.split(':').map(Number);
+      return (hours % 12 || 12) + (minutes ? ':' + String(minutes).padStart(2, '0') : '') + (hours < 12 ? 'am' : 'pm');
+    };
+    return validTime(start) ? fmt(start) + (validTime(end) ? '–' + fmt(end) : '') : '';
+  }
   const nights = (rows, quarter) => rows.filter(r => isNight(r) && (!quarter || r.Quarter === quarter));
   const short = root.Model ? root.Model.md : (iso => { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(iso); return m ? (+m[1]) + '/' + (+m[2]) : iso; });      // the shared formatter (model.js) when it is loaded
 
@@ -169,6 +187,6 @@
     }
     return sorted;
   }
-  const api = { COLS, GROUPS, lessonCol, coloringCol, coloringUrl, coloringSheets, tidy, lessonSettings, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, quartersIn, DAYS, weekday, dayName, offDay, offDays, recommendBreaks, generate, suggestQuarters, applyQuarters };
+  const api = { COLS, GROUPS, lessonCol, coloringCol, coloringUrl, coloringSheets, tidy, lessonSettings, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, stateOf, setState, validTime, timeText, quartersIn, DAYS, weekday, dayName, offDay, offDays, recommendBreaks, generate, suggestQuarters, applyQuarters };
   if (typeof module !== 'undefined') module.exports = api; else root.Calendar = api;
 })(this);

@@ -138,3 +138,18 @@ test('merge preserves accepted same-record corrections while rejecting new absen
     { date: '2026-10-14', reasons: { 'volunteer absence': 1 } }
   ]);
 });
+
+test('planned closures and unplanned cancellations both exclude the night and keep their distinction through CSV', () => {
+  const row = night('2026-10-07');
+  const planned = Calendar.setState(row, 'planned');
+  const cancelled = Calendar.setState(row, 'cancelled', 'Weather');
+  assert.equal(Calendar.stateOf(row), 'meets');
+  assert.equal(Calendar.stateOf(planned), 'planned');
+  assert.equal(Calendar.stateOf(cancelled), 'cancelled');
+  assert.equal(Calendar.isNight(planned), false);
+  assert.equal(Calendar.isNight(cancelled), false);
+  assert.equal(Calendar.load(Calendar.toCsv([cancelled]))[0].Cancelled, 'Weather');
+  assert.equal(Calendar.stateOf(Calendar.setState(cancelled, 'meets')), 'meets');
+  assert.equal(Calendar.timeText('10:00', '17:30'), '10am–5:30pm');
+  assert.equal(Calendar.timeText('', '17:30'), '');
+});

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.9';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.10';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -1347,11 +1347,15 @@
     if (!calendar.length) { $('calWrap').innerHTML = '<p style="padding:16px" class="status">Use Make calendar or add dates one at a time.</p>'; return; }
     if (calSub === 'lessons') { $('calWrap').innerHTML = lessonsGrid(); return; }
     const opt = (list, v) => list.map(x => '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>').join('');
-    $('calWrap').innerHTML = '<table class="roster"><thead><tr><th>Date</th><th>Day</th><th>Type</th><th>Quarter</th><th>No club</th>' + CAL_TEXT.map(c => '<th>' + esc(c) + '</th>').join('') + '<th></th></tr></thead><tbody>' +
+    $('calWrap').innerHTML = '<table class="roster"><thead><tr><th>Date</th><th>Day</th><th>Type</th><th>Quarter</th><th>Meets</th><th>Start time</th><th>End time</th>' + CAL_TEXT.map(c => '<th>' + esc(c) + '</th>').join('') + '<th></th></tr></thead><tbody>' +
       calendar.map((r, i) => '<tr data-i="' + i + '"><td><input type="date" data-c="Date" value="' + esc(r.Date) + '"></td>' +
         (Calendar.offDay(r, clubDay()) ? '<td class="dow-off" title="Club meets on ' + Calendar.DAYS[clubDay()] + 's">\u26a0 ' : '<td>') + (/^\d{4}-\d{2}-\d{2}$/.test(r.Date) ? Calendar.dayName(Calendar.weekday(r.Date)) : '') + '</td>' +
         '<td><select data-c="Type">' + opt(Calendar.TYPES, r.Type) + '</select></td><td><select data-c="Quarter">' + opt(Calendar.QUARTERS, r.Quarter) + '</select></td>' +
-        '<td><input type="checkbox" data-c="No Club"' + (r['No Club'] === '1' ? ' checked' : '') + '></td>' +
+        '<td>' + (r.Type === 'Event' ? '' : '<select data-c="State">' + [['meets', 'Meets'], ['planned', 'No club'], ['cancelled', 'Cancelled']].map(([key, label]) =>
+          '<option value="' + key + '"' + (key === Calendar.stateOf(r) ? ' selected' : '') + '>' + label + '</option>').join('') + '</select>' +
+          (Calendar.stateOf(r) === 'cancelled' ? '<input data-c="Cancelled" aria-label="Cancellation reason" placeholder="Reason" value="' + esc(r.Cancelled === 'Cancelled' ? '' : r.Cancelled) + '">' : '') +
+          (r.Holiday ? '<small> ' + esc(r.Holiday) + '</small>' : '')) + '</td>' +
+        ['Start Time', 'End Time'].map(c => '<td><input type="time" data-c="' + c + '" value="' + esc(r[c] || '') + '"></td>').join('') +
         CAL_TEXT.map(c => '<td><input type="text" data-c="' + esc(c) + '" value="' + esc(r[c]) + '" size="' + (c === 'Theme' || c === 'Notes' ? 26 : 14) + '"></td>').join('') +
         '<td><button data-del="' + i + '">Delete</button></td></tr>').join('') + '</tbody></table>';
   }
@@ -1379,7 +1383,7 @@
         '<details><summary>' + (r[pdf] ? 'Edit coloring PDF' : 'Add coloring PDF') + '</summary><input type="url" data-c="' + esc(pdf) + '" data-coloring-pdf value="' + esc(r[pdf]) + '" size="16" placeholder="https://…" aria-label="' + esc(group + ' coloring PDF, ' + date) + '"></details></td>';
     };
     const rows = calendar.map((r, i) => r.Type === 'Event' ? '' : '<tr data-i="' + i + '"><td>' + esc(Calendar.short(r.Date)) + '</td><td>' + (/^\d{4}-\d{2}-\d{2}$/.test(r.Date) ? Calendar.dayName(Calendar.weekday(r.Date)) : '') + '</td><td>' + esc(r.Theme) + '</td>' +
-      (r['No Club'] === '1' ? '<td colspan="' + groups.length + '" class="status"><b>NO CLUB</b>' + (r.Notes ? ' \u00b7 ' + esc(r.Notes) : '') + '</td>' : groups.map(g => lesson(r, g)).join('')) + '</tr>').join('');
+      (r['No Club'] === '1' ? '<td colspan="' + groups.length + '" class="status"><b>' + (r.Cancelled ? 'CANCELLED' + (r.Cancelled === 'Cancelled' ? '' : ' (' + esc(r.Cancelled) + ')') : 'NO CLUB') + '</b>' + (r.Notes ? ' \u00b7 ' + esc(r.Notes) : '') + '</td>' : groups.map(g => lesson(r, g)).join('')) + '</tr>').join('');
     return bar + '<table class="roster lessonsgrid"><thead><tr><th>Date</th><th>Day</th><th>Theme</th>' + groups.map(g => '<th>' + esc(g) + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table>';
   }
   const setLessons = fn => {
@@ -1399,7 +1403,7 @@
     const impacts = CalendarSafety.compare(App.season, calendar, candidate, App.today());
     if (impacts.blocks.length) throw new Error('This replacement affects recorded activity or locked quarters. Use Make calendar to keep those dates. ' + CalendarSafety.summary(impacts.blocks));
   }
-  const calendarStructure = ['Date', 'Type', 'Quarter', 'No Club'];
+  const calendarStructure = ['Date', 'Type', 'Quarter', 'State'];
   function structuralCalendarEdit(index, field, row, apply) {
     if (!App.season) { apply(); return; }
     const candidate = calendar.slice();
@@ -1433,19 +1437,23 @@
     if (coloring && input.trim() && !v) { t.value = r[c] || ''; App.flash('Use an HTTPS link to a coloring PDF.', 'error'); return; }
     if (coloring) { t.value = v; t.closest('details').querySelector('summary').textContent = v ? 'Edit coloring PDF' : 'Add coloring PDF'; }
     if (t.type === 'date') { const bad = Check.date(v); if (bad) { t.value = r[c] || ''; App.flash((c === 'Date' ? 'Calendar date' : c) + ': ' + bad.msg, 'error'); return; } }
-    if (v === (r[c] || '')) return;
+    if (c === 'State' ? v === Calendar.stateOf(r) : v === (r[c] || '')) return;
     if (calendarStructure.includes(c)) {
-      const index = +tr.dataset.i, next = Object.assign({}, r, { [c]: v });
-      if (c === 'No Club') {
-        next['No Club By Hand'] = '1';
-        delete next['Generated Break'];
-      }
+      const index = +tr.dataset.i, next = c === 'State' ? Calendar.setState(r, v, r.Cancelled) : Object.assign({}, r, { [c]: v });
+      if (c === 'Type' && v === 'Event') { next['No Club'] = ''; delete next.Cancelled; delete next['Generated Break']; delete next['No Club By Hand']; }
       structuralCalendarEdit(index, c, next, () => {
         calendar[index] = next; Calendar.sort(calendar); calTouch(); renderCalendar(); renderReport();
       });
       return;
     }
-    r[c] = v; calTouch(); renderReport();
+    if (c === 'Start Time' || c === 'End Time') {
+      const start = c === 'Start Time' ? v : r['Start Time'], end = c === 'End Time' ? v : r['End Time'];
+      if (end && (!start || end < start)) {
+        t.value = r[c] || ''; App.flash('Enter a start time before the end time.', 'error'); return;
+      }
+    }
+    r[c] = c === 'Cancelled' ? v.trim() || 'Cancelled' : v;
+    calTouch(); renderReport();
   }
   $('calWrap').addEventListener('change', e => { if (e.target.type !== 'date') commitCal(e.target); });
   $('calWrap').addEventListener('focusout', e => { if (e.target.type === 'date') commitCal(e.target); });
