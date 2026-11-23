@@ -1,4 +1,4 @@
-// The Bug button and the bug reports on the Debug tab, in a real browser. Invented test club only.
+// The Bug button, shared locations and earlier reports. Invented test club only.
 // Usage: NODE_PATH=<dir with playwright> node test/bug-button-browser.test.js
 const assert = require('assert'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
@@ -23,20 +23,56 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
     assert.strictEqual(await page.evaluate(() => App.season.config.bugButton), undefined, 'the key is absent while off');
   });
   await test('the Options switch shows the Bug button on every tab and is saved in the data file; turning it off removes the key', async () => {
-    await tab(page, 'options'); await page.waitForTimeout(200); await page.check('#optBugOn'); await page.waitForTimeout(150);
+    await tab(page, 'options'); await page.waitForTimeout(200); await page.check('#optBugOn'); if (await page.isVisible('#btnDraftApply')) await page.click('#btnDraftApply');
     assert.strictEqual(await page.evaluate(() => App.season.config.bugButton), true);
     for (const t of ['roster', 'stats', 'uniforms', 'debug', 'reports']) { await tab(page, t); await page.waitForTimeout(80); assert(await shown('btnBugMode'), 'Bug visible on ' + t); }
   });
-  await test('Bug mode: click a spot, write a note, and a bug report is saved with the tab, the trail and the app version; the mode turns off', async () => {
-    await tab(page, 'stats'); await page.waitForTimeout(200);
-    await page.click('#btnBugMode'); assert.strictEqual(await page.getAttribute('#btnBugMode', 'aria-pressed'), 'true');
-    await page.click('#statsWrap h3'); await page.waitForTimeout(200);
-    assert(/Bug report/.test(await page.textContent('#dlg h3')), 'the dialog says Bug report');
-    await page.fill('#flNote', 'The headings are hard to read'); await page.click('#flSave'); await page.waitForTimeout(200);
-    const b = await bugs(); assert.strictEqual(b.length, 1); assert.strictEqual(b[0].status, 'open'); assert.strictEqual(b[0].tab, 'stats');
-    assert.strictEqual(b[0].ver, await page.evaluate(() => document.querySelector('meta[name="app-version"]').content));
-    assert.strictEqual(await page.getAttribute('#btnBugMode', 'aria-pressed'), 'false', 'the mode is off');
+  let code = '';
+  const snapshot = () => page.evaluate(() => JSON.stringify({ season: App.season, settings: App.settings, dirty: App.dirty(), draft: App.draftPending(), undo: document.getElementById('btnUndo').disabled }));
+  async function openCode(value) {
+    await tab0('debug');
+    await page.fill('#dbgLocationCode', value);
+    await page.click('#dbgLocationForm button');
+  }
+  await test('Bug captures a portable attendance area and restores its filters without recording a report', async () => {
+    await tab0('attend');
+    const att = await page.evaluate(() => ({ date: document.getElementById('attDate').value, room: document.getElementById('attRoom').value }));
+    const before = await snapshot();
+    await page.click('#btnBugMode');
+    await page.click('#attRoom');
+    await page.waitForSelector('#shareLocationCode');
+    code = await page.inputValue('#shareLocationCode');
+    assert.deepStrictEqual(await page.evaluate(c => LocationCode.decode(c), code), { tab: 'attend', target: 'room', view: att });
+    await page.click('#shareLocationClose');
+    assert.strictEqual(await page.getAttribute('#btnBugMode', 'aria-pressed'), 'false');
+    await page.evaluate(() => App.places.attend.set({ date: '', room: '' }));
+    await openCode(code);
+    assert.strictEqual(await page.inputValue('#attDate'), att.date);
+    assert.strictEqual(await page.inputValue('#attRoom'), att.room);
+    assert.match(await page.getAttribute('#attRoom', 'class'), /flashflag/);
+    assert.strictEqual(await snapshot(), before);
+    assert.strictEqual((await bugs()).length, 0);
   });
+  await test('a report opens with its own quarter and leaves the shared quarter unchanged', async () => {
+    const before = await snapshot();
+    const value = await page.evaluate(() => LocationCode.encode({ tab: 'reports', target: 'preview', view: { report: 'standings', quarter: 'Q1' } }));
+    await openCode(value);
+    assert.strictEqual(await page.evaluate(() => App.tab), 'reports');
+    assert.match(await page.textContent('#bNote'), /Q1/);
+    assert.match(await page.textContent('#calNote'), /Q1/);
+    assert.strictEqual(await snapshot(), before);
+  });
+  await test('invalid codes and unavailable dates are handled without changing saved state', async () => {
+    const before = await snapshot();
+    await openCode('AW1.invalid');
+    assert.match(await page.textContent('#dbgLocationStatus'), /incomplete or damaged/);
+    const missing = await page.evaluate(() => LocationCode.encode({ tab: 'attend', view: { date: '2090-09-13' } }));
+    await openCode(missing);
+    assert.strictEqual(await page.evaluate(() => App.tab), 'attend');
+    assert.notStrictEqual(await page.inputValue('#attDate'), '2090-09-13');
+    assert.strictEqual(await snapshot(), before);
+  });
+  await page.evaluate(() => App.addFlag({ level: 'bug', note: 'The headings are hard to read', tab: 'stats', trail: ['Statistics', 'Headings'] }));
   await test('a bug report never reaches To do: the badge and the Notes and flags list are unchanged', async () => {
     await tab(page, 'todo'); await page.waitForTimeout(250);
     const t = await page.evaluate(() => ({ badge: document.getElementById('todoBadge').textContent, text: document.getElementById('tab-todo').innerText }));
@@ -51,7 +87,7 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
   });
   await test('the Debug tab lists the report; a reply is added without changing the status; a status pick is saved and the list follows it; filters work', async () => {
     await tab(page, 'debug'); await page.waitForTimeout(250);
-    assert(/Bug reports and feature requests \(1 open\)/.test(await page.textContent('#debugWrap')), 'heading with the open count');
+    assert(/Saved bug reports \(1 open\)/.test(await page.textContent('#debugWrap')), 'heading with the open count');
     assert.deepStrictEqual(await page.$$eval('#debugWrap .bugfilter button.on', b => b.map(x => x.textContent)), ['Open'], 'the list opens on Open'); assert(await page.isVisible('#debugWrap button[data-bugreply]'), 'and the open report is listed');
     await page.click('#debugWrap button[data-bugreply]'); await page.fill('#debugWrap [data-bugtext]', 'Thanks, looking at it'); await page.click('#debugWrap button[data-bugadd]'); await page.waitForTimeout(200);
     let b = await bugs(); assert.strictEqual(b[0].status, 'open', 'a reply does not change the status'); const reps = Object.values(b[0].replies || {}); assert.strictEqual(reps.length, 1); assert.strictEqual(reps[0].text, 'Thanks, looking at it'); assert.strictEqual(reps[0].by, 'leader'); assert(/^\d{4}-\d\d-\d\d$/.test(reps[0].at));
@@ -80,7 +116,7 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
     assert(await shown('debugWrap'), 'the Debug tab is still showing'); assert.deepStrictEqual(errs, []);
   });
   await test('turning the switch off hides the button but keeps the report', async () => {
-    await tab(page, 'options'); await page.waitForTimeout(200); await page.uncheck('#optBugOn'); await page.waitForTimeout(150);
+    await tab(page, 'options'); await page.waitForTimeout(200); await page.uncheck('#optBugOn'); if (await page.isVisible('#btnDraftApply')) await page.click('#btnDraftApply');
     assert.strictEqual(await page.evaluate(() => App.season.config.bugButton), undefined); await tab(page, 'stats'); await page.waitForTimeout(100);
     assert(!(await shown('btnBugMode')), 'hidden again'); assert.strictEqual((await bugs()).length, 1, 'the report is still there');
   });

@@ -114,6 +114,7 @@ NODE_PATH=<dir with playwright> node test/given-early-warning-browser.test.js   
 NODE_PATH=<dir with playwright> node test/person-list-names-browser.test.js   # the Person list shows names only (the class only for two people with the same name)
 node test/book-status.test.js   # how far a child is in a book: not started, started, finished, finished with the Book Review
 NODE_PATH=<dir with playwright> node test/book-tabs-browser.test.js   # the colored book tabs on the Progress sheet
+node test/location-code.test.js   # location code validation and portable view filters
 node test/flagtrail.test.js   # Flag anything: the trail and label rules and the stored element flag
 NODE_PATH=<dir with playwright> node test/flag-anything-browser.test.js   # the Flag button, flag mode, To do, Go
 NODE_PATH=<dir with playwright> node test/flagpop-browser.test.js   # the yellow-flag popup: read, edit, Save, Clear, placement
@@ -294,7 +295,7 @@ NODE_PATH=<dir with playwright> node test/absences-browser.test.js   # (listed a
 node test/stats-nights.test.js   # night-by-night statistics (S15): children and adults, mean, median, mode, both standard deviations, hand-worked numbers
 NODE_PATH=<dir with playwright> node test/stats-nights-browser.test.js   # the Night by night section on Statistics: span buttons, figures, phone size, print heading, no stray commas
 node test/bug-reports.test.js   # bug reports and feature requests (flag level bug): add, reply and status, kept out of the notes lists, History, merge, validation, new season
-NODE_PATH=<dir with playwright> node test/bug-button-browser.test.js   # the Bug button (Options switch), the report dialog, the Debug list with reply and filters, never on To do
+NODE_PATH=<dir with playwright> node test/bug-button-browser.test.js   # the Bug button, shared location codes, and earlier reports
 NODE_PATH=<dir with playwright> node test/ux-small-fixes-browser.test.js   # Skip to content link and the hidden file inputs out of the tab order (UX-21), the Announce heading space, the History "g" key, one Recent place per child, the menu badge words (UX-27), night labels with last/next (UX-16), phone checkbox footprint, (i) size, Move button and placeholder contrast in light and dark (UX-30)
 NODE_PATH=<dir with playwright> node test/app-ask-browser.test.js   # the app's own pop-up (app-ask.js): alert, confirm, choose, form with validation, typed phrase, queueing, nesting over another dialog, focus, Esc, the Undo message, phone layout; and the test helper `test/lib/app-dialogs.js` (`onAppDialog(page, handler)` answers the app's dialogs like native ones)
 NODE_PATH=<dir with playwright> node test/ux20-club-night-browser.test.js   # UX-20 step 1: Clear this room is done at once with an Undo message, a refused Progress sheet edit shows the app's own message, no native dialog opens (1280 and 390)
@@ -385,7 +386,7 @@ NODE_PATH=<dir with playwright> node test/browser.test.js <export.csv> <calendar
 5. Hard-refresh the page. The splash screen and the header show the version; the Debug tab shows every file's version and date.
 6. **After a deploy, update the private version history artifact.** Publish the same history file with the Artifact tool to the private link https://claude.ai/artifact/DSVoBfFjNvpxf1WcYdeyT5 (only the owner can open it until shared).
 
-Script load order matters and is enforced by `versions.test.js`: `csv, info, model, calendar, rotation, teams, catalog, season, datamerge, flagtrail, teamplan, pace, intake, check, validate, todo, reports, reports-season, slides, stats, store, app, app-ask, app-season, app-person, app-todo, app-teamgrid, app-stats, app-store, app-options, app-update, app-sw, app-info, app-flagpop, app-help, app-trail, app-merge, app-flagmode, app-flagmarks, app-tools, app-search, app-topbar`, then the optional Drive files `drive-config, drive, app-drive`.
+Script load order matters and is enforced by `versions.test.js`: `csv, info, model, calendar, rotation, teams, catalog, season, datamerge, flagtrail, location-code, teamplan, pace, intake, check, validate, todo, reports, reports-season, slides, stats, store, app, app-ask, app-season, app-person, app-todo, app-teamgrid, app-stats, app-store, app-options, app-update, app-sw, app-info, app-flagpop, app-help, app-trail, app-merge, app-flagmode, app-flagmarks, app-tools, app-search, app-topbar`, then the optional Drive files `drive-config, drive, app-drive`.
 
 ## Known open items
 

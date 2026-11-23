@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-topbar.js'] = '1.5.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-topbar.js'] = '1.5.1';
 // UX-10, UX-09: the top bar on a phone. Undo and Download stay in the bar; Redo, Flag, Bug and Search go into one "..." menu, so nothing sits off the right edge of the screen.
 // On a computer the same four buttons are in the bar as always and the "..." button is hidden (style.css). The menu only forwards a tap to the real button, so every rule those buttons have (a data file must be open, Esc leaves flag mode, Redo's disabled state) stays in one place.
 (function () {
@@ -7,7 +7,7 @@
   const ITEMS = [
     { id: 'btnRedo', label: 'Redo', key: 'redo' },
     { id: 'btnFlagMode', label: 'Flag anything', key: 'flag', toggle: true },
-    { id: 'btnBugMode', label: 'Report a bug or ask for a feature', key: 'bug', toggle: true },
+    { id: 'btnBugMode', label: 'Share a location code', key: 'bug', toggle: true },
     { id: 'btnSearch', label: 'Search people', key: 'search' },
     { id: '', label: 'Help for this tab', key: 'help' }      /* UX-08 (trial): the (i) notes and the tab's intro, reachable on a phone where the (i) icons are hidden */
   ];
