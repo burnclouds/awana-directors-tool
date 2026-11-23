@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.7.0';
+(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.7.1';
 // Club calendar: one row per club night or event. Stored as its own CSV so it can be rolled forward each year.
 (function (root) {
   const Csv = root.Csv || (typeof require !== 'undefined' ? require('./csv.js') : null);
@@ -121,6 +121,19 @@
       else out.set(row.Date, { text, kind: text ? 'missed' : 'off', reason: row.Cancelled || row.Holiday || 'No club' });
     }
     return out;
+  }
+  function lessonChanges(before, after, config) {
+    const settings = lessonSettings(config, after);
+    if (!settings.on) return [];
+    return GROUPS.filter(group => settings.groups[group].on && lessonSeries(config, group).items.length).flatMap(group => {
+      const old = lessonsFor(before, group, config), next = lessonsFor(after, group, config);
+      return [...new Set([...old.keys(), ...next.keys()])].sort().flatMap(date => {
+        const previous = old.get(date), current = next.get(date);
+        if ((!previous?.text && !current?.text) || (previous?.kind === 'hand' && current?.kind === 'hand') ||
+            (previous?.text === current?.text && previous?.kind === current?.kind)) return [];
+        return [{ group, date, before: previous, after: current }];
+      });
+    });
   }
   function coloringUrl(value) {
     if (typeof value !== 'string' || !/^https:\/\//i.test(value.trim())) return '';
@@ -268,6 +281,6 @@
     }
     return { rows: sort(result), filled, events };
   }
-  const api = { COLS, GROUPS, lessonCol, coloringCol, coloringUrl, coloringSheets, tidy, lessonSettings, lessonSeries, numberItems, lessonsFor, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, stateOf, setState, validTime, timeText, quartersIn, DAYS, weekday, dayName, offDay, offDays, recommendBreaks, generate, suggestQuarters, applyQuarters, archive, copyThemes };
+  const api = { COLS, GROUPS, lessonCol, coloringCol, coloringUrl, coloringSheets, tidy, lessonSettings, lessonSeries, numberItems, lessonsFor, lessonChanges, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, stateOf, setState, validTime, timeText, quartersIn, DAYS, weekday, dayName, offDay, offDays, recommendBreaks, generate, suggestQuarters, applyQuarters, archive, copyThemes };
   if (typeof module !== 'undefined') module.exports = api; else root.Calendar = api;
 })(this);

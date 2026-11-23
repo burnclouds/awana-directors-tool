@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-calendar-maker.js'] = '1.1.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-calendar-maker.js'] = '1.2.0';
 // Calendar maker owns a temporary form and preview. The live calendar changes only on Apply.
 (function () {
   const App = window.App, C = window.Calendar, S = window.Season, Safety = window.CalendarSafety;
@@ -76,8 +76,12 @@
     const result = Safety.propose(file, App.calendar, input, App.today());
     const protectedDates = new Set(result.kept.filter(item => !item.reasons['existing calendar row']).map(item => item.date));
     const { rows, filled, events } = C.copyThemes(result.rows, themeSource, input.themes, input.events, input.first, input.last, protectedDates);
-    return Object.assign(result, { rows, themeDates: filled, eventDates: events });
+    return Object.assign(result, { rows, themeDates: filled, eventDates: events, lessonChanges: C.lessonChanges(App.calendar, rows, file.config) });
   }
+  const lessonChange = ({ date, group, before, after }) => {
+    const label = item => !item?.text ? 'No lesson' : item.text + (item.kind === 'missed' ? ' (skipped)' : '');
+    return date + ' · ' + group + ' · ' + label(before) + ' → ' + label(after);
+  };
   function showPreview(input) {
     const result = makeProposal(input);
     preview = { input, result };
@@ -89,6 +93,7 @@
       C.QUARTERS.map(q => q + ' ' + C.nights(result.rows, q).length).join(' · ') + ' club nights</p>' +
       (result.archived.length ? '<p>' + result.archived.length + ' dates from the closed season leave the active calendar.</p>' : '') +
       previewList('Dates to add', result.added, d => d) + previewList('Existing dates kept', result.kept, reasons) +
+      previewList('Weekly lessons affected', result.lessonChanges, lessonChange) +
       previewList('Earlier themes to copy', result.themeDates, d => d) + previewList('Earlier events to copy. Verify dates', result.eventDates, d => d) +
       previewList('Dates to review in the existing file', result.existing, r => r.date + ' · ' + r.reason) +
       previewList('Changes that would affect recorded activity or locked quarters', result.blocks, reasons) +

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.12';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.13';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -1465,10 +1465,15 @@
     if (!App.season) { apply(); return; }
     const candidate = calendar.slice();
     if (row) candidate[index] = row; else candidate.splice(index, 1);
+    const lessons = Calendar.lessonChanges(calendar, candidate, App.season.config);
+    const finish = () => {
+      apply();
+      if (lessons.length && field !== 'Delete') App.flash(lessons.length + ' weekly lesson' + (lessons.length === 1 ? ' is' : 's are') + ' affected. Review Lessons by week.', 'info');
+    };
     const openFile = App.season, original = calendar[index];
     const impact = () => CalendarSafety.compare(openFile, calendar, candidate, App.today()).blocks;
     const blocks = impact();
-    if (!blocks.length) { apply(); return; }
+    if (!blocks.length) { finish(); return; }
     renderCalendar();
     if (field === 'Date' || field === 'Delete') {
       App.flash('This calendar date is protected. Add a new row instead. ' + CalendarSafety.summary(blocks), 'warn');
@@ -1482,7 +1487,7 @@
       if (JSON.stringify(calendar) !== before || JSON.stringify(impact()) !== initialImpact) {
         App.flash('The calendar or club records changed. Review the edit again.', 'warn'); return;
       }
-      apply();
+      finish();
     });
   }
   function commitCal(t) {
