@@ -23,13 +23,13 @@ const { open } = require('./lib/app-page');
     const box = page.locator('#progressWrap input[data-reviewsdone="HG"]');
     assert.strictEqual(await box.count(), 1);
     assert.match(await box.getAttribute('aria-label'), /reviews finished before/i);
-    assert(await page.locator('#progressWrap input[data-key^="RJ1."]').count() > 0, 'review rows are available before marking');
+    assert(await page.locator('#progressWrap .previews input[data-key^="RJ1."]').count() > 0, 'review rows are available before marking');
   });
   await t.test('checking it stores no review dates and the label explains how to restore the rows', async () => {
     await page.check('#progressWrap input[data-reviewsdone="HG"]'); await page.waitForTimeout(250);
     const saved = await page.evaluate(id => {
       const text = Season.toJson(App.season), opened = Season.fromJson(text);
-      return { marker: opened.doneReviews[id], progress: opened.progress[id] || {}, hidden: !document.querySelector('#progressWrap input[data-key^="RJ1."]'), note: document.querySelector('#progressWrap .previews').textContent };
+      return { marker: opened.doneReviews[id], progress: opened.progress[id] || {}, hidden: !document.querySelector('#progressWrap .previews input[data-key^="RJ1."]'), note: document.querySelector('#progressWrap .previews').textContent };
     }, id);
     assert.deepStrictEqual(saved.marker, ['HG']); assert(saved.hidden, 'review rows are collapsed while completed before');
     assert(saved.note.includes('uncheck to view or edit'), saved.note);
@@ -38,11 +38,11 @@ const { open } = require('./lib/app-page');
   await t.test('unchecking restores the editable rows and Undo restores the marker', async () => {
     await page.uncheck('#progressWrap input[data-reviewsdone="HG"]'); await page.waitForTimeout(250);
     assert.strictEqual(await page.evaluate(id => (App.season.doneReviews || {})[id], id), undefined);
-    assert(await page.locator('#progressWrap input[data-key^="RJ1."]').count() > 0, 'review rows return');
+    assert(await page.locator('#progressWrap .previews input[data-key^="RJ1."]').count() > 0, 'review rows return');
     await page.check('#progressWrap input[data-reviewsdone="HG"]'); await page.waitForTimeout(200);
     await page.click('#btnUndo'); await page.waitForTimeout(250);
     assert.strictEqual(await page.evaluate(id => (App.season.doneReviews || {})[id], id), undefined, 'Undo removes the marker');
-    assert(await page.locator('#progressWrap input[data-key^="RJ1."]').count() > 0, 'Undo restores the rows');
+    assert(await page.locator('#progressWrap .previews input[data-key^="RJ1."]').count() > 0, 'Undo restores the rows');
   });
   await t.test('no script errors', async () => assert.deepStrictEqual(errs, []));
   await t.done();

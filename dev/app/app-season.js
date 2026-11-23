@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.99.4';
+(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.99.5';
 // Season tabs: Attendance, Games, Awards, Progress, History. Talks to app.js through window.App.
 // The data JSON is the only file we write: season records, roster extras, calendar and rotation. Every edit goes through touchSeason().
 (function () {
@@ -861,6 +861,7 @@
   function sheetHtml(p, book) {
     const id = idOf(p), bg = Season.bookGroup(season, book), t = season.config.progress[bg], prog = season.progress[id] || {};
     if (!t) return '<p class="status">There is no progress sheet for this book.</p>';
+    const shownGivenWarnings = new Set();
     const fillName = (a, scope) => a.replace('{book}', scope).replace('{emblem}', (season.config.books[scope] || {}).emblem || '');
     const earnedBlocks = Season.completedBlocks(season, id, bg), earnedOf = (key, scope) => earnedBlocks.find(x => x.key === key && (x.book || 'common') === scope);
     // An empty date gets a one-tap Today button (the date picker takes two taps and a scroll on a phone); a filled one is edited in the date box.
@@ -890,7 +891,9 @@
     const givenBox = (names, earned, where) => names.map(a => { const nd = Season.isGivenNoDate(season, id, a), gd = Season.givenShown(season, id, a), ann =(Season.awardsOf(season, id).find(x => x.award === a) || {}).date || '', held = Season.isHeld(season, id, a);
       const w = where ? ' data-gbook="' + esc(where.book) + '" data-gblock="' + esc(where.block) + '" data-gitems="' + esc(where.items.join(',')) + '"' : '';
       // One compact card per award: its name, then Given (date, Today, no date) and, once earned, Announced (date, hold) side by side, wrapping on a narrow screen.
-      const warn = (gd || nd) && ui.givenWarn && ui.givenWarn[id + '|' + a], warnHtml = warn ? '<span class="pwarn" role="note"><span aria-hidden="true">&#9888;</span> Given before its section was finished: ' + warn + ' empty sign-off' + (warn === 1 ? '' : 's') + ' marked no date. This note goes away when the file is saved.</span>' : '';
+      const warningKey = id + '|' + a, warn = where && (gd || nd) && ui.givenWarn && ui.givenWarn[warningKey] && !shownGivenWarnings.has(warningKey);
+      if (warn) shownGivenWarnings.add(warningKey);
+      const warnHtml = warn ? '<span class="pwarn" role="note"><span aria-hidden="true">&#9888;</span> Given before its section was finished: ' + ui.givenWarn[warningKey] + ' empty sign-off' + (ui.givenWarn[warningKey] === 1 ? '' : 's') + ' marked no date. This note goes away when the file is saved.</span>' : '';
       return '<span class="pgive"><span class="pgname">' + esc(Season.awardLabel(season, id, a)) + '</span>' + warnHtml +
         '<span class="pgf"><label class="pitem">Given<input type="date" data-gaward="' + esc(a) + '"' + w + ' value="' + esc(gd) + '" aria-label="Given: ' + esc(Season.awardLabel(season, id, a)) + '"></label>' + (gd || nd ? '' : '<button type="button" class="todaybtn" data-gtoday="' + esc(a) + '" tabindex="-1" aria-label="Set ' + esc(a) + ' given today">Today</button>' + reuseBtn('g', a)) +
         '<label class="uov" title="Handed over, but I do not have the date. Counts as given, but no date is shown or printed."><input type="checkbox" data-gnodate="' + esc(a) + '"' + w + (nd ? ' checked' : '') + (gd ? ' disabled' : '') + ' aria-label="' + esc(a) + ' given, date unknown"> no date</label></span>' +

@@ -3,6 +3,7 @@
 // Usage: NODE_PATH=<dir with playwright> node test/binders-dialog-browser.test.js
 const assert = require('assert'), fs = require('fs'), http = require('http'), path = require('path');
 const { chromium } = require('playwright');
+require('./lib/app-dialogs'); // This test answers the missing-class dialog itself; leave it out of the legacy auto-answer shim.
 const app = path.join(__dirname, '..'), td = path.join(app, '..', 'test-data'), DATA = path.join(td, fs.readdirSync(td).find(f => /TEST.*\.json$/.test(f)));
 let passed = 0, failed = 0;
 async function test(name, fn) { try { await fn(); passed++; console.log('  ok   ' + name); } catch (e) { failed++; console.log('  FAIL ' + name + '\n       ' + String(e.message).split('\n')[0]); } }

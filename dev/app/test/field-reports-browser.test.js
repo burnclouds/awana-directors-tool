@@ -37,7 +37,7 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
     for (const w of [1280, 1366]) {
       const { page, ctx } = await open(w); await page.evaluate(() => App.showTab('uniforms')); await page.waitForSelector('#uniWrap table.uni tbody tr');
       const m = await page.evaluate(() => { const e = document.getElementById('uniWrap'); return { sw: e.scrollWidth, cw: e.clientWidth, heads: [...document.querySelectorAll('#uniWrap thead th')].map(t => t.textContent.trim()) }; });
-      assert(m.sw <= m.cw + 1, w + ': scrollWidth ' + m.sw + ' > ' + m.cw); assert(!m.heads.some(h => /parent/i.test(h)), m.heads.join('|')); assert.deepStrictEqual(m.heads.slice(0, 3), ['Name', 'Class', 'Item']); assert(m.heads.indexOf('Size') < m.heads.indexOf('Ordered') && m.heads.indexOf('Ordered') < m.heads.indexOf('Received') && m.heads.indexOf('Received') < m.heads.indexOf('Given out') && m.heads[m.heads.length - 1] === 'Notes', m.heads.join('|'));
+      assert(m.sw <= m.cw + 1, w + ': scrollWidth ' + m.sw + ' > ' + m.cw); assert(!m.heads.some(h => /parent/i.test(h)), m.heads.join('|')); assert.deepStrictEqual(m.heads.slice(0, 2), ['Name', 'Class']); assert(m.heads.indexOf('Size') < m.heads.indexOf('Ordered') && m.heads.indexOf('Size ordered') < m.heads.indexOf('Ordered') && m.heads.indexOf('Size given') < m.heads.indexOf('Ordered') && m.heads.indexOf('Ordered') < m.heads.indexOf('Received') && m.heads.indexOf('Received') < m.heads.indexOf('Given out') && m.heads[m.heads.length - 1] === 'Notes', m.heads.join('|'));
       await ctx.close();
     }
   });

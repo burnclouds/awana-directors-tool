@@ -66,10 +66,11 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 200000).unref()
   });
   await test('N4-9: on a phone the pop-up fits and the picker is easy to tap', async () => {
     await page.setViewportSize({ width: 390, height: 844 }); await page.click('#btnReportOptions');
+    await page.evaluate(() => { const b = document.getElementById('busy'), show = b.showModal.bind(b); window.__busyBox = null; b.showModal = function () { show(); const r = this.getBoundingClientRect(); window.__busyBox = { left: r.left, right: innerWidth - r.right }; }; });
     const height = await page.locator('#oRoomSel').evaluate(el => el.getBoundingClientRect().height);
     await page.selectOption('#oRoomSel', ''); await page.click('#pgDone');
-    const r = await page.evaluate(() => { const b = document.getElementById('busy'), x = b.getBoundingClientRect(); return { open: b.open, l: x.left, r: innerWidth - x.right }; });
-    assert(r.open && r.l >= 8 && r.r >= 8, JSON.stringify(r)); assert(height >= 44, 'picker height ' + height); await idle(); await page.waitForTimeout(200);
+    const r = await page.evaluate(() => window.__busyBox);
+    assert(r && r.left >= 8 && r.right >= 8, JSON.stringify(r)); assert(height >= 44, 'picker height ' + height); await idle(); await page.waitForTimeout(200);
     assert(await page.evaluate(() => document.getElementById('report').scrollWidth <= document.getElementById('report').clientWidth + 1), 'no sideways scroll'); await page.setViewportSize({ width: 1366, height: 900 });
   });
   await test('N4-12: a draw that throws does not leave the pop-up open, and the next draw works', async () => {

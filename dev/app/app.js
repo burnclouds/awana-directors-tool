@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.6';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.7';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -839,7 +839,7 @@
       $('btnPackSlides').disabled = !App.season || !packNight;
       renderPackColoringSheets(packNight);
     }
-    $('dateBar').hidden = !(order || title); $('oOrder').hidden = !order; $('tWrap').hidden = !title;
+    $('dateBar').hidden = !(order || title || bundleOptions.has('quarter')); $('oOrder').hidden = !order; $('tWrap').hidden = !title;
     if (!bundleQ) bundleQ = Reports.nextQuarter(calendar, today(), settings.quarter);
     $('qWrap').hidden = !bundleOptions.has('quarter'); $('qLabel').textContent = 'Quarter to print'; syncQ();
     // A bundle marked perClass (the standard Class binder) takes its class from the Class picker, as its comment always said.

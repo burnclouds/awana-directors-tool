@@ -7,7 +7,10 @@ const { open } = require('./lib/app-page'), assert = require('assert');
   // a Sparks child on Hangglider: Section 1 complete (so the Wing and Red Jewel 1 are earned together), one box of Section 2 signed
   const id = await page.evaluate(() => { const M = Model, s = App.season, kid = App.master.people.find(x => M.isActive(x) && M.isClubber(x) && M.groupOf(M.room(x)) === 'Sparks'), id = kid[M.X.ID];
     s.handbooks[id] = 'HG 260916'; s.progress[id] = { HG: { 'RJ1.1': '2026-09-23', 'RJ1.2': '2026-09-30', 'RJ1.3': '2026-10-07', 'RJ1.4': '2026-10-14', 'GJ1.1': '2026-10-21' } }; return id; });
-  await t.report('achievement', "App.reportOptions({ group: 'Sparks', room: '', kid: '" + id + "' })");
+  await page.evaluate(i => {
+    const report = Reports.LIST.find(x => x.id === 'progressSheets');
+    document.getElementById('report').innerHTML = report.render({ master: App.master, season: App.season, calendar: App.calendar, today: App.today(), opts: { books: 'all', _group: 'Sparks', kid: i } });
+  }, id);
   const sheet = () => page.evaluate(() => { const sh = document.querySelector('#report .sheet.rec, #report .sheet:has(table.rec)'); const names = [...sh.querySelectorAll('td.nm')].map(x => x.textContent.trim()), rail = [...sh.querySelectorAll('td.an')].map(x => x.querySelector('span').textContent.trim()), bands = [...sh.querySelectorAll('td.band')].map(x => Math.round(x.getBoundingClientRect().left)), bandText = [...sh.querySelectorAll('td.band .bt')].map(x => x.textContent), so = sh.querySelectorAll('td.so'), dt = [...sh.querySelectorAll('td.so .dt')].map(x => x.textContent.trim()).filter(Boolean);
     const lab = c => { const e = c.querySelector(c), x = 0; return x; };
     const lbl = [...so].map(td => ({ init: (td.querySelector('.lbi') || {}).textContent || '', date: (td.querySelector('.lbd') || {}).textContent || '', size: td.querySelector('.lbi') ? parseFloat(getComputedStyle(td.querySelector('.lbi')).fontSize) * 0.75 : 0, color: td.querySelector('.lbi') ? getComputedStyle(td.querySelector('.lbi')).color : '' }));

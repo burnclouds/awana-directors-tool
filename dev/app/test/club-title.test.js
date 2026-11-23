@@ -11,7 +11,11 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
   const open = async ctx => { const p = await ctx.newPage(); p.on('dialog', d => d.dismiss()); await p.goto(url); return p; };
   const title = p => p.inputValue('#sClub');
   const load = async p => { await p.setInputFiles('#fileAny', [DATA]); await p.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent)); };
-  const reports = async p => { await p.evaluate(() => document.querySelector('.tabs button[data-tab="reports"]').click()); await p.selectOption('#rSel', 'paceWatch'); await p.waitForTimeout(150); };
+  const reports = async p => {
+    await p.evaluate(() => document.querySelector('.tabs button[data-tab="reports"]').click());
+    await p.selectOption('#rSel', 'paceWatch'); await p.waitForTimeout(150);
+    if (!(await p.locator('#reportOptions').evaluate(d => d.open))) await p.click('#btnReportOptions');
+  };
   const ctx = await browser.newContext();
   let p = await open(ctx);
   await test('with no file open the title is "AWANA Club" and this school year from today\'s date', async () => {
@@ -21,11 +25,12 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
   await test('opening the 2026-27 data file sets it to "AWANA Club 26-27"', async () => { await load(p); assert.strictEqual(await title(p), 'AWANA Club 26-27'); });
   await test('a typed title is kept in the data file (config.clubTitle): it is in the open file, and the browser keeps no copy', async () => {
     await reports(p); await p.fill('#sClub', 'Grace Church AWANA');
+    await p.click('#pgDone');
     assert.strictEqual(await p.evaluate(() => App.season.config.clubTitle), 'Grace Church AWANA');
     assert.strictEqual(await p.evaluate(() => localStorage.getItem('awana.settings')), null);
   });
   await test('clearing the box removes it from the file and goes back to following the season', async () => {
-    await reports(p); await p.fill('#sClub', ''); await p.dispatchEvent('#sClub', 'change'); assert.strictEqual(await title(p), 'AWANA Club 26-27');
+    await reports(p); await p.fill('#sClub', ''); await p.dispatchEvent('#sClub', 'change'); await p.click('#pgDone'); assert.strictEqual(await title(p), 'AWANA Club 26-27');
     assert.strictEqual(await p.evaluate(() => 'clubTitle' in App.season.config), false);
   });
   await test('a title kept only in an old browser setting is not used: the file decides, and the old setting is removed', async () => {
@@ -37,7 +42,7 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
     p = q;
   });
   await test('the title is what the reports print', async () => {
-    await reports(p); await p.fill('#sClub', 'My Club'); await p.waitForTimeout(200);
+    await reports(p); await p.fill('#sClub', 'My Club'); await p.click('#pgDone'); await p.waitForTimeout(200);
     assert(/My Club/.test(await p.textContent('#report')));
   });
   await browser.close(); console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);
