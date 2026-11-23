@@ -50,7 +50,8 @@
   function local(season, options) {
     const view = schedule(season, options), warnings = [], unresolved = [];
     const people = (season.roster && season.roster.people) || {};
-    for (const [id, books] of Object.entries(season.progress || {})) {
+    const progress = season.progress || {};
+    for (const [id, books] of Object.entries(progress)) {
       for (const book of Object.keys(books || {})) {
         for (const [key, date] of Object.entries(S.signsShown(season, id, book))) {
           const state = dateStatus(view, date);

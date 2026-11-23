@@ -400,7 +400,7 @@
   // ---------- report bundles: a named list of reports printed together (for example everything needed at the start of a quarter) ----------
   // A bundle is { name, items: [{ report: <id of a report in LIST>, room?: <one class>, group?: <Sparks or T&T> }] }. config.bundles holds the club's own; until one is saved here the standard bundle is used.
   const DEFAULT_BUNDLES = () => [{ name: 'Quarterly Printables', items: [{ report: 'attendance' }, { report: 'binderClass' }, { report: 'teams' }, { report: 'binderAll' }] },
-    { name: 'Coaches binder', items: [{ report: 'binderClass' }, { report: 'binderAll' }, { report: 'volunteers' }, { report: 'binderTeams' }, { report: 'noteSheets' }, { report: 'clubCalendar' }] },
+    { name: 'Coaches binder', items: [{ report: 'binderClass' }, { report: 'binderAll' }, { report: 'volunteers' }, { report: 'binderTeams' }, { report: 'clubCalendar' }, { report: 'noteSheets' }] },
     { name: 'Class binder', perClass: true, items: [{ report: 'attendance' }, { report: 'binderClass' }, { report: 'volunteers' }, { report: 'progressSheets' }] },
     { name: 'Club night pack', items: [{ report: 'announceList' }, { report: 'handOut' }] }];      // N9 point 13: the awards read and handed out on the night      // perClass: the Class picker applies to each part (Reports tab and the Print class binders pop-up)      // a starting point: the club edits it under Options > Report bundles
   // Reports that were folded into others or dropped (1.50.35): a saved bundle that names one keeps working. The emergency-contact and medical lists became the class binder (by class) and the coaches binder (everyone by name),

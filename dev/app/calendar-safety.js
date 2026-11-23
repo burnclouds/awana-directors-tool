@@ -63,13 +63,16 @@
   function classificationDates(season) {
     const dates = new Set();
     const add = date => { if (Season.isRealDate(date)) dates.add(date); };
-    Object.entries(season.progress || {}).forEach(([id, books]) => {
+    const progress = season.progress || {};
+    Object.entries(progress).forEach(([id, books]) => {
       Object.keys(books || {}).forEach(book => values(Season.signsShown(season, id, book)).forEach(add));
     });
-    Object.entries(season.given || {}).forEach(([id, given]) => {
+    const givenByChild = season.given || {};
+    Object.entries(givenByChild).forEach(([id, given]) => {
       Object.entries(given || {}).forEach(([award, date]) => { if (!Season.isGivenNoDate(season, id, award)) add(date); });
     });
-    values(season.received).forEach(received => values(received).forEach(add));
+    const received = season.received || {};
+    Object.entries(received).forEach(([id, books]) => Object.keys(books || {}).forEach(book => add(Season.receivedShown(season, id, book))));
     values(season.handbooks).forEach(text => add(Season.parseHandbook(text).date));
     for (const section of ['blueOverrides', 'blueWings']) {
       values(season[section]).forEach(list => { if (Array.isArray(list)) list.forEach(x => { if (x) { add(x.date); add(x.earned); } }); });
