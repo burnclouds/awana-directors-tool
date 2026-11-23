@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['validate.js'] = '1.18.5';
+(this.AwanaVersions = this.AwanaVersions || {})['validate.js'] = '1.18.6';
 // File checks for the Validate and Debug tabs. Pure functions: text in, findings out (nothing is read from or written to disk).
 //   validate(text, name) -> { kind, findings: [{ level: 'error' | 'warn' | 'info', msg, check }] }   (check: the part of the file the finding is about: a section name, 'config', 'roster', 'ghosts', 'calendar', 'history', 'replay' or 'file')
 //   inspect(text, name, lastModifiedMs) -> { kind, nameStamp, modified, facts }   (the dates and counts shown on the Debug tab)
@@ -378,7 +378,7 @@
       seen[r.Date] = (seen[r.Date] || 0) + 1;
       if (!Calendar.TYPES.includes(r.Type)) err('Calendar ' + r.Date + ': Type "' + r.Type + '" is not Club night or Event.');
       if (!Calendar.QUARTERS.includes(r.Quarter)) err('Calendar ' + r.Date + ': Quarter "' + r.Quarter + '" is not Q1 to Q4.');
-      if (r.Cancelled && (typeof r.Cancelled !== 'string' || r['No Club'] !== '1' || r.Type === 'Event')) err('Calendar ' + r.Date + ': a cancellation needs a closed club night.');
+      if (r.Cancelled && (typeof r.Cancelled !== 'string' || Calendar.stateOf(r) !== 'cancelled')) err('Calendar ' + r.Date + ': a cancellation needs a closed club night.');
       if (r['Start Time'] && !Calendar.validTime(r['Start Time'])) err('Calendar ' + r.Date + ': enter the start time as HH:MM.');
       if (r['End Time'] && (!Calendar.validTime(r['End Time']) || !Calendar.validTime(r['Start Time']))) err('Calendar ' + r.Date + ': an end time needs a valid start time.');
       else if (r['End Time'] && r['End Time'] < r['Start Time']) warn('Calendar ' + r.Date + ': the end time is before the start time.');
