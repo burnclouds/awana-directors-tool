@@ -118,7 +118,40 @@ test('ignores verified people outside the selected local roster', () => {
     status: 'complete', date: '2026-09-09', agreements: ['first'], warnings: [], unresolved: []
   });
 });
-for (const { name, run } of tests) {
-  run(); console.log('  ok   ' + name);
-}
-console.log(tests.length + ' passed, 0 failed');
+const selected = [{ id: '1', eventId: 'test-event', startsAt: '2026-09-10T00:30:00Z' }];
+const resource = (id, attrs = {}) => ({
+  type: 'CheckIn', attributes: { security_code: 'private-test-code', medical_notes: 'private-test-note', ...attrs },
+  relationships: { person: { data: { type: 'Person', id } } }
+});
+test('reads the selected club-local session and keeps only person identity', async () => {
+  const data = comparison(), calls = [];
+  const client = { readPages: async (path, opts) => {
+    calls.push({ path, version: opts.version });
+    return { status: 'complete', rows: [resource('one'), resource('orphan', { one_time_guest: true }),
+      resource('other', { kind: 'volunteer' })].map(opts.project) };
+  } };
+  const result = await R.readCheckIns({ ...data, client, selected, timeZone: 'America/New_York' });
+  assert.deepEqual(calls, [{ path: '/check-ins/v2/event_times/1/check_ins?filter=attendee&per_page=100', version: '2025-05-28' }]);
+  assert.deepEqual(result.sessions[0].rows, [{ personId: 'one' }, { personId: '' }]);
+  assert(!JSON.stringify(result).includes('private-test'));
+  assert.deepEqual(await R.readCheckIns({ ...data, client, selected, timeZone: 'UTC' }), { status: 'unavailable', reason: 'scope-unconfirmed' });
+  assert.equal(calls.length, 1);
+});
+test('returns no partial sessions after a failed read or a changed connection', async () => {
+  const data = comparison(), sessions = selected.concat({ ...selected[0], id: '2' });
+  let calls = 0, current = true;
+  const client = { readPages: async () => (++calls === 1
+    ? { status: 'complete', rows: [] } : { status: 'unavailable', reason: 'rate-limited', retryAfter: '12' }) };
+  const params = { ...data, client, selected: sessions, timeZone: 'America/New_York', isCurrent: () => current };
+  assert.deepEqual(await R.readCheckIns(params), { status: 'unavailable', reason: 'rate-limited', retryAfter: '12' });
+  assert.equal(calls, 2);
+  client.readPages = async () => { calls++; current = false; return { status: 'complete', rows: [] }; };
+  assert.deepEqual(await R.readCheckIns(params), { status: 'unavailable', reason: 'canceled' });
+  assert.equal(calls, 3);
+});
+(async () => {
+  for (const { name, run } of tests) {
+    await run(); console.log('  ok   ' + name);
+  }
+  console.log(tests.length + ' passed, 0 failed');
+})().catch(e => { console.error(e); process.exit(1); });

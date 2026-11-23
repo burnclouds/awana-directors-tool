@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['signoff-review.js'] = '1.1.0';
+(this.AwanaVersions = this.AwanaVersions || {})['signoff-review.js'] = '1.2.0';
 // N72: classify original sign-off dates against a committed season and its attendance.
 (function (root) {
   const S = root.Season || require('./season.js'), Calendar = root.Calendar || require('./calendar.js');
@@ -117,6 +117,55 @@
     return { status: 'complete', date, agreements, warnings, unresolved };
   }
 
-  const api = { schedule, dateStatus, local, checkIns };
+  function localDate(timestamp, timeZone) {
+    if (typeof timestamp !== 'string' || !/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(timestamp) || !timeZone) return '';
+    try {
+      const date = new Date(timestamp);
+      const fields = new Intl.DateTimeFormat('en-US', {
+        timeZone, calendar: 'gregory', numberingSystem: 'latn', year: 'numeric', month: '2-digit', day: '2-digit'
+      }).formatToParts(date);
+      const parts = Object.fromEntries(fields.map(p => [p.type, p.value]));
+      return parts.year.padStart(4, '0') + '-' + parts.month + '-' + parts.day;
+    } catch { return ''; }
+  }
+
+  function checkInPerson(resource) {
+    if (!resource || resource.type !== 'CheckIn') throw new Error('Expected a Check-In record.');
+    const person = ((resource.relationships || {}).person || {}).data;
+    const attrs = resource.attributes || {};
+    const personId = !attrs.one_time_guest && person && person.type === 'Person' && typeof person.id === 'string' ? person.id : '';
+    return { personId, volunteer: attrs.kind === 'volunteer' };
+  }
+
+  // Read only after the selected event times and local night have been confirmed.
+  // The connection owner supplies cancellation/current-context checks; no credentials reach this module.
+  async function readCheckIns({ client, season, options, organizationId, eventId, date, timeZone, selected, signal, isCurrent }) {
+    const unavailable = reason => ({ status: 'unavailable', reason });
+    const canceled = () => (signal && signal.aborted) || (isCurrent && !isCurrent());
+    const state = dateStatus(schedule(season, options), date);
+    if (state !== 'club') return { status: 'out-of-scope', reason: state };
+    if (!organizationId || !eventId || !Array.isArray(selected) || !selected.length ||
+        selected.some(s => !s || !/^\d+$/.test(s.id || '') || s.eventId !== eventId || localDate(s.startsAt, timeZone) !== date) ||
+        new Set(selected.map(s => s.id)).size !== selected.length) return unavailable('scope-unconfirmed');
+    if (!client || typeof client.readPages !== 'function') return unavailable('authorization-required');
+    const sessions = [];
+    for (const time of selected) {
+      if (canceled()) return unavailable('canceled');
+      const path = '/check-ins/v2/event_times/' + time.id + '/check_ins?filter=attendee&per_page=100';
+      let result;
+      try { result = await client.readPages(path, { version: '2025-05-28', signal, project: checkInPerson }); }
+      catch { return unavailable(canceled() ? 'canceled' : 'request-failed'); }
+      if (canceled()) return unavailable('canceled');
+      if (!result || result.status !== 'complete' || !Array.isArray(result.rows)) {
+        if (result && result.status === 'unavailable') return { status: 'unavailable', reason: result.reason, retryAfter: result.retryAfter };
+        return unavailable('invalid-response');
+      }
+      const rows = result.rows.filter(r => !r.volunteer).map(r => ({ personId: r.personId }));
+      sessions.push({ id: time.id, organizationId, eventId, date, status: 'complete', rows });
+    }
+    return { status: 'complete', sessions };
+  }
+
+  const api = { schedule, dateStatus, local, checkIns, readCheckIns };
   if (typeof module !== 'undefined') module.exports = api; else root.SignoffReview = api;
 })(this);
