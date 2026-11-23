@@ -1389,7 +1389,7 @@
     $('calClubDay').innerHTML = Calendar.DAYS.map((d, i) => '<option value="' + i + '"' + (i === clubDay() ? ' selected' : '') + '>' + d + '</option>').join('');
     $('calClubDay').disabled = !App.season;
     document.querySelectorAll('#calSubs button').forEach(b => { const on = b.dataset.calsub === calSub; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
-    if (!calendar.length) { $('calWrap').innerHTML = '<p style="padding:16px" class="status">Import your data file (Import\u2026) or add dates to start a calendar.</p>'; return; }
+    if (!calendar.length) { $('calWrap').innerHTML = '<p style="padding:16px" class="status">Use Make calendar or add dates one at a time.</p>'; return; }
     if (calSub === 'lessons') { $('calWrap').innerHTML = lessonsGrid(); return; }
     const opt = (list, v) => list.map(x => '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>').join('');
     $('calWrap').innerHTML = '<table class="roster"><thead><tr><th>Date</th><th>Day</th><th>Type</th><th>Quarter</th><th>No club</th>' + CAL_TEXT.map(c => '<th>' + esc(c) + '</th>').join('') + '<th></th></tr></thead><tbody>' +
@@ -1400,6 +1400,14 @@
         CAL_TEXT.map(c => '<td><input type="text" data-c="' + esc(c) + '" value="' + esc(r[c]) + '" size="' + (c === 'Theme' || c === 'Notes' ? 26 : 14) + '"></td>').join('') +
         '<td><button data-del="' + i + '">Delete</button></td></tr>').join('') + '</tbody></table>';
   }
+  // Only the Calendar maker calls this after checking a fresh proposal inside commitScope.
+  App.applyCalendarProposal = (rows, settings) => {
+    calendar = rows;
+    Object.assign(App.season.config, settings);
+    const changed = App.importChanged('Make calendar');
+    refresh();
+    return changed;
+  };
   // Lessons by week (N2): one row for each club night (events are left out), the theme to read, and a box for the lesson of each group that is switched on. A planned No Club night shows NO CLUB and takes no lesson.
   // The boxes are the calendar's own lesson cells, so typing here is the same as typing on Dates (commitCal), and the Lessons by week report reads them. The switches are the file's config.lessons.
   function lessonsGrid() {

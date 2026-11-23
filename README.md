@@ -258,6 +258,9 @@ node test/flag-hide.test.js                       # hide a note or flag on To do
 NODE_PATH=<dir with playwright> node test/flag-hide-browser.test.js   # Hide, Show hidden (remembered), Unhide on To do, the child's sheet and the popup (N19)
 node test/flag-spot.test.js                   # a flag is tied to the view it was made in: scopeOk, find, the stored fields, the file check (N20)
 NODE_PATH=<dir with playwright> node test/flag-spot-browser.test.js   # a flag shows only on its child, book, sub-tab, night and class; Go opens that view (N20)
+node test/calendar-maker.test.js                 # calendar generation, breaks, quarter starts and protected schedule changes (N3)
+node test/calendar-signoff-pace.test.js       # N3/N72/N68: protected attendance, warning refresh, and Pace after schedule Apply and Undo
+NODE_PATH=<dir with playwright> node test/calendar-maker-browser.test.js   # preview, apply and undo one generated calendar (N3)
 node test/calendar-lessons.test.js               # lessons by week, data side: one lesson column per group, the older Puggles columns joined, config.lessons, its file check, the report (N2)
 NODE_PATH=<dir with playwright> node test/calendar-lessons-browser.test.js   # the Calendar tab Lessons by week view: groups on and off, typing a lesson, the report (N2)
 NODE_PATH=<dir with playwright> node test/coaches-notes-long-themes-browser.test.js   # the coaches notes sheet stays on one page with long themes (N16)
@@ -390,7 +393,7 @@ NODE_PATH=<dir with playwright> node test/browser.test.js <export.csv> <calendar
 5. Hard-refresh the page. The splash screen and the header show the version; the Debug tab shows every file's version and date.
 6. **After a deploy, update the private version history artifact.** Publish the same history file with the Artifact tool to the private link https://claude.ai/artifact/DSVoBfFjNvpxf1WcYdeyT5 (only the owner can open it until shared).
 
-Script load order matters and is enforced by `versions.test.js`: `csv, info, model, planning-center, planning-center-identity, pc-registrations, calendar, rotation, teams, catalog, season, datamerge, flagtrail, location-code, teamplan, pace, signoff-review, intake, check, validate, todo, reports, reports-season, slides, stats, store, app, app-ask, app-season, app-person, app-signoff-review, app-todo, app-teamgrid, app-stats, app-store, app-options, app-update, app-sw, app-info, app-flagpop, app-help, app-trail, app-merge, app-flagmode, app-flagmarks, app-tools, app-search, app-topbar`, then the optional Drive files `drive-config, drive, app-drive`.
+Script load order matters and is enforced by `versions.test.js`: `csv, info, model, planning-center, planning-center-identity, pc-registrations, calendar, rotation, teams, catalog, season, datamerge, flagtrail, location-code, teamplan, calendar-safety, pace, signoff-review, intake, check, validate, todo, reports, reports-season, slides, stats, store, app, app-ask, app-season, app-calendar-maker, app-person, app-signoff-review, app-todo, app-teamgrid, app-stats, app-store, app-options, app-update, app-sw, app-info, app-flagpop, app-help, app-trail, app-merge, app-flagmode, app-flagmarks, app-tools, app-search, app-topbar`, then the optional Drive files `drive-config, drive, app-drive`.
 
 ## Known open items
 
