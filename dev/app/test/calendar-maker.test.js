@@ -32,3 +32,73 @@ test('quarter starts split open nights and closures and events pick the next clu
   assert.equal(rows[4].Quarter, undefined);
   assert.throws(() => Calendar.applyQuarters(rows, { Q2: '2026-09-16' }), /on separate club nights/);
 });
+
+const Safety = require('../calendar-safety.js');
+const Season = require('../season.js');
+const night = (Date, Quarter = 'Q1', fields = {}) => Object.assign(Calendar.blank(), { Date, Quarter }, fields);
+const october = { day: 3, first: '2026-10-07', last: '2026-10-28' };
+const later = '2026-10-22';
+
+test('preserves recorded and empty historical nights with same-date events and lesson links', () => {
+  const s = Season.blank('2026-27');
+  s.attendance = { '2026-10-07': { child: { h: 1 } } };
+  s.games = { '2026-10-21': { Red: 3 } };
+  const rows = [
+    night('2026-10-07', 'Q1', { 'Sparks Coloring PDF': 'https://example.org/one.pdf' }),
+    night('2026-10-07', 'Q1', { Type: 'Event', Theme: 'First event' }),
+    night('2026-10-07', 'Q1', { Type: 'Event', Theme: 'Second event' }),
+    night('2026-10-14'),
+    night('2026-10-21')
+  ];
+  const original = JSON.parse(JSON.stringify(rows));
+  const proposal = Safety.propose(s, rows, { day: 4, first: '2026-10-22', last: '2026-10-29' }, later);
+  assert.deepEqual(proposal.rows.slice(0, 5), original);
+  assert.deepEqual(proposal.blocks, []);
+  assert.deepEqual(proposal.kept.find(r => r.date === '2026-10-14').reasons, { 'previous schedule': 1, 'locked quarter': 1 });
+  assert.deepEqual(rows, original);
+});
+
+test('reports orphan or closed activity without silently opening a meeting', () => {
+  const s = Season.blank('2026-27');
+  s.awards = { '2026-10-07': { child: ['Award'] } };
+  s.adults = { '2026-10-14': [{ n: 'Test Leader', a: 'Award' }] };
+  const closed = night('2026-10-14', 'Q1', { 'No Club': '1' });
+  const proposal = Safety.propose(s, [closed], october, '2026-10-13');
+  assert(!proposal.rows.some(r => r.Date === '2026-10-07'));
+  assert.deepEqual(proposal.rows[0], closed);
+  assert.deepEqual(proposal.existing, [
+    { date: '2026-10-07', reason: 'activity missing from calendar' },
+    { date: '2026-10-14', reason: 'activity on a closed night' }
+  ]);
+});
+
+test('guards omissions, quarter reassignment, extending locked quarters and changing an earlier-years boundary', () => {
+  const s = Season.blank('2026-27');
+  const rows = [night('2026-10-07'), night('2026-10-14', 'Q2')];
+  s.absences = { leader: { trip: { nights: { '2026-10-14': 1 } } } };
+  s.teamMoves = { child: [{ from: '2026-10-14', q: 'Q2', color: 'Red' }] };
+  s.flags = { note: { date: '2026-10-14', note: 'private content' } };
+  s.progress = { child: { HG: { 'Rank.1': '2026-10-05' } } };
+  const result = Safety.compare(s, rows, [night('2026-10-01', 'Q1'), night('2026-10-14', 'Q3')], '2026-10-10');
+  assert.deepEqual(result.blocks.find(r => r.date === '2026-10-14').reasons, { 'volunteer absence': 1, 'team move': 1, 'dated note': 1 });
+  assert(result.blocks.some(r => r.date === '2026-10-01' && r.reasons['locked quarter']));
+  assert(result.blocks.some(r => r.date === '2026-10-05' && r.reasons['season classification would change']));
+  assert(!JSON.stringify(result).includes('private content'));
+});
+
+test('rollover archives dates through the cutoff and keeps ambiguous later events', () => {
+  const s = Season.blank('2026-27');
+  s.config.carriedThrough = '2026-05-13';
+  const rows = [night('2026-05-13'), night('2026-05-14', 'Q1', { Type: 'Event', Theme: 'Later event' })];
+  const proposal = Safety.propose(s, rows, october, '2026-08-10');
+  assert.deepEqual(proposal.archived, [rows[0]]);
+  assert.deepEqual(proposal.rows[0], rows[1]);
+  assert.deepEqual(proposal.blocks, []);
+  assert.throws(() => Safety.propose(s, rows, { day: 3, first: '2026-05-13', last: '2026-05-20' }, '2026-08-10'), /previous season/);
+});
+
+test('repeating a generated schedule preserves the stored rows', () => {
+  const s = Season.blank('2026-27');
+  const before = Safety.propose(s, [], october, '2026-09-01');
+  assert.deepEqual(Safety.propose(s, before.rows, october, '2026-09-01').rows, before.rows);
+});
