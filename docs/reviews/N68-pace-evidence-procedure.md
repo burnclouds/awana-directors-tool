@@ -1,0 +1,11 @@
+# N68 pace threshold review procedure
+
+Use the local season file once the director has enough actual attendance and known-date sign-offs. The target date is around November 25. Check data coverage before reviewing scores. The current minimum for an individual watch result is three attended nights. The prior-window trend needs eight, so an early season may support part of the review.
+
+1. In the app, review **Statistics → Pace**, a child's pace strip under **Person → Progress**, and **Reports → Pace watch list**. Check Sparks and T&T separately. Look for incomplete class entry, intermittent attendance, bulk entry, and genuine off-night sign-offs. Keep the person's original attendance and progress unchanged during this audit.
+2. Run `node dev/tools/review-pace.js <season.json>` locally. Record the period reviewed, eligible-child and held-night counts, known entry gaps, medians, and watch-list counts per group. Share only aggregated observations. Keep the source file, identifiers, names and child-level output out of the repository.
+3. Compare the actual baseline with a current-season-only comparison computed on a disposable, in-memory copy. Use `Season.seasonStart` as the lower boundary when the current schedule is reliable. Exclude only visible sign-offs before that boundary from the comparison. Keep no-known-date marks excluded as they already are in Pace. Do not infer that an off-night sign-off is invalid. Check how much carryover and delayed entry affect the totals before attributing a result to thresholds.
+4. Use the synthetic rollover test in `dev/app/test/pace.test.js` to confirm the expected effect. It gives a child one dated carried section and one current section across four attended nights. The current baseline produces 0.50 sections per night. The current-season-only comparison gives 0.25. That difference is possible without any change to attendance or scoring constants. The hidden bookkeeping date affects neither result.
+5. For each threshold, record the evidence and decide whether to retain it, change it, or revisit it after more nights. Record a proposed correction to the input dates or scoring separately. Keep threshold and scoring changes out of N68's evidence-gathering step.
+
+No season evidence has been reviewed for this procedure yet.
