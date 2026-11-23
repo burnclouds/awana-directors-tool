@@ -207,3 +207,28 @@ test('rolling to a new season removes the old series and breaks but keeps lesson
   assert.deepEqual(next.config.lessons, { on: true, groups: { Sparks: { on: false, planned: 'skip' } } });
   assert.deepEqual(s.config.lessons.groups.Sparks.items, ['A']);
 });
+
+test('theme and event reuse leaves protected or named dates intact and proposes events once', () => {
+  const old = [
+    night('2025-10-01', 'Q1', { Theme: 'Old opening' }),
+    night('2025-10-08', 'Q1', { Theme: 'Guest night' }),
+    night('2025-10-15', 'Q1', { Theme: 'Old close' }),
+    night('2025-10-18', 'Q1', { Type: 'Event', Theme: 'Race', 'Start Time': '10:00', 'Sparks Lesson': 'Skip copying' })
+  ];
+  const first = '2026-10-07', last = '2026-10-28', proposed = Calendar.generate({ day: 3, first, last });
+  proposed[1].Theme = 'My theme';
+  const result = Calendar.copyThemes(proposed, old, 'order', true, first, last, new Set([first]));
+  assert.deepEqual(result.filled, [last]);
+  assert.equal(result.rows.find(row => row.Date === last).Theme, 'Old close');
+  assert.equal(result.rows.find(row => row.Date === '2026-10-14').Theme, 'My theme');
+  assert.deepEqual(result.events, ['2026-10-17']);
+  const event = result.rows.find(row => row.Type === 'Event');
+  assert.equal(event['Start Time'], '10:00');
+  assert.equal(event['Sparks Lesson'], '');
+  assert.deepEqual(Calendar.copyThemes(result.rows, old, 'order', true, first, last, new Set([first])).events, []);
+  assert.equal(proposed.at(-1).Theme, '');
+  const s = Season.blank('2025-26');
+  s.calendar = old;
+  const next = Season.newSeason(s, '2026-27');
+  assert.deepEqual(next.config.lastYearCalendar, Calendar.archive(old));
+});

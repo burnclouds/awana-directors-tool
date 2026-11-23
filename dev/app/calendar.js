@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.6.0';
+(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.7.0';
 // Club calendar: one row per club night or event. Stored as its own CSV so it can be rolled forward each year.
 (function (root) {
   const Csv = root.Csv || (typeof require !== 'undefined' ? require('./csv.js') : null);
@@ -220,6 +220,54 @@
     }
     return sorted;
   }
-  const api = { COLS, GROUPS, lessonCol, coloringCol, coloringUrl, coloringSheets, tidy, lessonSettings, lessonSeries, numberItems, lessonsFor, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, stateOf, setState, validTime, timeText, quartersIn, DAYS, weekday, dayName, offDay, offDays, recommendBreaks, generate, suggestQuarters, applyQuarters };
+  // Carry the information useful when building the next calendar. Keep roster links out.
+  const archiveFields = ['Date', 'Type', 'Theme', 'Start Time', 'End Time', 'Notes', 'No Club', 'Cancelled'];
+  function archive(rows) {
+    return rows.filter(row => row && validDate(row.Date)).map(row => Object.assign(
+      Object.fromEntries(archiveFields.filter(field => typeof row[field] === 'string').map(field => [field, row[field]])),
+      { Type: row.Type === 'Event' ? 'Event' : 'Club night' }));
+  }
+  function copyThemes(rows, older, how, withEvents, first, last, protectedDates = new Set()) {
+    const result = sort(rows.map(row => Object.assign({}, row))), previous = sort(archive(older));
+    const open = nights(result).filter(row => (!first || row.Date >= first) && (!last || row.Date <= last));
+    const old = nights(previous), filled = [], events = [];
+    const fill = (destination, source) => {
+      if (destination && !protectedDates.has(destination.Date) && !String(destination.Theme || '').trim() && source && source.Theme) {
+        destination.Theme = source.Theme;
+        filled.push(destination.Date);
+      }
+    };
+    if (how === 'order' && open.length && old.length) {
+      for (let i = 0; i < Math.min(open.length, old.length) - 1; i++) fill(open[i], old[i]);
+      fill(open.at(-1), old.at(-1));
+    } else if (how === 'month') {
+      const counts = {};
+      open.forEach(row => {
+        const month = row.Date.slice(5, 7), index = counts[month] || 0;
+        fill(row, old.filter(source => source.Date.slice(5, 7) === month)[index]);
+        counts[month] = index + 1;
+      });
+    }
+    if (withEvents && validDate(first) && validDate(last)) {
+      const year = +first.slice(0, 4), lastYear = +last.slice(0, 4);
+      const asDate = (event, y) => {
+        const sameDay = String(y).padStart(4, '0') + event.Date.slice(4);
+        const base = validDate(sameDay) ? sameDay : ymd(y, 2, 28);
+        const daysAway = (weekday(event.Date) - weekday(base) + 7) % 7;
+        return addDays(base, daysAway > 3 ? daysAway - 7 : daysAway);
+      };
+      previous.filter(row => row.Type === 'Event').forEach(event => {
+        const candidates = Array.from({ length: lastYear - year + 1 }, (_, i) => asDate(event, year + i));
+        const date = candidates.find(day => first <= day && day <= last);
+        if (!date || result.some(row => row.Type === 'Event' && (row.Theme || '') === (event.Theme || '') &&
+          Math.abs(civil(row.Date) - civil(date)) <= 7 * 86400000)) return;
+        const meeting = open.find(row => row.Date >= date) || open.at(-1);
+        result.push(Object.assign(blank(), event, { Date: date, Quarter: meeting?.Quarter || 'Q1' }));
+        events.push(date);
+      });
+    }
+    return { rows: sort(result), filled, events };
+  }
+  const api = { COLS, GROUPS, lessonCol, coloringCol, coloringUrl, coloringSheets, tidy, lessonSettings, lessonSeries, numberItems, lessonsFor, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, stateOf, setState, validTime, timeText, quartersIn, DAYS, weekday, dayName, offDay, offDays, recommendBreaks, generate, suggestQuarters, applyQuarters, archive, copyThemes };
   if (typeof module !== 'undefined') module.exports = api; else root.Calendar = api;
 })(this);

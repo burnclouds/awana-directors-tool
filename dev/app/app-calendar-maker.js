@@ -1,13 +1,13 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-calendar-maker.js'] = '1.0.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-calendar-maker.js'] = '1.1.0';
 // Calendar maker owns a temporary form and preview. The live calendar changes only on Apply.
 (function () {
   const App = window.App, C = window.Calendar, S = window.Season, Safety = window.CalendarSafety;
   const $ = id => document.getElementById(id), esc = App.esc;
   const panel = $('calMaker'), opener = $('btnCalMake');
-  let file, preview;
+  let file, preview, themeSource;
 
   function close() {
-    file = preview = undefined;
+    file = preview = themeSource = undefined;
     panel.hidden = true;
     panel.innerHTML = '';
     opener.setAttribute('aria-expanded', 'false');
@@ -36,6 +36,8 @@
     const [first, last] = defaultDates(day);
     const useSaved = Array.isArray(cfg.breaks) && (!cfg.breaks.length || cfg.breaks.some(b => b && b.from <= last && b.to >= first));
     const breaks = useSaved ? cfg.breaks : C.recommendBreaks(first, last);
+    themeSource = Array.isArray(cfg.lastYearCalendar) ? C.archive(cfg.lastYearCalendar) :
+      S.isRealDate(cfg.carriedThrough) ? C.archive(App.calendar.filter(row => row.Date <= cfg.carriedThrough)) : [];
     panel.innerHTML = '<h3 id="calMakerTitle">Make calendar</h3><form id="calMakerForm">' +
       '<div class="bar"><label>Club meets on <select name="weekday">' + C.DAYS.map((name, i) =>
         '<option value="' + i + '"' + (day === i ? ' selected' : '') + '>' + esc(name) + '</option>').join('') + '</select></label>' +
@@ -44,6 +46,11 @@
       '<fieldset><legend>Planned breaks</legend><div id="calMakerBreaks">' + breaks.map(breakRow).join('') + '</div>' +
       '<div class="bar"><button type="button" data-add>Add break</button><button type="button" data-recommend>Suggest breaks</button>' +
       '<label><input name="easter" type="checkbox"' + (cfg.easterFlag === false ? '' : ' checked') + '> Flag Easter week</label></div></fieldset>' +
+      '<fieldset><legend>Printed calendar and earlier themes</legend><div class="bar"><label>Optional subtitle <input name="tagline" value="' + esc(cfg.clubTagline || '') + '"></label></div>' +
+      '<div class="bar"><label>Copy earlier themes <select name="themes"><option value="none">None</option><option value="order">By order of club nights</option><option value="month">By week of the month</option></select></label>' +
+      '<label><input name="events" type="checkbox"> Include earlier events</label></div>' +
+      '<div class="bar"><label>Use themes from another season file <input name="themeFile" type="file" accept=".json,application/json"></label>' +
+      '<span id="calThemeSource" class="status">' + themeSource.length + ' earlier calendar rows available</span></div></fieldset>' +
       '<div class="bar"><button type="submit">Preview calendar</button><button type="button" data-close>Cancel</button></div>' +
       '<div id="calMakerNotice" role="status"></div></form><div id="calMakerPreview" hidden></div>';
     panel.hidden = false;
@@ -55,7 +62,7 @@
   function inputs() {
     const f = $('calMakerForm').elements, day = Number(f.weekday.value), first = f.first.value, last = f.last.value;
     if (C.weekday(first) !== day || C.weekday(last) !== day) throw new Error('Choose first and last dates that fall on ' + C.DAYS[day] + '.');
-    return { day, first, last, easterFlag: f.easter.checked,
+    return { day, first, last, tagline: f.tagline.value.trim(), themes: f.themes.value, events: f.events.checked, easterFlag: f.easter.checked,
       breaks: [...panel.querySelectorAll('[data-cal-break]')].map(row => ({
         name: row.querySelector('[data-name]').value.trim(), from: row.querySelector('[data-from]').value, to: row.querySelector('[data-to]').value
       })) };
@@ -65,8 +72,14 @@
       items.map(item => '<li>' + esc(display(item)) + '</li>').join('') + '</ul></details>' : '';
   }
   const reasons = row => row.date + ' · ' + Object.keys(row.reasons).join(', ');
-  function showPreview(input) {
+  function makeProposal(input) {
     const result = Safety.propose(file, App.calendar, input, App.today());
+    const protectedDates = new Set(result.kept.filter(item => !item.reasons['existing calendar row']).map(item => item.date));
+    const { rows, filled, events } = C.copyThemes(result.rows, themeSource, input.themes, input.events, input.first, input.last, protectedDates);
+    return Object.assign(result, { rows, themeDates: filled, eventDates: events });
+  }
+  function showPreview(input) {
+    const result = makeProposal(input);
     preview = { input, result };
     const box = $('calMakerPreview'), nights = [...new Set(C.nights(result.rows).map(row => row.Date))].sort();
     const quarterOptions = C.QUARTERS.slice(1).map(q => '<label>' + q + ' starts <select data-start="' + q + '">' +
@@ -76,6 +89,7 @@
       C.QUARTERS.map(q => q + ' ' + C.nights(result.rows, q).length).join(' · ') + ' club nights</p>' +
       (result.archived.length ? '<p>' + result.archived.length + ' dates from the closed season leave the active calendar.</p>' : '') +
       previewList('Dates to add', result.added, d => d) + previewList('Existing dates kept', result.kept, reasons) +
+      previewList('Earlier themes to copy', result.themeDates, d => d) + previewList('Earlier events to copy. Verify dates', result.eventDates, d => d) +
       previewList('Dates to review in the existing file', result.existing, r => r.date + ' · ' + r.reason) +
       previewList('Changes that would affect recorded activity or locked quarters', result.blocks, reasons) +
       '<details><summary>View proposed dates</summary><div class="scroll"><table class="roster"><thead><tr><th>Date</th><th>Quarter</th><th>Schedule</th></tr></thead><tbody>' +
@@ -99,7 +113,20 @@
     preview = undefined;
     $('calMakerPreview').hidden = true;
   });
-  panel.addEventListener('change', e => {
+  panel.addEventListener('change', async e => {
+    if (e.target.name === 'themeFile') {
+      const picked = e.target.files[0], current = file, box = e.target;
+      if (picked) try {
+        const prior = S.fromJson(await picked.text());
+        if (current !== file || !box.isConnected || box.files[0] !== picked) return;
+        themeSource = C.archive(prior.calendar || []);
+        preview = undefined;
+        $('calMakerPreview').hidden = true;
+        $('calThemeSource').textContent = themeSource.length + ' earlier calendar rows available';
+        $('calMakerNotice').textContent = '';
+      } catch (err) { if (current === file && box.isConnected) showError(err); }
+      return;
+    }
     if (!e.target.hasAttribute('data-start') || !preview) return;
     const starts = Object.fromEntries([...panel.querySelectorAll('[data-start]')].map(t => [t.dataset.start, t.value]));
     $('calMakerNotice').textContent = '';
@@ -119,15 +146,17 @@
       App.commitScope(() => {
         if (App.season !== opened || file !== opened || preview !== saved) return;
         try {
-          const fresh = Safety.propose(opened, App.calendar, saved.input, App.today());
+          const fresh = makeProposal(saved.input);
           if (JSON.stringify(fresh) !== JSON.stringify(saved.result)) {
             showPreview(saved.input);
             $('calMakerNotice').textContent = 'The calendar or club records changed. Review the new preview before applying.';
             return;
           }
           if (fresh.blocks.length) return;
-          const { day, breaks, easterFlag } = saved.input;
+          const { day, breaks, easterFlag, tagline } = saved.input;
           const settings = { clubDay: day, breaks, easterFlag };
+          if (tagline || opened.config.clubTagline !== undefined) settings.clubTagline = tagline;
+          if (!opened.config.lastYearCalendar && fresh.archived.length) settings.lastYearCalendar = C.archive(fresh.archived);
           close();
           if (App.applyCalendarProposal(fresh.rows, settings)) App.done('Calendar applied. Use Undo to restore the previous calendar.');
           else App.flash('The calendar already matches this preview.', 'info');
