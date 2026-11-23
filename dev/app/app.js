@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.11';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.12';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -1417,6 +1417,35 @@
   };
   // Lessons by week (N2): one row for each club night (events are left out), the theme to read, and a box for the lesson of each group that is switched on. A planned No Club night shows NO CLUB and takes no lesson.
   // The boxes are the calendar's own lesson cells, so typing here is the same as typing on Dates (commitCal), and the Lessons by week report reads them. The switches are the file's config.lessons.
+  let lessonGroup = 'Puggles';
+  function editLessonSeries() {
+    const file = App.season, group = lessonGroup;
+    const series = Calendar.lessonSeries(file.config, group);
+    const dates = [...new Set(Calendar.nights(calendar).map(row => row.Date).concat(series.from || []))].sort();
+    const actions = [['move', 'Move to the next club night'], ['skip', 'Skip this lesson']];
+    const numbering = { name: 'mode', values: ['numbered'] };
+    App.ask.form({
+      title: group + ' weekly lesson series', ok: 'Save series',
+      message: 'The series fills nights with empty lesson cells. A typed lesson stays in place. Use a dash for a night without a lesson.',
+      fields: [
+        { name: 'from', label: 'First night', type: 'select', value: series.from, options: [['', 'First club night'], ...dates.map(date => [date, date])] },
+        { name: 'mode', label: 'Lesson list', type: 'select', value: 'manual', options: [['manual', 'Edit the list'], ['numbered', 'Generate lesson numbers']] },
+        { name: 'items', label: 'One lesson per line', type: 'textarea', value: series.items.join('\n'), showIf: { name: 'mode', values: ['manual'] } },
+        { name: 'units', label: 'Units', type: 'number', min: 1, max: 50, value: 4, required: true, showIf: numbering },
+        { name: 'count', label: 'Lessons per unit', type: 'number', min: 1, max: 50, value: 8, required: true, showIf: numbering },
+        { name: 'start', label: 'Start at', value: '1.1', required: true, showIf: numbering },
+        { name: 'planned', label: 'Planned break', type: 'select', options: actions, value: series.planned },
+        { name: 'unplanned', label: 'Cancellation', type: 'select', options: actions, value: series.unplanned }
+      ],
+      validate: data => data.mode === 'numbered' && !Calendar.numberItems(data.units, data.count, data.start.trim()).length
+        ? { name: 'start', message: 'Enter an available lesson number, like 1.1.' } : ''
+    }).then(data => {
+      if (!data || App.season !== file) return;
+      const items = data.mode === 'numbered' ? Calendar.numberItems(data.units, data.count, data.start.trim()) :
+        data.items.split(/\r?\n/).map(item => item.trim()).filter(Boolean);
+      setLessons(cfg => { Object.assign(cfg.groups[group], { items, from: data.from, planned: data.planned, unplanned: data.unplanned }); });
+    });
+  }
   function lessonsGrid() {
     const L = Calendar.lessonSettings(App.season && App.season.config, calendar);
     if (!App.season) return '<p style="padding:16px" class="status">Open a data file first: the lessons settings are kept in it.</p>';
@@ -1425,23 +1454,49 @@
     const bar = '<div class="bar" style="margin:6px 0">Groups with a lesson each week: ' + Calendar.GROUPS.map(g => '<label><input type="checkbox" data-lg="' + esc(g) + '"' + (L.groups[g].on ? ' checked' : '') + '> ' + esc(g) + '</label>').join(' ') + ' <button type="button" id="btnLessonsOff">Turn off lessons by week</button></div>' +
       '<p class="status" style="margin:0 0 6px">Type each night\u2019s lesson, for example 1.1 God Made the Light. A group that works through its books in turn (Sparks) has no lesson by week: switch it off and it leaves this grid and the report. Changes are kept with Apply, like the other Calendar changes.</p>';
     if (!groups.length) return bar + '<p class="status">Every group is switched off.</p>';
+    if (!groups.includes(lessonGroup)) lessonGroup = groups[0];
+    const seriesBar = '<div class="bar"><label>Weekly series for <select id="calLessonGroup">' +
+      groups.map(g => '<option' + (g === lessonGroup ? ' selected' : '') + '>' + esc(g) + '</option>').join('') +
+      '</select></label><button type="button" id="btnLessonSeries">Edit series…</button></div>';
+    const planned = new Map(groups.map(g => [g, Calendar.lessonsFor(calendar, g, App.season.config)]));
     const lesson = (r, group) => {
       const field = Calendar.lessonCol(group), pdf = Calendar.coloringCol(group), date = Calendar.short(r.Date);
-      return '<td><input type="text" data-c="' + esc(field) + '" value="' + esc(r[field]) + '" size="16" aria-label="' + esc(group + ' lesson, ' + date) + '">' +
+      const item = planned.get(group).get(r.Date);
+      const placeholder = item?.kind === 'series' ? item.text : '';
+      return '<td><input type="text" data-c="' + esc(field) + '" value="' + esc(r[field]) + '" size="16" placeholder="' + esc(placeholder) + '" aria-label="' + esc(group + ' lesson, ' + date) + '">' +
         '<details><summary>' + (r[pdf] ? 'Edit coloring PDF' : 'Add coloring PDF') + '</summary><input type="url" data-c="' + esc(pdf) + '" data-coloring-pdf value="' + esc(r[pdf]) + '" size="16" placeholder="https://…" aria-label="' + esc(group + ' coloring PDF, ' + date) + '"></details></td>';
     };
-    const rows = calendar.map((r, i) => r.Type === 'Event' ? '' : '<tr data-i="' + i + '"><td>' + esc(Calendar.short(r.Date)) + '</td><td>' + (/^\d{4}-\d{2}-\d{2}$/.test(r.Date) ? Calendar.dayName(Calendar.weekday(r.Date)) : '') + '</td><td>' + esc(r.Theme) + '</td>' +
-      (r['No Club'] === '1' ? '<td colspan="' + groups.length + '" class="status"><b>' + (r.Cancelled ? 'CANCELLED' + (r.Cancelled === 'Cancelled' ? '' : ' (' + esc(r.Cancelled) + ')') : 'NO CLUB') + '</b>' + (r.Notes ? ' \u00b7 ' + esc(r.Notes) : '') + '</td>' : groups.map(g => lesson(r, g)).join('')) + '</tr>').join('');
-    return bar + '<table class="roster lessonsgrid"><thead><tr><th>Date</th><th>Day</th><th>Theme</th>' + groups.map(g => '<th>' + esc(g) + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table>';
+    const cells = r => {
+      if (Calendar.isNight(r)) return groups.map(g => lesson(r, g)).join('');
+      const status = r.Cancelled ? 'CANCELLED' + (r.Cancelled === 'Cancelled' ? '' : ' (' + r.Cancelled + ')') : 'NO CLUB';
+      const detail = groups.map(g => ({ group: g, item: planned.get(g).get(r.Date) })).filter(x => x.item?.text);
+      return '<td colspan="' + groups.length + '" class="status"><b>' + esc(status) + '</b>' +
+        (r.Notes ? ' · ' + esc(r.Notes) : '') + detail.map(({ group, item }) =>
+          '<span> · ' + esc(group) + ' ' + (item.kind === 'missed' ? '<s>' + esc(item.text) + '</s> skipped' :
+            esc(item.text) + ' (typed)') + '</span>').join('') + '</td>';
+    };
+    const rows = calendar.map((r, i) => r.Type === 'Event' ? '' : '<tr data-i="' + i + '"><td>' + esc(Calendar.short(r.Date)) + '</td><td>' +
+      (/^\d{4}-\d{2}-\d{2}$/.test(r.Date) ? Calendar.dayName(Calendar.weekday(r.Date)) : '') + '</td><td>' + esc(r.Theme) + '</td>' + cells(r) + '</tr>').join('');
+
+    return bar + seriesBar + '<table class="roster lessonsgrid"><thead><tr><th>Date</th><th>Day</th><th>Theme</th>' + groups.map(g => '<th>' + esc(g) + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table>';
   }
   const setLessons = fn => {
-    if (!App.season) return; const cur = Calendar.lessonSettings(App.season.config, calendar); fn(cur);
-    App.commitScope(() => { App.season.config.lessons = { on: cur.on, groups: Object.fromEntries(Calendar.GROUPS.map(g => [g, { on: cur.groups[g].on }])) }; App.changed(); });
-    renderCalendar(); renderReport();
+    const file = App.season; if (!file) return;
+    App.commitScope(() => {
+      if (App.season !== file) return;
+      const prior = file.config.lessons || {}, view = Calendar.lessonSettings(file.config, calendar);
+      const cur = { on: view.on, groups: Object.assign({}, prior.groups) };
+      Calendar.GROUPS.forEach(g => { cur.groups[g] = Object.assign({}, cur.groups[g], view.groups[g]); });
+      fn(cur);
+      if (JSON.stringify(cur) === JSON.stringify(prior)) return;
+      file.config.lessons = cur;
+      App.changed();
+      renderCalendar(); renderReport();
+    });
   };
   $('calSubs').addEventListener('click', e => { const b = e.target.closest('button[data-calsub]'); if (b && b.dataset.calsub !== calSub) { calSub = b.dataset.calsub; renderCalendar(); } });
-  $('calWrap').addEventListener('click', e => { if (e.target.id === 'btnLessonsOn') setLessons(c => { c.on = true; }); else if (e.target.id === 'btnLessonsOff') setLessons(c => { c.on = false; }); });
-  $('calWrap').addEventListener('change', e => { if (e.target.dataset && e.target.dataset.lg) setLessons(c => { c.groups[e.target.dataset.lg].on = e.target.checked; }); });
+  $('calWrap').addEventListener('click', e => { if (e.target.id === 'btnLessonsOn') setLessons(c => { c.on = true; }); else if (e.target.id === 'btnLessonsOff') setLessons(c => { c.on = false; }); else if (e.target.id === 'btnLessonSeries') editLessonSeries(); });
+  $('calWrap').addEventListener('change', e => { if (e.target.dataset && e.target.dataset.lg) setLessons(c => { c.groups[e.target.dataset.lg].on = e.target.checked; }); else if (e.target.id === 'calLessonGroup') lessonGroup = e.target.value; });
   // A date box fires "change" as soon as what is typed is a valid date (typing "1" in the month already is), which would re-sort the row and move you away mid-typing. So a date is committed
   // when you leave the box or press Enter; every other box commits as before. A year outside 2000 to 2100 is treated as not finished and is put back.
   const plausibleDate = v => { const y = +String(v).slice(0, 4); return v === '' || (y >= 2000 && y <= 2100); };

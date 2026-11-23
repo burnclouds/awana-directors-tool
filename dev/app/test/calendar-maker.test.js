@@ -161,11 +161,12 @@ test('family calendar prints quarter endings, breaks, timed events and optional 
   s.calendar = [
     template,
     Calendar.setState(night('2026-10-14', 'Q2', { Holiday: 'Fall break' }), 'planned'),
-    Calendar.setState(night('2026-10-21', 'Q2', { 'Sparks Lesson': 'S2' }), 'cancelled', 'Snow'),
+    Calendar.setState(night('2026-10-21', 'Q2'), 'cancelled', 'Snow'),
     night('2026-10-24', 'Q2', { Type: 'Event', Theme: 'Race', 'Start Time': '10:00', 'End Time': '17:00' })
   ];
   const report = Reports.LIST.find(def => def.id === 'clubCalendar');
   const context = { season: s, calendar: s.calendar, settings: { club: 'TEST Club' }, today: '2026-10-01' };
+  s.config.lessons = { on: true, groups: { Sparks: { items: ['S2'], from: '2026-10-07' } } };
   const without = report.render(context);
   assert.match(without, /10\/7\/2026[\s\S]*End of First Quarter[\s\S]*NO CLUB[\s\S]*CANCELLED \(Snow\)[\s\S]*Saturday, October 24[\s\S]*10am–5pm/);
   assert.doesNotMatch(without, /Sparks S1/);
@@ -173,4 +174,36 @@ test('family calendar prints quarter endings, breaks, timed events and optional 
   assert.match(withLessons, /Sparks S1/);
   assert.match(withLessons, /<s>Sparks S2<\/s>/);
   assert(Reports.DEFAULT_BUNDLES().find(b => b.name === 'Coaches binder').items.some(item => item.report === 'clubCalendar'));
+});
+
+test('series move over planned closures, skip unplanned cancellations and keep manual overrides', () => {
+  const rows = [
+    night('2026-10-07'),
+    Calendar.setState(night('2026-10-14'), 'planned'),
+    Calendar.setState(night('2026-10-21'), 'cancelled', 'Weather'),
+    night('2026-10-28', 'Q2', { 'Sparks Lesson': 'Manual' }),
+    night('2026-11-04', 'Q2', { 'Sparks Lesson': '-' }),
+    night('2026-11-11', 'Q2')
+  ];
+  const series = { items: Calendar.numberItems(2, 3, '1.2') };
+  const config = { lessons: { groups: { Sparks: series } } };
+  const result = Calendar.lessonsFor(rows, 'Sparks', config);
+  assert.deepEqual([...result.values()], [
+    { text: '1.2', kind: 'series' }, { text: '', kind: 'off' },
+    { text: '1.3', kind: 'missed', reason: 'Weather' }, { text: 'Manual', kind: 'hand' },
+    { text: '', kind: 'hand' }, { text: '2.1', kind: 'series' }
+  ]);
+  series.unplanned = 'move';
+  assert.equal(Calendar.lessonsFor(rows, 'Sparks', config).get('2026-11-11').text, '1.3');
+  assert.equal(rows[0]['Sparks Lesson'], '');
+});
+
+test('rolling to a new season removes the old series and breaks but keeps lesson policies', () => {
+  const s = Season.blank('2026-27');
+  s.config.lessons = { on: true, groups: { Sparks: { on: false, from: '2026-10-07', items: ['A'], planned: 'skip' } } };
+  s.config.breaks = [{ name: 'Fall break', from: '2026-10-14', to: '2026-10-14' }];
+  const next = Season.newSeason(s, '2027-28');
+  assert.equal(next.config.breaks, undefined);
+  assert.deepEqual(next.config.lessons, { on: true, groups: { Sparks: { on: false, planned: 'skip' } } });
+  assert.deepEqual(s.config.lessons.groups.Sparks.items, ['A']);
 });
