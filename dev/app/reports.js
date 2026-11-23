@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.26.2';
+(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.26.3';
 // Print reports. Each render(ctx) returns HTML; ctx = { master, settings, opts }.
 (function (root) {
   const M = root.Model || (typeof require !== 'undefined' ? require('./model.js') : null);
@@ -305,12 +305,78 @@
       'portrait punch incident');
   }
 
+  function clubCalendar(ctx) {
+    const rows = Cal.sort((ctx.calendar || []).filter(r => r && Season.isRealDate(r.Date)));
+    if (!rows.length) return '<p class="status">Add dates on Calendar to print the club calendar.</p>';
+    const months = new Map(), last = new Map();
+    const dates = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'long', year: 'numeric' });
+    const eventDate = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' });
+    const labels = { Q1: 'First', Q2: 'Second', Q3: 'Third' };
+    const config = (ctx.season || {}).config || {}, showLessons = !!(ctx.opts || {}).lessons;
+    const lessonConfig = Cal.lessonSettings(config, rows);
+    const groups = showLessons && lessonConfig.on ? Cal.GROUPS.filter(group => lessonConfig.groups[group].on) : [];
+    rows.filter(Cal.isNight).forEach(row => last.set(row.Quarter, row));
+    rows.forEach(row => {
+      const month = row.Date.slice(0, 7);
+      if (!months.has(month)) months.set(month, { nights: [], events: [] });
+      const m = months.get(month), when = new Date(row.Date + 'T12:00:00Z');
+      const time = Cal.timeText(row['Start Time'], row['End Time']);
+      if (row.Type === 'Event') {
+        m.events.push({ html: '<div class="calevent"><strong>' + esc(eventDate.format(when)) + '</strong><div>' +
+          esc([row.Theme || 'Event', time].filter(Boolean).join(' · ')) + '</div>' + (row.Notes ? '<div>' + esc(row.Notes) + '</div>' : '') +
+          '</div>', lines: 2 + Math.ceil((row.Notes || '').length / 42) });
+        return;
+      }
+      const cancellation = row.Cancelled && row.Cancelled !== 'Cancelled' ? ' (' + row.Cancelled + ')' : '';
+      const title = !Cal.isNight(row) ? (row.Cancelled ? 'CANCELLED' + cancellation : 'NO CLUB') : row.Theme || 'Club night';
+      const date = Cal.short(row.Date) + '/' + row.Date.slice(0, 4), quarter = labels[row.Quarter] && last.get(row.Quarter) === row;
+      const lessons = (Cal.isNight(row) || row.Cancelled) ? groups.map(group => {
+        const text = row[Cal.lessonCol(group)];
+        return text && text !== '-' ? group + ' ' + text : '';
+      }).filter(Boolean).join(' · ') : '';
+      const lesson = '<div class="callessons">' + (row.Cancelled ? '<s>' + esc(lessons) + '</s>' : esc(lessons)) + '</div>';
+      m.nights.push({ html: '<div class="caldate"><strong>' + esc(date) + '</strong> ' + esc(title) +
+        (time ? ' · ' + esc(time) : '') + (row.Holiday ? ' <small>' + esc(row.Holiday) + '</small>' : '') +
+        (lessons ? lesson : '') + (quarter ? '<div class="calq">End of ' + labels[row.Quarter] + ' Quarter</div>' : '') + '</div>',
+        lines: Math.max(1, Math.ceil((date.length + title.length + time.length + (row.Holiday || '').length) / 42)) + Math.ceil(lessons.length / 42) + Number(!!quarter) });
+    });
+    const maxLines = 46, columns = [{ blocks: [], used: 0 }];
+    const current = () => columns.at(-1);
+    function addBlock(month, items) {
+      const lines = 1 + items.reduce((sum, item) => sum + item.lines, 0);
+      if (current().used && current().used + lines > maxLines) columns.push({ blocks: [], used: 0 });
+      current().blocks.push('<section class="calmonth"><h3>' + esc(dates.format(new Date(month + '-01T12:00:00Z'))) +
+        '</h3>' + items.map(item => item.html).join('') + '</section>');
+      current().used += lines;
+    }
+    for (const [month, parts] of months) {
+      let lines = 1, chunk = [];
+      for (const item of parts.nights.concat(parts.events)) {
+        if (chunk.length && lines + item.lines > maxLines) { addBlock(month, chunk); chunk = []; lines = 1; }
+        chunk.push(item); lines += item.lines;
+      }
+      addBlock(month, chunk);
+    }
+    const history = ((ctx.season || {}).history || []).slice().reverse();
+    const latest = history.find(e => (e.changes || []).some(c => c.p[0] === 'calendar' ||
+      (c.p[0] === 'config' && ['breaks', 'easterFlag', 'lessons', 'clubTagline', 'clubTitle'].includes(c.p[1]))));
+    const date = latest ? String(latest.t || '').slice(0, 10) : ctx.today;
+    const updated = Season.isRealDate(date) ? 'Updated ' + Cal.short(date) + '/' + date.slice(2, 4) : '';
+    const title = (ctx.settings || {}).club || 'Club calendar', pages = [];
+    for (let i = 0; i < columns.length; i += 2) {
+      const body = '<div class="calcols">' + columns.slice(i, i + 2).map(col => '<div>' + col.blocks.join('') + '</div>').join('') + '</div>';
+      pages.push(sheet(title + (i ? ' (continued)' : ''), body, 'portrait clubcal', esc(config.clubTagline || ''), updated));
+    }
+    return pages.join('');
+  }
+
   const LIST = [
     { id: 'attendance', title: 'Attendance sheets (per room)', render: attendance, opts: ['room', 'quarter'] },
     { id: 'teams', title: 'Color teams (Sparks, T&T)', render: colorTeams, opts: ['order', 'quarter'] },
     { id: 'binderClass', title: 'Emergency, medical and photos by class (class binders)', render: binderClass, opts: ['room', 'quarter'] },
     { id: 'binderAll', title: 'Emergency, medical and photos, everyone by name (coaches binder)', render: binderAll, opts: ['quarter'] },
     { id: 'binderTeams', title: 'Color teams by group and color (coaches binder)', render: binderTeams, opts: ['order', 'quarter'] },
+    { id: 'clubCalendar', title: 'Club calendar (families and coaches)', render: clubCalendar, opts: ['lessons'], requiresRoster: false },
     { id: 'noteSheets', title: 'Coaches binder notes (a block for each club night)', render: noteSheets, opts: ['quarter'] },
     { id: 'progressSheets', title: 'Progress sheets, each child, by class (class binder)', render: progressSheets, opts: ['room', 'kid', 'books'] },
     { id: 'photos', title: 'No photos', render: photos },
@@ -324,7 +390,7 @@
   // ---------- report bundles: a named list of reports printed together (for example everything needed at the start of a quarter) ----------
   // A bundle is { name, items: [{ report: <id of a report in LIST>, room?: <one class>, group?: <Sparks or T&T> }] }. config.bundles holds the club's own; until one is saved here the standard bundle is used.
   const DEFAULT_BUNDLES = () => [{ name: 'Quarterly Printables', items: [{ report: 'attendance' }, { report: 'binderClass' }, { report: 'teams' }, { report: 'binderAll' }] },
-    { name: 'Coaches binder', items: [{ report: 'binderClass' }, { report: 'binderAll' }, { report: 'volunteers' }, { report: 'binderTeams' }, { report: 'noteSheets' }] },
+    { name: 'Coaches binder', items: [{ report: 'binderClass' }, { report: 'binderAll' }, { report: 'volunteers' }, { report: 'binderTeams' }, { report: 'noteSheets' }, { report: 'clubCalendar' }] },
     { name: 'Class binder', perClass: true, items: [{ report: 'attendance' }, { report: 'binderClass' }, { report: 'volunteers' }, { report: 'progressSheets' }] },
     { name: 'Club night pack', items: [{ report: 'announceList' }, { report: 'handOut' }] }];      // N9 point 13: the awards read and handed out on the night      // perClass: the Class picker applies to each part (Reports tab and the Print class binders pop-up)      // a starting point: the club edits it under Options > Report bundles
   // Reports that were folded into others or dropped (1.50.35): a saved bundle that names one keeps working. The emergency-contact and medical lists became the class binder (by class) and the coaches binder (everyone by name),

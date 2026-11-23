@@ -26,3 +26,10 @@ test('rejects malformed, oversized and unsupported locations', () => {
     '{"tab":"attend","record":1}'
   ].forEach(s => assert.throws(() => decode('AW1.' + Buffer.from(s).toString('base64url'))));
 });
+
+test('carries the printable club calendar lesson filter', () => {
+  const view = { report: 'clubCalendar', lessons: 'yes' };
+  const { code, omitted } = capture('reports', 'preview', view);
+  assert.deepEqual(omitted, []);
+  assert.deepEqual(decode(code), { tab: 'reports', target: 'preview', view });
+});

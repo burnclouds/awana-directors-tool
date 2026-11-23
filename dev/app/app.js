@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.9';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.11';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -791,7 +791,7 @@
   let reportFiltersChanged = false, previousReportTitle = '';
   // Report groups (the sub-tabs above the report box): each one shows only its own reports in the one list below, so the list and everything that picks a report from it (showReport, the tests) work as before.
   // The group of a report is looked up here, not stored with the report. The group chosen is for this visit only.
-  const RSUBS = { attend: ['attendance', 'attendDates'], teams: ['teams', 'binderTeams', 'standings'], binders: ['binderClass', 'binderAll', 'volunteers', 'photos', 'noteSheets'], progress: ['progressSheets', 'awardsByChild', 'ceremony', 'handOut', 'booksYear', 'handbooks', 'paceWatch'] };
+  const RSUBS = { attend: ['attendance', 'attendDates'], teams: ['teams', 'binderTeams', 'standings'], binders: ['binderClass', 'binderAll', 'volunteers', 'photos', 'noteSheets', 'clubCalendar'], progress: ['progressSheets', 'awardsByChild', 'ceremony', 'handOut', 'booksYear', 'handbooks', 'paceWatch'] };
   const subOf = v => /^bundle:/.test(v) ? 'binders' : Object.keys(RSUBS).find(k => RSUBS[k].includes(v)) || 'other';      // everything else (uniforms, lessons, Planning Center changes) is "Other"
   let rsub = 'attend'; const lastIn = {};
   let binderSel = null, binderPrefs = null;      // binderSel: the binders chosen in the Print class binders pop-up ({ name, items }); binderPrefs: the pop-up's last settings, kept for the visit
@@ -832,7 +832,7 @@
         '<p class="status">Add a PDF link under a group’s lesson in Calendar → Lessons by week.</p>');
   }
   function renderBundle(b) {
-    ['oRoom', 'oGroup', 'oKid', 'calNote', 'oNoBook', 'oBooks', 'oBlanks'].forEach(id => { $(id).hidden = true; });
+    ['oRoom', 'oGroup', 'oKid', 'calNote', 'oNoBook', 'oShowLessons', 'oBooks', 'oBlanks'].forEach(id => { $(id).hidden = true; });
     // Bundle options come from the reports in it. Its quarter is independent of the app-wide quarter.
     const bundleOptions = new Set(b.items.flatMap(item => Reports.LIST.find(r => r.id === item.report)?.opts || []));
     const order = bundleOptions.has('order'), title = bundleOptions.has('title'), perClass = !!b.perClass && b !== binderSel;
@@ -916,6 +916,7 @@
     const books = $('oBooksSel').value;
     return [
       !$('qWrap').hidden && (bundleOf() ? bundleQ : reportQuarter()),
+      !$('oShowLessons').hidden && $('oShowLessonsChk').checked && 'Lessons shown',
       !$('oRoom').hidden && (room.value || (!$('oBooks').hidden && 'All classes')),
       $('oRoom').hidden || !room.value ? !$('oGroup').hidden && group.selectedOptions[0]?.textContent : '',
       !$('oKid').hidden && kid.value && kid.selectedOptions[0]?.textContent.split(' — ').pop(),
@@ -969,6 +970,7 @@
     reportOptionsDialog.scrollTop = 0;
   });
   $('pgDone').addEventListener('click', closeReportOptions);
+  $('oShowLessonsChk').addEventListener('change', () => reportOptionChanged());
   reportOptionsDialog.addEventListener('cancel', e => { e.preventDefault(); closeReportOptions(); });
 
   function configureReportControls(def) {
@@ -979,7 +981,7 @@
     if (o.includes('groupAll') && !allOpt) gsel0.insertBefore(new Option('All groups', ''), gsel0.firstChild); else if (!o.includes('groupAll') && allOpt) { const was = gsel0.value === ''; allOpt.remove(); if (was) gsel0.value = 'Sparks'; }
     const blank = o.includes('books') && $('oBooksSel').value === 'blank';
     $('oGroup').hidden = !(o.includes('group') || o.includes('groupAll')); $('oKid').hidden = !o.includes('kid') || blank; $('oBooks').hidden = !o.includes('books'); $('oBlanks').hidden = !blank;
-    $('dateBar').hidden = !(o.includes('order') || o.includes('title') || o.includes('noBook')); $('oNoBook').hidden = !o.includes('noBook');
+    $('dateBar').hidden = !(o.includes('order') || o.includes('title') || o.includes('noBook') || o.includes('lessons')); $('oNoBook').hidden = !o.includes('noBook'); $('oShowLessons').hidden = !o.includes('lessons');
     $('qWrap').hidden = $('calNote').hidden = !o.includes('quarter'); $('oOrder').hidden = !o.includes('order'); $('tWrap').hidden = !o.includes('title');
     const nights = Calendar.nights(calendar, reportQuarter()).length;
     $('calNote').textContent = calendar.length ? nights + ' club nights in ' + reportQuarter() + ' from the calendar' : '';
@@ -1006,7 +1008,7 @@
     $('bNote').textContent = reportOptionSummary();
     if (!master && def.requiresRoster !== false) { $('report').innerHTML = '<p class="status">Load a roster first.</p>'; return; }
     const rs = $('oRoomSel'), ks = $('oKidSel');
-    const html = def.render({ master, settings: Object.assign({}, settings, { quarter: reportQuarter() }), calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, book) => App.sheets.html(p, book), opts: { room: rs.value, order: $('oOrderSel').value, group: $('oGroupSel').value, kid: ks.value, books: o.includes('books') ? $('oBooksSel').value : '', blanks: o.includes('books') && $('oBooksSel').value === 'blank' ? Math.max(1, Math.min(20, parseInt($('oBlanksNum').value, 10) || 3)) : 0, noBook: o.includes('noBook') && $('oNoBookChk').checked } });      // the night only counts for reports that show the Night box
+    const html = def.render({ master, settings: Object.assign({}, settings, { quarter: reportQuarter() }), calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, book) => App.sheets.html(p, book), opts: { room: rs.value, order: $('oOrderSel').value, group: $('oGroupSel').value, kid: ks.value, books: o.includes('books') ? $('oBooksSel').value : '', blanks: o.includes('books') && $('oBooksSel').value === 'blank' ? Math.max(1, Math.min(20, parseInt($('oBlanksNum').value, 10) || 3)) : 0, noBook: o.includes('noBook') && $('oNoBookChk').checked, lessons: o.includes('lessons') && $('oShowLessonsChk').checked } });      // the night only counts for reports that show the Night box
     // Contact and medical details come from the last Planning Center export; say how old it is.
     $('report').innerHTML = ['binderClass', 'binderAll', 'volunteers', 'photos'].includes(def.id) && master && master.pcAsOf ?
       html.replace(/<\/h2>/g, '</h2><p class="sub asof">Planning Center data as of ' + esc(master.pcAsOf) + '</p>') : html;
@@ -1015,7 +1017,8 @@
   // Location codes restore report filters in this view only. Do not apply global quarter overrides.
   const locationReportFilters = [
     ['group', 'oGroup', 'oGroupSel'], ['room', 'oRoom', 'oRoomSel'], ['order', 'oOrder', 'oOrderSel'],
-    ['books', 'oBooks', 'oBooksSel'], ['blanks', 'oBlanks', 'oBlanksNum'], ['noBook', 'oNoBook', 'oNoBookChk']
+    ['books', 'oBooks', 'oBooksSel'], ['blanks', 'oBlanks', 'oBlanksNum'], ['noBook', 'oNoBook', 'oNoBookChk'],
+    ['lessons', 'oShowLessons', 'oShowLessonsChk']
   ];
   App.locationViews.reports = {
     get() {
@@ -1025,7 +1028,7 @@
       locationReportFilters.forEach(([key, wrap, id]) => {
         if ($(wrap).hidden) return;
         const input = $(id);
-        view[key] = key === 'noBook' ? (input.checked ? 'yes' : 'no') : input.value || 'all';
+        view[key] = input.type === 'checkbox' ? (input.checked ? 'yes' : 'no') : input.value || 'all';
       });
       if (!$('oKid').hidden && $('oKidSel').value) view.child = 'selected';
       return view;
@@ -1046,7 +1049,7 @@
         if ($(wrap).hidden || (input.tagName === 'SELECT' && ![...input.options].some(o => o.value === val))) {
           skipped.push(key === 'room' ? 'class' : key); return;
         }
-        if (key === 'noBook') input.checked = val === 'yes'; else input.value = val;
+        if (input.type === 'checkbox') input.checked = val === 'yes'; else input.value = val;
         if (key === 'books' || key === 'group') configureReportControls(def);
       });
       renderReport();
@@ -1392,11 +1395,15 @@
     if (!calendar.length) { $('calWrap').innerHTML = '<p style="padding:16px" class="status">Use Make calendar or add dates one at a time.</p>'; return; }
     if (calSub === 'lessons') { $('calWrap').innerHTML = lessonsGrid(); return; }
     const opt = (list, v) => list.map(x => '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>').join('');
-    $('calWrap').innerHTML = '<table class="roster"><thead><tr><th>Date</th><th>Day</th><th>Type</th><th>Quarter</th><th>No club</th>' + CAL_TEXT.map(c => '<th>' + esc(c) + '</th>').join('') + '<th></th></tr></thead><tbody>' +
+    $('calWrap').innerHTML = '<table class="roster"><thead><tr><th>Date</th><th>Day</th><th>Type</th><th>Quarter</th><th>Meets</th><th>Start time</th><th>End time</th>' + CAL_TEXT.map(c => '<th>' + esc(c) + '</th>').join('') + '<th></th></tr></thead><tbody>' +
       calendar.map((r, i) => '<tr data-i="' + i + '"><td><input type="date" data-c="Date" value="' + esc(r.Date) + '"></td>' +
         (Calendar.offDay(r, clubDay()) ? '<td class="dow-off" title="Club meets on ' + Calendar.DAYS[clubDay()] + 's">\u26a0 ' : '<td>') + (/^\d{4}-\d{2}-\d{2}$/.test(r.Date) ? Calendar.dayName(Calendar.weekday(r.Date)) : '') + '</td>' +
         '<td><select data-c="Type">' + opt(Calendar.TYPES, r.Type) + '</select></td><td><select data-c="Quarter">' + opt(Calendar.QUARTERS, r.Quarter) + '</select></td>' +
-        '<td><input type="checkbox" data-c="No Club"' + (r['No Club'] === '1' ? ' checked' : '') + '></td>' +
+        '<td>' + (r.Type === 'Event' ? '' : '<select data-c="State">' + [['meets', 'Meets'], ['planned', 'No club'], ['cancelled', 'Cancelled']].map(([key, label]) =>
+          '<option value="' + key + '"' + (key === Calendar.stateOf(r) ? ' selected' : '') + '>' + label + '</option>').join('') + '</select>' +
+          (Calendar.stateOf(r) === 'cancelled' ? '<input data-c="Cancelled" aria-label="Cancellation reason" placeholder="Reason" value="' + esc(r.Cancelled === 'Cancelled' ? '' : r.Cancelled) + '">' : '') +
+          (r.Holiday ? '<small> ' + esc(r.Holiday) + '</small>' : '')) + '</td>' +
+        ['Start Time', 'End Time'].map(c => '<td><input type="time" data-c="' + c + '" value="' + esc(r[c] || '') + '"></td>').join('') +
         CAL_TEXT.map(c => '<td><input type="text" data-c="' + esc(c) + '" value="' + esc(r[c]) + '" size="' + (c === 'Theme' || c === 'Notes' ? 26 : 14) + '"></td>').join('') +
         '<td><button data-del="' + i + '">Delete</button></td></tr>').join('') + '</tbody></table>';
   }
@@ -1424,7 +1431,7 @@
         '<details><summary>' + (r[pdf] ? 'Edit coloring PDF' : 'Add coloring PDF') + '</summary><input type="url" data-c="' + esc(pdf) + '" data-coloring-pdf value="' + esc(r[pdf]) + '" size="16" placeholder="https://…" aria-label="' + esc(group + ' coloring PDF, ' + date) + '"></details></td>';
     };
     const rows = calendar.map((r, i) => r.Type === 'Event' ? '' : '<tr data-i="' + i + '"><td>' + esc(Calendar.short(r.Date)) + '</td><td>' + (/^\d{4}-\d{2}-\d{2}$/.test(r.Date) ? Calendar.dayName(Calendar.weekday(r.Date)) : '') + '</td><td>' + esc(r.Theme) + '</td>' +
-      (r['No Club'] === '1' ? '<td colspan="' + groups.length + '" class="status"><b>NO CLUB</b>' + (r.Notes ? ' \u00b7 ' + esc(r.Notes) : '') + '</td>' : groups.map(g => lesson(r, g)).join('')) + '</tr>').join('');
+      (r['No Club'] === '1' ? '<td colspan="' + groups.length + '" class="status"><b>' + (r.Cancelled ? 'CANCELLED' + (r.Cancelled === 'Cancelled' ? '' : ' (' + esc(r.Cancelled) + ')') : 'NO CLUB') + '</b>' + (r.Notes ? ' \u00b7 ' + esc(r.Notes) : '') + '</td>' : groups.map(g => lesson(r, g)).join('')) + '</tr>').join('');
     return bar + '<table class="roster lessonsgrid"><thead><tr><th>Date</th><th>Day</th><th>Theme</th>' + groups.map(g => '<th>' + esc(g) + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table>';
   }
   const setLessons = fn => {
@@ -1444,7 +1451,7 @@
     const impacts = CalendarSafety.compare(App.season, calendar, candidate, App.today());
     if (impacts.blocks.length) throw new Error('This replacement affects recorded activity or locked quarters. Use Make calendar to keep those dates. ' + CalendarSafety.summary(impacts.blocks));
   }
-  const calendarStructure = ['Date', 'Type', 'Quarter', 'No Club'];
+  const calendarStructure = ['Date', 'Type', 'Quarter', 'State'];
   function structuralCalendarEdit(index, field, row, apply) {
     if (!App.season) { apply(); return; }
     const candidate = calendar.slice();
@@ -1478,19 +1485,23 @@
     if (coloring && input.trim() && !v) { t.value = r[c] || ''; App.flash('Use an HTTPS link to a coloring PDF.', 'error'); return; }
     if (coloring) { t.value = v; t.closest('details').querySelector('summary').textContent = v ? 'Edit coloring PDF' : 'Add coloring PDF'; }
     if (t.type === 'date') { const bad = Check.date(v); if (bad) { t.value = r[c] || ''; App.flash((c === 'Date' ? 'Calendar date' : c) + ': ' + bad.msg, 'error'); return; } }
-    if (v === (r[c] || '')) return;
+    if (c === 'State' ? v === Calendar.stateOf(r) : v === (r[c] || '')) return;
     if (calendarStructure.includes(c)) {
-      const index = +tr.dataset.i, next = Object.assign({}, r, { [c]: v });
-      if (c === 'No Club') {
-        next['No Club By Hand'] = '1';
-        delete next['Generated Break'];
-      }
+      const index = +tr.dataset.i, next = c === 'State' ? Calendar.setState(r, v, r.Cancelled) : Object.assign({}, r, { [c]: v });
+      if (c === 'Type' && v === 'Event') { next['No Club'] = ''; delete next.Cancelled; delete next['Generated Break']; delete next['No Club By Hand']; }
       structuralCalendarEdit(index, c, next, () => {
         calendar[index] = next; Calendar.sort(calendar); calTouch(); renderCalendar(); renderReport();
       });
       return;
     }
-    r[c] = v; calTouch(); renderReport();
+    if (c === 'Start Time' || c === 'End Time') {
+      const start = c === 'Start Time' ? v : r['Start Time'], end = c === 'End Time' ? v : r['End Time'];
+      if (end && (!start || end < start)) {
+        t.value = r[c] || ''; App.flash('Enter a start time before the end time.', 'error'); return;
+      }
+    }
+    r[c] = c === 'Cancelled' ? v.trim() || 'Cancelled' : v;
+    calTouch(); renderReport();
   }
   $('calWrap').addEventListener('change', e => { if (e.target.type !== 'date') commitCal(e.target); });
   $('calWrap').addEventListener('focusout', e => { if (e.target.type === 'date') commitCal(e.target); });
@@ -1659,7 +1670,7 @@
   // Print class binders: a quick pick (a saved bundle: Class binder, Coaches binder, Quarterly Printables, the club's own) sets the pages that go in; the pages can be adjusted; the classes are ticked (none = the whole club in one set).
   // "Show binders" makes the choice a selection of the report list ("Your binders"), drawn like any bundle: the bundle quarter, the lock question and the page choice all work on it.
   const BINDER_CLASS_PARTS = [['attendance', 'Attendance sheet'], ['binderClass', 'Roster with medical and contact (each class)'], ['volunteers', 'Volunteer contact list (a copy in each class binder)'], ['progressSheets', 'Progress sheet for each child (none for Puggles)']];
-  const BINDER_COACHES_PARTS = [['binderAll', 'Coaches: emergency, medical, photos, color team (print once)'], ['binderTeams', 'Color teams by group and color'], ['teams', 'Color teams list (Sparks, T&T)'], ['noteSheets', 'Coaches notes sheet: the whole quarter on one page (once)']];
+  const BINDER_COACHES_PARTS = [['binderAll', 'Coaches: emergency, medical, photos, color team (print once)'], ['binderTeams', 'Color teams by group and color'], ['teams', 'Color teams list (Sparks, T&T)'], ['noteSheets', 'Coaches notes sheet: the whole quarter on one page (once)'], ['clubCalendar', 'Club calendar (print once)']];
   const BINDER_PARTS = BINDER_CLASS_PARTS.concat(BINDER_COACHES_PARTS);
   const BINDER_PER_CLASS = ['attendance', 'binderClass', 'volunteers', 'progressSheets'];      // pages made once per class when classes are ticked
   const binderItems = (parts, classes, blanks) => {

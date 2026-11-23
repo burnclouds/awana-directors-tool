@@ -1,10 +1,10 @@
-(this.AwanaVersions = this.AwanaVersions || {})['location-code.js'] = '1.0.0';
+(this.AwanaVersions = this.AwanaVersions || {})['location-code.js'] = '1.0.1';
 // Portable view state. Share only the values enumerated here, never a DOM label or a record ID.
 (function (root) {
   const Model = root.Model || require('./model.js');
   const PREFIX = 'AW1.', MAX = 420;
   const tabIds = ['todo', 'attend', 'games', 'awards', 'roster', 'person', 'reports', 'uniforms', 'calendar', 'stats', 'history', 'options', 'validate', 'debug', 'store', 'help'];
-  const reports = ['booksYear', 'handOut', 'announceList', 'ceremony', 'awardsByChild', 'standings', 'attendDates', 'handbooks', 'paceWatch', 'attendance', 'teams', 'binderClass', 'binderAll', 'binderTeams', 'noteSheets', 'progressSheets', 'photos', 'uniforms', 'lessons', 'volunteers', 'pcChanges', 'incidentReport'];
+  const reports = ['booksYear', 'handOut', 'announceList', 'ceremony', 'awardsByChild', 'standings', 'attendDates', 'handbooks', 'paceWatch', 'attendance', 'teams', 'binderClass', 'binderAll', 'binderTeams', 'noteSheets', 'progressSheets', 'photos', 'uniforms', 'lessons', 'clubCalendar', 'volunteers', 'pcChanges', 'incidentReport'];
   // Format keys are stable even if a control is renamed or moved. Selector values come from code only.
   const targets = {
     attend: { night: '#attDateWrap', room: '#attRoom', marks: '#attendWrap', count: '#attCount' },
@@ -25,7 +25,7 @@
     attend: { date: isDate, room: oneOf(...Model.ROOM_ORDER, 'Unassigned'), absences: oneOf('all', 'upcoming') },
     reports: { report: oneOf(...reports), quarter: oneOf('Q1', 'Q2', 'Q3', 'Q4'),
       group: oneOf('all', 'Puggles', 'Cubbies', 'Sparks', 'T&T'), room: oneOf('all', ...Model.ROOM_ORDER, 'Unassigned'),
-      order: oneOf('color', 'colorLast'), books: oneOf('current', 'all', 'blank'), blanks: n => /^(?:[1-9]|1\d|20)$/.test(n), noBook: oneOf('yes', 'no') }
+      order: oneOf('color', 'colorLast'), books: oneOf('current', 'all', 'blank'), blanks: n => /^(?:[1-9]|1\d|20)$/.test(n), noBook: oneOf('yes', 'no'), lessons: oneOf('yes', 'no') }
   };
   function validate(x) {
     if (!x || !tabIds.includes(x.tab) || Object.keys(x).some(k => !['tab', 'target', 'view'].includes(k))) return false;

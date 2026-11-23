@@ -138,3 +138,39 @@ test('merge preserves accepted same-record corrections while rejecting new absen
     { date: '2026-10-14', reasons: { 'volunteer absence': 1 } }
   ]);
 });
+
+test('planned closures and unplanned cancellations both exclude the night and keep their distinction through CSV', () => {
+  const row = night('2026-10-07');
+  const planned = Calendar.setState(row, 'planned');
+  const cancelled = Calendar.setState(row, 'cancelled', 'Weather');
+  assert.equal(Calendar.stateOf(row), 'meets');
+  assert.equal(Calendar.stateOf(planned), 'planned');
+  assert.equal(Calendar.stateOf(cancelled), 'cancelled');
+  assert.equal(Calendar.isNight(planned), false);
+  assert.equal(Calendar.isNight(cancelled), false);
+  assert.equal(Calendar.load(Calendar.toCsv([cancelled]))[0].Cancelled, 'Weather');
+  assert.equal(Calendar.stateOf(Calendar.setState(cancelled, 'meets')), 'meets');
+  assert.equal(Calendar.timeText('10:00', '17:30'), '10am–5:30pm');
+  assert.equal(Calendar.timeText('', '17:30'), '');
+});
+
+test('family calendar prints quarter endings, breaks, timed events and optional lessons in the Coaches binder', () => {
+  const Reports = require('../reports.js');
+  const s = Season.blank('2026-27');
+  const template = night('2026-10-07', 'Q1', { Theme: 'Hello', 'Sparks Lesson': 'S1' });
+  s.calendar = [
+    template,
+    Calendar.setState(night('2026-10-14', 'Q2', { Holiday: 'Fall break' }), 'planned'),
+    Calendar.setState(night('2026-10-21', 'Q2', { 'Sparks Lesson': 'S2' }), 'cancelled', 'Snow'),
+    night('2026-10-24', 'Q2', { Type: 'Event', Theme: 'Race', 'Start Time': '10:00', 'End Time': '17:00' })
+  ];
+  const report = Reports.LIST.find(def => def.id === 'clubCalendar');
+  const context = { season: s, calendar: s.calendar, settings: { club: 'TEST Club' }, today: '2026-10-01' };
+  const without = report.render(context);
+  assert.match(without, /10\/7\/2026[\s\S]*End of First Quarter[\s\S]*NO CLUB[\s\S]*CANCELLED \(Snow\)[\s\S]*Saturday, October 24[\s\S]*10am–5pm/);
+  assert.doesNotMatch(without, /Sparks S1/);
+  const withLessons = report.render(Object.assign({}, context, { opts: { lessons: true } }));
+  assert.match(withLessons, /Sparks S1/);
+  assert.match(withLessons, /<s>Sparks S2<\/s>/);
+  assert(Reports.DEFAULT_BUNDLES().find(b => b.name === 'Coaches binder').items.some(item => item.report === 'clubCalendar'));
+});
