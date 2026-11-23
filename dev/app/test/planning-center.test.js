@@ -1,6 +1,9 @@
 // Mocked Planning Center transport and identity checks. No API calls or credentials.
 const assert = require('node:assert/strict');
 const { webcrypto, createHash } = require('node:crypto');
+const { readFileSync } = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 const PC = require('../planning-center.js');
 const Identity = require('../planning-center-identity.js');
 
@@ -9,7 +12,22 @@ const reply = (doc, status = 200, headers = {}) => new Response(JSON.stringify(d
 const resource = id => ({ type: 'Attendee', id });
 const noNetwork = () => { throw new Error('Unexpected request'); };
 
+function checkBrowserLoad() {
+  const browser = vm.createContext({ fetch: noNetwork });
+  for (const name of ['localStorage', 'sessionStorage', 'XMLHttpRequest', 'navigator']) {
+    Object.defineProperty(browser, name, { get: noNetwork });
+  }
+  for (const file of ['csv.js', 'model.js', 'planning-center.js', 'planning-center-identity.js', 'pc-registrations.js']) {
+    const source = readFileSync(path.join(__dirname, '..', file), 'utf8');
+    vm.runInContext(source, browser, { filename: file });
+  }
+  assert.equal(typeof browser.PlanningCenter.createClient, 'function');
+  assert.equal(typeof browser.PlanningCenterIdentity.resolve, 'function');
+  assert.equal(typeof browser.PcRegistrations.readSignup, 'function');
+}
+
 async function main() {
+  checkBrowserLoad();
   const opt = { clientId: 'TEST-public-client', redirectUri: 'https://example.invalid/app/callback.html', scopes: ['registrations'], crypto: webcrypto };
   const first = await PC.authorize(opt);
   const second = await PC.authorize(opt);
