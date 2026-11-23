@@ -33,14 +33,20 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
     const { page, ctx } = await open(); await tab(page, 'roster'); await page.waitForTimeout(300); await page.click('#btnAddCol'); await page.waitForSelector('#ask[open]'); await page.click('#ask [data-ask="ok"]');
     assert(/Give the column a name/.test(await page.textContent('#askErr1')), await page.textContent('#askErr1')); assert.strictEqual(await page.getAttribute('#askF1', 'aria-invalid'), 'true'); await ctx.close();
   });
+  const loadUnusedCalendar = page => page.evaluate(async () => {
+    const season = Season.blank('2040-41');
+    season.fake = true;
+    season.calendar = Calendar.generate({ day: 3, first: '2040-09-05', last: '2040-09-26' });
+    await App.openSeason(Season.toJson(season));
+  });
   await test('Calendar: Delete a date is done at once (no question), the message says Apply or Discard (the tab stages its changes, so no Undo button), and Discard brings it back', async () => {
-    const { page, ctx, native } = await open(); await tab(page, 'calendar'); await page.waitForTimeout(400); const n = () => page.evaluate(() => App.calendar.length), before = await n(); await page.click('#tab-calendar button[data-del] >> nth=0'); await page.waitForTimeout(300);
+    const { page, ctx, native } = await open(); await loadUnusedCalendar(page); await tab(page, 'calendar'); await page.waitForTimeout(400); const n = () => page.evaluate(() => App.calendar.length), before = await n(); await page.click('#tab-calendar button[data-del] >> nth=0'); await page.waitForTimeout(300);
     assert.strictEqual(await n(), before - 1, 'the date is gone'); const said = await page.textContent('#doneFlash'); assert(/Deleted .* from the calendar/.test(said) && /Apply to keep it, or Discard/.test(said), said); assert(!(await page.isVisible('#doneUndo')), 'no Undo button on a staged tab');
     await page.click('#btnDraftDiscard'); await page.waitForSelector('#ask[open]'); assert(/Throw away 1 change/.test(await page.textContent('#askMsg')), 'the Discard question is the app\'s own, in red'); await page.click('#ask [data-ask="ok"]'); await page.waitForTimeout(300);
     assert.strictEqual(await n(), before, 'Discard brought it back'); assert.deepStrictEqual(native, [], 'no native dialog at all'); await ctx.close();
   });
   await test('Calendar: Move every date forward is a form (a number with limits); the dates move; an Undo message says so', async () => {
-    const { page, ctx, native } = await open(); await tab(page, 'calendar'); await page.waitForTimeout(400); const first = () => page.evaluate(() => App.calendar.map(r => r.Date).sort()[0]), was = await first();
+    const { page, ctx, native } = await open(); await loadUnusedCalendar(page); await tab(page, 'calendar'); await page.waitForTimeout(400); const first = () => page.evaluate(() => App.calendar.map(r => r.Date).sort()[0]), was = await first();
     await page.click('#btnCalShift'); await page.waitForSelector('#ask[open]'); assert.strictEqual(await page.$eval('#askF0', e => e.value), '52'); await page.fill('#askF0', '200'); await page.click('#ask [data-ask="ok"]'); assert(/from 1 to 104/.test(await page.textContent('#askErr0')), 'limits: ' + await page.textContent('#askErr0'));
     await page.fill('#askF0', '1'); await page.click('#ask [data-ask="ok"]'); await page.waitForTimeout(300); const now = await first(), days = Math.round((Date.parse(now + 'T12:00:00Z') - Date.parse(was + 'T12:00:00Z')) / 86400000); assert.strictEqual(days, 7, 'moved one week');
     assert(/moved forward 1 week/.test(await page.textContent('#doneFlash'))); assert.deepStrictEqual(native, []); await ctx.close();

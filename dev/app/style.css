@@ -868,3 +868,12 @@ table.tg select.tgsel.tgset.team-Red { background-color:#ea9999; border-color:#c
 @media (min-width: 761px) { .splash-main .btn { display:inline-block; width:auto; } }
 .recvrow .uov { display:inline-block; margin:0 0 0 8px; vertical-align:middle; }      /* N43: the no-date tick for Date received sits on the same line as its box */
 .notetext, .bugtext { white-space:pre-wrap; }      /* N45: a note or a bug reply keeps the line breaks it was typed with */
+
+
+/* N3: the family calendar, divided into columns before printing. */
+.clubcal .calcols { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1.2em; font-size:10.5pt; }
+.clubcal .calmonth { margin-bottom:.5em; break-inside:avoid; overflow-wrap:anywhere; }
+.clubcal .calmonth h3 { margin:.35em 0 .15em; font-size:1.05em; text-decoration:underline; }
+.clubcal .calevent { border:1px solid; padding:.15em .35em; margin:.35em 0; break-inside:avoid; }
+.clubcal .caldate small, .clubcal .callessons { font-size:.85em; }
+.clubcal .calq { font-weight:700; }

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.10';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.11';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -789,7 +789,7 @@
   let reportFiltersChanged = false, previousReportTitle = '';
   // Report groups (the sub-tabs above the report box): each one shows only its own reports in the one list below, so the list and everything that picks a report from it (showReport, the tests) work as before.
   // The group of a report is looked up here, not stored with the report. The group chosen is for this visit only.
-  const RSUBS = { attend: ['attendance', 'attendDates'], teams: ['teams', 'binderTeams', 'standings'], binders: ['binderClass', 'binderAll', 'volunteers', 'photos', 'noteSheets'], progress: ['progressSheets', 'awardsByChild', 'ceremony', 'handOut', 'booksYear', 'handbooks', 'paceWatch'] };
+  const RSUBS = { attend: ['attendance', 'attendDates'], teams: ['teams', 'binderTeams', 'standings'], binders: ['binderClass', 'binderAll', 'volunteers', 'photos', 'noteSheets', 'clubCalendar'], progress: ['progressSheets', 'awardsByChild', 'ceremony', 'handOut', 'booksYear', 'handbooks', 'paceWatch'] };
   const subOf = v => /^bundle:/.test(v) ? 'binders' : Object.keys(RSUBS).find(k => RSUBS[k].includes(v)) || 'other';      // everything else (uniforms, lessons, Planning Center changes) is "Other"
   let rsub = 'attend'; const lastIn = {};
   let binderSel = null, binderPrefs = null;      // binderSel: the binders chosen in the Print class binders pop-up ({ name, items }); binderPrefs: the pop-up's last settings, kept for the visit
@@ -829,7 +829,7 @@
         '<p class="status">Add a PDF link under a group’s lesson in Calendar → Lessons by week.</p>');
   }
   function renderBundle(b) {
-    ['oRoom', 'oGroup', 'oKid', 'calNote', 'oNoBook', 'oBooks', 'oBlanks'].forEach(id => { $(id).hidden = true; });
+    ['oRoom', 'oGroup', 'oKid', 'calNote', 'oNoBook', 'oShowLessons', 'oBooks', 'oBlanks'].forEach(id => { $(id).hidden = true; });
     // Bundle options come from the reports in it. Its quarter is independent of the app-wide quarter.
     const bundleOptions = new Set(b.items.flatMap(item => Reports.LIST.find(r => r.id === item.report)?.opts || []));
     const order = bundleOptions.has('order'), title = bundleOptions.has('title'), perClass = !!b.perClass && b !== binderSel;
@@ -912,6 +912,7 @@
     const books = $('oBooksSel').value;
     return [
       !$('qWrap').hidden && (bundleOf() ? bundleQ : settings.quarter),
+      !$('oShowLessons').hidden && $('oShowLessonsChk').checked && 'Lessons shown',
       !$('oRoom').hidden && (room.value || (!$('oBooks').hidden && 'All classes')),
       $('oRoom').hidden || !room.value ? !$('oGroup').hidden && group.selectedOptions[0]?.textContent : '',
       !$('oKid').hidden && kid.value && kid.selectedOptions[0]?.textContent.split(' — ').pop(),
@@ -965,6 +966,7 @@
     reportOptionsDialog.scrollTop = 0;
   });
   $('pgDone').addEventListener('click', closeReportOptions);
+  $('oShowLessonsChk').addEventListener('change', () => reportOptionChanged());
   reportOptionsDialog.addEventListener('cancel', e => { e.preventDefault(); closeReportOptions(); });
 
   function configureReportControls(def) {
@@ -975,7 +977,7 @@
     if (o.includes('groupAll') && !allOpt) gsel0.insertBefore(new Option('All groups', ''), gsel0.firstChild); else if (!o.includes('groupAll') && allOpt) { const was = gsel0.value === ''; allOpt.remove(); if (was) gsel0.value = 'Sparks'; }
     const blank = o.includes('books') && $('oBooksSel').value === 'blank';
     $('oGroup').hidden = !(o.includes('group') || o.includes('groupAll')); $('oKid').hidden = !o.includes('kid') || blank; $('oBooks').hidden = !o.includes('books'); $('oBlanks').hidden = !blank;
-    $('dateBar').hidden = !(o.includes('order') || o.includes('title') || o.includes('noBook')); $('oNoBook').hidden = !o.includes('noBook');
+    $('dateBar').hidden = !(o.includes('order') || o.includes('title') || o.includes('noBook') || o.includes('lessons')); $('oNoBook').hidden = !o.includes('noBook'); $('oShowLessons').hidden = !o.includes('lessons');
     $('qWrap').hidden = $('calNote').hidden = !o.includes('quarter'); $('oOrder').hidden = !o.includes('order'); $('tWrap').hidden = !o.includes('title');
     const nights = Calendar.nights(calendar, settings.quarter).length;
     $('calNote').textContent = calendar.length ? nights + ' club nights in ' + settings.quarter + ' from the calendar' : '';
@@ -1002,7 +1004,7 @@
     $('bNote').textContent = reportOptionSummary();
     if (!master && def.requiresRoster !== false) { $('report').innerHTML = '<p class="status">Load a roster first.</p>'; return; }
     const rs = $('oRoomSel'), ks = $('oKidSel');
-    const html = def.render({ master, settings, calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, book) => App.sheets.html(p, book), opts: { room: rs.value, order: $('oOrderSel').value, group: $('oGroupSel').value, kid: ks.value, books: o.includes('books') ? $('oBooksSel').value : '', blanks: o.includes('books') && $('oBooksSel').value === 'blank' ? Math.max(1, Math.min(20, parseInt($('oBlanksNum').value, 10) || 3)) : 0, noBook: o.includes('noBook') && $('oNoBookChk').checked } });      // the night only counts for reports that show the Night box
+    const html = def.render({ master, settings, calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, book) => App.sheets.html(p, book), opts: { room: rs.value, order: $('oOrderSel').value, group: $('oGroupSel').value, kid: ks.value, books: o.includes('books') ? $('oBooksSel').value : '', blanks: o.includes('books') && $('oBooksSel').value === 'blank' ? Math.max(1, Math.min(20, parseInt($('oBlanksNum').value, 10) || 3)) : 0, noBook: o.includes('noBook') && $('oNoBookChk').checked, lessons: o.includes('lessons') && $('oShowLessonsChk').checked } });      // the night only counts for reports that show the Night box
     // Contact and medical details come from the last Planning Center export; say how old it is.
     $('report').innerHTML = ['binderClass', 'binderAll', 'volunteers', 'photos'].includes(def.id) && master && master.pcAsOf ?
       html.replace(/<\/h2>/g, '</h2><p class="sub asof">Planning Center data as of ' + esc(master.pcAsOf) + '</p>') : html;
@@ -1621,7 +1623,7 @@
   // Print class binders: a quick pick (a saved bundle: Class binder, Coaches binder, Quarterly Printables, the club's own) sets the pages that go in; the pages can be adjusted; the classes are ticked (none = the whole club in one set).
   // "Show binders" makes the choice a selection of the report list ("Your binders"), drawn like any bundle: the bundle quarter, the lock question and the page choice all work on it.
   const BINDER_CLASS_PARTS = [['attendance', 'Attendance sheet'], ['binderClass', 'Roster with medical and contact (each class)'], ['volunteers', 'Volunteer contact list (a copy in each class binder)'], ['progressSheets', 'Progress sheet for each child (none for Puggles)']];
-  const BINDER_COACHES_PARTS = [['binderAll', 'Coaches: emergency, medical, photos, color team (print once)'], ['binderTeams', 'Color teams by group and color'], ['teams', 'Color teams list (Sparks, T&T)'], ['noteSheets', 'Coaches notes sheet: the whole quarter on one page (once)']];
+  const BINDER_COACHES_PARTS = [['binderAll', 'Coaches: emergency, medical, photos, color team (print once)'], ['binderTeams', 'Color teams by group and color'], ['teams', 'Color teams list (Sparks, T&T)'], ['noteSheets', 'Coaches notes sheet: the whole quarter on one page (once)'], ['clubCalendar', 'Club calendar (print once)']];
   const BINDER_PARTS = BINDER_CLASS_PARTS.concat(BINDER_COACHES_PARTS);
   const BINDER_PER_CLASS = ['attendance', 'binderClass', 'volunteers', 'progressSheets'];      // pages made once per class when classes are ticked
   const binderItems = (parts, classes, blanks) => {
