@@ -140,6 +140,7 @@
       <span class="stepsel"><button type="button" id="attRoomPrev" title="Previous room" aria-label="Previous room">&#8249;</button><label>Class <select id="attRoom"></select></label><button type="button" id="attRoomNext" title="Next room" aria-label="Next room">&#8250;</button></span><i class="info" data-info="attend.room"></i>
       <button id="btnAllPresent">Mark everyone present</button>
       <button id="btnClearRoom">Clear this room</button>
+      <button type="button" data-sign-review>Review sign-off dates</button>
       <span id="attFlagWrap"></span>
       <label class="hold" title="Off: every tick is kept as you tap it. On: the night waits until you press Apply changes."><input type="checkbox" id="attHold"> Hold changes until I apply them</label><i class="info" data-info="attend.hold"></i>
       <span class="grow"></span>
@@ -495,6 +496,7 @@
       </ul>
 
       <h3 id="m-t-progress">Progress</h3>
+      <p><b>Review sign-off dates</b> on Attendance or a child&rsquo;s Progress sheet checks applied entries for this club year. It flags sign-offs on a non-club date or a night with no Present mark. Confirm calendar coverage to check dates with no calendar row. Use the normal editors to make any corrections.</p>
       <ul>
         <li>Progress is not a tab of its own: open a child on the <b>Person</b> tab and choose <b>Progress</b>, or click a child&rsquo;s name anywhere.</li>
         <li>The record opens on the <b>book the child is in</b>, marked with a dot on its tab. For Sparks (who work through HG, WR, SS in order) it is worked out: the book received most recently that is not finished, else the handbook on file, else the book after the last one finished (finishing Wingrunner puts a child in SkyStormer, even if Hangglider was never recorded), else the book signed off most recently. For Cubbies and T&amp;T it is the handbook, else this year&rsquo;s book. Under every empty date there is a <b>Today</b> button: one tap fills in today&rsquo;s date (on a phone it is a large button). A filled date is changed in the date box.</li>
@@ -808,6 +810,7 @@
 <script src="location-code.js"></script>
 <script src="teamplan.js"></script>
 <script src="pace.js"></script>
+<script src="signoff-review.js"></script>
 <script src="intake.js"></script>
 <script src="check.js"></script>
 <script src="validate.js"></script>
@@ -821,6 +824,7 @@
 <script src="app-ask.js"></script>
 <script src="app-season.js"></script>
 <script src="app-person.js"></script>
+<script src="app-signoff-review.js"></script>
 <script src="app-todo.js"></script>
 <script src="app-teamgrid.js"></script>
 <script src="app-stats.js"></script>

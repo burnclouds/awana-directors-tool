@@ -91,5 +91,26 @@ test('threshold review reports aggregate coverage and excludes classes without s
   assert(!JSON.stringify(after).includes(id) && !JSON.stringify(after).includes(M.fullName(child)));
   assert.strictEqual(JSON.stringify(season), snapshot);
 });
+test('rollover evidence exposes the effect of dated carried sections without tuning thresholds', () => {
+  const ctx = load(), closed = ctx.season, child = pick(ctx, 'Sparks', 4), id = child[M.X.ID];
+  const prior = nightsOf(ctx, child)[0];
+  Season.setProgress(closed, id, 'HG', 'R.1', prior);
+  Season.markSignsNoDate(closed, id, 'HG', ['R.2'], prior);
+  const next = Season.newSeason(closed, '2027-28');
+  const dates = ['2027-09-08', '2027-09-15', '2027-09-22', '2027-09-29'];
+  next.calendar = dates.map(Date => ({ Date, Type: 'Club night', Quarter: 'Q1' }));
+  dates.forEach(d => Season.setMark(next, d, id, 'a', true));
+  Season.setProgress(next, id, 'HG', 'R.3', dates[1]);
+  const pace = season => Pace.rows({ season, calendar: season.calendar, master: M.fromRoster(season.roster) }).find(row => row.id === id);
+  const before = JSON.stringify(next), current = pace(next);
+  assert.equal(Season.seasonStart(next), dates[0]);
+  assert.deepStrictEqual(current.per, [1, 1, 0, 0], 'the real earlier date lands in the first attended-night bucket');
+  const comparison = JSON.parse(before);
+  Season.setProgress(comparison, id, 'HG', 'R.1', '');
+  assert.deepStrictEqual(pace(comparison).per, [0, 1, 0, 0], 'a current-season-only comparison removes the carried date');
+  assert.equal(current.overall, 0.5);
+  assert.equal(pace(comparison).overall, 0.25);
+  assert.strictEqual(JSON.stringify(next), before);
+});
 console.log(passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

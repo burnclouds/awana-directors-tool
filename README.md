@@ -350,6 +350,8 @@ NODE_PATH=<dir with playwright> node test/todo-note-reply-browser.test.js  # N44
 NODE_PATH=<dir with playwright> node test/flag-filter-browser.test.js  # N44: a flag on a filter (Attendance Class) sets the class back on Go; bug reports keep the filter
 NODE_PATH=<dir with playwright> node test/no-date-clear-browser.test.js   # N43: a typed date clears no-date marks; the Date received tick is on its line; a book finished before shows reviews only
 node test/handbook-clear-offer.test.js      # N38: a bare book code with no date is offered for clearing when its received date is cleared
+node test/signoff-review.test.js             # N72: read-only warnings for dated sign-offs against current-season attendance and calendar
+NODE_PATH=<dir with playwright> node test/signoff-review-browser.test.js  # N72 review entry points, coverage and unapplied edits
 node test/no-date-books.test.js             # Debug: a bare book code with no dates is reset (Cubbies, Sparks, T&T); a child with a date is never touched
 NODE_PATH=<dir with playwright> node test/debug-nodate-browser.test.js  # Debug tab: Books with no dates counts, lists and resets
 node test/oddballs.test.js                  # N39: records that look wrong (handbook for another class's book, received date or sign-offs for an unknown book, notes about a missing child or book, a color outside the four, an award listed twice); a fix only where it loses nothing; the list never changes the data
@@ -386,7 +388,7 @@ NODE_PATH=<dir with playwright> node test/browser.test.js <export.csv> <calendar
 5. Hard-refresh the page. The splash screen and the header show the version; the Debug tab shows every file's version and date.
 6. **After a deploy, update the private version history artifact.** Publish the same history file with the Artifact tool to the private link https://claude.ai/artifact/DSVoBfFjNvpxf1WcYdeyT5 (only the owner can open it until shared).
 
-Script load order matters and is enforced by `versions.test.js`: `csv, info, model, calendar, rotation, teams, catalog, season, datamerge, flagtrail, location-code, teamplan, pace, intake, check, validate, todo, reports, reports-season, slides, stats, store, app, app-ask, app-season, app-person, app-todo, app-teamgrid, app-stats, app-store, app-options, app-update, app-sw, app-info, app-flagpop, app-help, app-trail, app-merge, app-flagmode, app-flagmarks, app-tools, app-search, app-topbar`, then the optional Drive files `drive-config, drive, app-drive`.
+Script load order matters and is enforced by `versions.test.js`: `csv, info, model, calendar, rotation, teams, catalog, season, datamerge, flagtrail, location-code, teamplan, pace, signoff-review, intake, check, validate, todo, reports, reports-season, slides, stats, store, app, app-ask, app-season, app-person, app-signoff-review, app-todo, app-teamgrid, app-stats, app-store, app-options, app-update, app-sw, app-info, app-flagpop, app-help, app-trail, app-merge, app-flagmode, app-flagmarks, app-tools, app-search, app-topbar`, then the optional Drive files `drive-config, drive, app-drive`.
 
 ## Known open items
 

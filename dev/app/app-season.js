@@ -79,6 +79,8 @@
     return false;
   }
   App.resolveDraft = resolveDraft;
+  // The review reads the last applied values while editing tabs hold changes in the live file.
+  App.signoffReviewData = () => season && snap ? { season: Object.assign({ year: season.year }, snap), pending: !!draftTab } : null;
   // An edit made here to a Planning Center field is only a note until Planning Center has it. That count lives in this bar (with a link to the list), so there is one place that says "changes": under the Apply line when a draft is open, alone on any other tab.
   // The x hides the line until the next save (markSaved brings it back); while it is hidden the (i) in the title bar still says it.
   let pcHidden = false;
@@ -1105,7 +1107,7 @@
     };
     const tabs = '<div class="booktabs">' + codes.map(c => { const st = tabState(c);
       return '<button data-book="' + esc(c) + '" class="' + st[0] + (c === ui.prBook ? ' on' : '') + (c === cur ? ' cur' : '') + '"' + (st[2] ? ' title="' + esc(st[2] + (c === cur && st[0] !== 'st-cur' ? ' (the book this child is in)' : '')) + '"' : '') + '>' + esc(bname(c)) + (st[1] ? '<span class="bkmark" aria-hidden="true">' + st[1] + '</span>' : '') + (c === cur ? ' <span class="curdot" aria-label="(current book)">&#9679;</span>' : '') + '</button>'; }).join('') + addSheetMenu(codes) + '</div>';
-    h = tabs + h + (ui.prBook ? sheetHtml(p, ui.prBook) : '');      // the book tabs come first, above the pace line and the sheet
+    h = tabs + (App.signoffReviewButton ? '<p>' + App.signoffReviewButton + '</p>' : '') + h + (ui.prBook ? sheetHtml(p, ui.prBook) : '');      // the book tabs come first, above the pace line and the sheet
     const sug = Season.suggestedAwards(season, id, g);
     if (sug.length) h += '<p class="ok"><b>Earned, not yet announced:</b> ' + sug.map(s => esc(s.award) + ' (' + (s.noDate ? 'no date' : esc(MD(s.date))) + ')').join(', ') + '. Announce them on the Awards tab.</p>';
     const past = Season.pastYearAwards(season, id);
