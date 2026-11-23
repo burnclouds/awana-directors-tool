@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.74.5';
+(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.74.6';
 // Season store: everything recorded during one club year, kept in one JSON file keyed by person ID
 // (attendance, games, awards, handbooks, section-by-section progress, the roster) plus the lists and templates they use.
 //
@@ -666,6 +666,8 @@
     { const carried = { pastTurnout: clone(s.pastTurnout || {}) }; if (s.year) addPastYear(carried, s.year, turnoutCounts(s, s.calendar || [], '')); if (carried.pastTurnout && Object.keys(carried.pastTurnout).length) n.pastTurnout = carried.pastTurnout; }
     n.config = clone(s.config); n.config.teamsOk = { repeats: [], uneven: [] }; n.config.todoIgnored = []; delete n.config.teamPlan; n.config.yearBook = { Cubbies: '', Sparks: '', 'T&T': '' };      // colors start over each year, so what was accepted last year does not carry; the year's books are chosen again each year (how Sparks use their books is club policy and carries over)
     delete n.config.breaks;
+    const lastYearCalendar = Calendar.archive(s.calendar || []);
+    if (lastYearCalendar.length) n.config.lastYearCalendar = lastYearCalendar;
     if (isObj(n.config.lessons) && isObj(n.config.lessons.groups)) {
       Object.values(n.config.lessons.groups).forEach(group => {
         if (isObj(group)) { delete group.from; delete group.items; }
