@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.7';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.8';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -48,6 +48,7 @@
   const App = window.App = {
     tab: 'roster', sub: 'games', view: () => viewOf(App.tab, App.sub), tabs: {}, onRefresh: [], opened: [], noteOpened: (n, t, m) => noteOpened(n, t, m), dirty: () => false, changed: () => {}, rebase: () => {}, updateStatus: () => updateStatus(),
     get master() { return master; }, get calendar() { return calendar; }, get rotation() { return rotation; }, get hasPcExport() { return !!lastPc; }, get settings() { return settings; },
+    locationViews: {},
     places: {},      // tab -> { get(), set(state) }: what the Recent places list remembers about the tab (app-trail.js)
     markTest: n => markTest(n),      // for a session carried through an update (app-update.js)
     teamColors: () => Season.teamOrder(App.season),      // the colors in the order set on the Options tab
@@ -808,6 +809,8 @@
   }
   fillReportSel(); App.fillReportSel = fillReportSel;
   let bundleQ = '';      // the quarter chosen for a bundle; empty until chosen, then it is the next quarter
+  let locationReportQuarter = '';
+  const reportQuarter = () => locationReportQuarter || settings.quarter;
   $('sQuarter').value = settings.quarter;
   const bundleOf = () => sel.value === 'bundle:picked' ? binderSel : /^bundle:\d+$/.test(sel.value) ? Reports.bundlesOf(App.season)[+sel.value.slice(7)] || null : null;
   const isNightPack = b => b && b.name === 'Club night pack' && ['announceList', 'handOut'].every(id => b.items.some(i => i.report === id));
@@ -911,7 +914,7 @@
     const group = $('oGroupSel'), room = $('oRoomSel'), kid = $('oKidSel');
     const books = $('oBooksSel').value;
     return [
-      !$('qWrap').hidden && (bundleOf() ? bundleQ : settings.quarter),
+      !$('qWrap').hidden && (bundleOf() ? bundleQ : reportQuarter()),
       !$('oRoom').hidden && (room.value || (!$('oBooks').hidden && 'All classes')),
       $('oRoom').hidden || !room.value ? !$('oGroup').hidden && group.selectedOptions[0]?.textContent : '',
       !$('oKid').hidden && kid.value && kid.selectedOptions[0]?.textContent.split(' — ').pop(),
@@ -977,8 +980,8 @@
     $('oGroup').hidden = !(o.includes('group') || o.includes('groupAll')); $('oKid').hidden = !o.includes('kid') || blank; $('oBooks').hidden = !o.includes('books'); $('oBlanks').hidden = !blank;
     $('dateBar').hidden = !(o.includes('order') || o.includes('title') || o.includes('noBook')); $('oNoBook').hidden = !o.includes('noBook');
     $('qWrap').hidden = $('calNote').hidden = !o.includes('quarter'); $('oOrder').hidden = !o.includes('order'); $('tWrap').hidden = !o.includes('title');
-    const nights = Calendar.nights(calendar, settings.quarter).length;
-    $('calNote').textContent = calendar.length ? nights + ' club nights in ' + settings.quarter + ' from the calendar' : '';
+    const nights = Calendar.nights(calendar, reportQuarter()).length;
+    $('calNote').textContent = calendar.length ? nights + ' club nights in ' + reportQuarter() + ' from the calendar' : '';
     if (!master) return;
     const rs = $('oRoomSel'), cur = psAuto && def.id !== 'progressSheets' ? '' : rs.value;      // the class Progress sheets chose by itself is not carried to another report
     // A report with a Group picker lists only that group's rooms in the Room picker (an old choice from another group is dropped).
@@ -1002,12 +1005,53 @@
     $('bNote').textContent = reportOptionSummary();
     if (!master && def.requiresRoster !== false) { $('report').innerHTML = '<p class="status">Load a roster first.</p>'; return; }
     const rs = $('oRoomSel'), ks = $('oKidSel');
-    const html = def.render({ master, settings, calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, book) => App.sheets.html(p, book), opts: { room: rs.value, order: $('oOrderSel').value, group: $('oGroupSel').value, kid: ks.value, books: o.includes('books') ? $('oBooksSel').value : '', blanks: o.includes('books') && $('oBooksSel').value === 'blank' ? Math.max(1, Math.min(20, parseInt($('oBlanksNum').value, 10) || 3)) : 0, noBook: o.includes('noBook') && $('oNoBookChk').checked } });      // the night only counts for reports that show the Night box
+    const html = def.render({ master, settings: Object.assign({}, settings, { quarter: reportQuarter() }), calendar, rotation, season: App.season, today: App.today(), progressSheet: (p, book) => App.sheets.html(p, book), opts: { room: rs.value, order: $('oOrderSel').value, group: $('oGroupSel').value, kid: ks.value, books: o.includes('books') ? $('oBooksSel').value : '', blanks: o.includes('books') && $('oBooksSel').value === 'blank' ? Math.max(1, Math.min(20, parseInt($('oBlanksNum').value, 10) || 3)) : 0, noBook: o.includes('noBook') && $('oNoBookChk').checked } });      // the night only counts for reports that show the Night box
     // Contact and medical details come from the last Planning Center export; say how old it is.
     $('report').innerHTML = ['binderClass', 'binderAll', 'volunteers', 'photos'].includes(def.id) && master && master.pcAsOf ?
       html.replace(/<\/h2>/g, '</h2><p class="sub asof">Planning Center data as of ' + esc(master.pcAsOf) + '</p>') : html;
     setPageStyle();
   }
+  // Location codes restore report filters in this view only. Do not apply global quarter overrides.
+  const locationReportFilters = [
+    ['group', 'oGroup', 'oGroupSel'], ['room', 'oRoom', 'oRoomSel'], ['order', 'oOrder', 'oOrderSel'],
+    ['books', 'oBooks', 'oBooksSel'], ['blanks', 'oBlanks', 'oBlanksNum'], ['noBook', 'oNoBook', 'oNoBookChk']
+  ];
+  App.locationViews.reports = {
+    get() {
+      if (bundleOf()) return { bundle: 'active' };
+      const view = { report: sel.value };
+      if (!$('qWrap').hidden) view.quarter = reportQuarter();
+      locationReportFilters.forEach(([key, wrap, id]) => {
+        if ($(wrap).hidden) return;
+        const input = $(id);
+        view[key] = key === 'noBook' ? (input.checked ? 'yes' : 'no') : input.value || 'all';
+      });
+      if (!$('oKid').hidden && $('oKidSel').value) view.child = 'selected';
+      return view;
+    },
+    open(view) {
+      const def = Reports.LIST.find(r => r.id === view.report && !r.hidden);
+      if (!def || ![...sel.options].some(o => o.value === def.id)) return Object.keys(view);
+      sel.value = def.id;
+      locationReportQuarter = '';
+      $('oKidSel').value = '';
+      configureReportControls(def);
+      const skipped = [];
+      if (view.quarter && !$('qWrap').hidden) locationReportQuarter = view.quarter;
+      else if (view.quarter) skipped.push('quarter');
+      locationReportFilters.forEach(([key, wrap, id]) => {
+        if (!view[key]) return;
+        const input = $(id), val = ['room', 'group'].includes(key) && view[key] === 'all' ? '' : view[key];
+        if ($(wrap).hidden || (input.tagName === 'SELECT' && ![...input.options].some(o => o.value === val))) {
+          skipped.push(key === 'room' ? 'class' : key); return;
+        }
+        if (key === 'noBook') input.checked = val === 'yes'; else input.value = val;
+        if (key === 'books' || key === 'group') configureReportControls(def);
+      });
+      renderReport();
+      return skipped;
+    }
+  };
   // ---- Date boxes default to this year ----
   // Type the month and the day in any date box, then leave the box (Tab out, Enter, or click away) without typing a year: the year is this year. (A short or half-typed year is not guessed: the box goes back to the saved date, as before.) Nothing is done while a year is being typed
   // or when the box already holds a whole date. The browser reports a half-typed date as empty, so the digits typed are followed here (typedMonthDay) the way the box itself splits them into month and day.
@@ -1070,9 +1114,9 @@
     if (pick) sel.value = pick.value; rsub = k; renderReport();
   });
   document.addEventListener('click', e => { const b = e.target.closest('.optsubs button[data-optsub]'); if (b) showTab(b.dataset.optsub); });
-  function syncQ() { const cur = bundleOf() ? bundleQ : $('sQuarter').value; document.querySelectorAll('#qWrap button[data-q]').forEach(b => { const on = b.dataset.q === cur; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
-  $('qWrap').addEventListener('click', e => { const b = e.target.closest('button[data-q]'); if (!b) return; if (bundleOf()) { bundleQ = b.dataset.q; syncQ(); reportOptionChanged(); return; } const q = $('sQuarter'); q.value = b.dataset.q; q.dispatchEvent(new Event('input', { bubbles: true })); syncQ(); });
-  $('sQuarter').addEventListener('input', e => { const q = e.target.value.trim().toUpperCase(); if (/^Q[1-4]$/.test(q)) { setQuarter(q); reportOptionChanged(); renderRoster(); } });
+  function syncQ() { const cur = bundleOf() ? bundleQ : reportQuarter(); document.querySelectorAll('#qWrap button[data-q]').forEach(b => { const on = b.dataset.q === cur; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
+  $('qWrap').addEventListener('click', e => { const b = e.target.closest('button[data-q]'); if (!b) return; if (bundleOf()) { bundleQ = b.dataset.q; syncQ(); reportOptionChanged(); return; } locationReportQuarter = ''; const q = $('sQuarter'); q.value = b.dataset.q; q.dispatchEvent(new Event('input', { bubbles: true })); syncQ(); });
+  $('sQuarter').addEventListener('input', e => { const q = e.target.value.trim().toUpperCase(); if (/^Q[1-4]$/.test(q)) { locationReportQuarter = ''; setQuarter(q); reportOptionChanged(); renderRoster(); } });
   // The Roster tab's own quarter picker (flag 10) sets the same app-wide quarter as the Reports pills and the Color teams box, and they follow it.
   $('fQuarter').addEventListener('change', e => { setQuarter(e.target.value); $('sQuarter').value = settings.quarter; $('tQuarter').value = settings.quarter; syncQ(); renderRoster(); });
   applyClub(); App.clubChanged = applyClub;      // called whenever a file opens or an undo changes the title (App.loadData runs first)
@@ -1082,7 +1126,7 @@
   // The binder pages (attendance sheets, team lists) are printed shortly before a quarter starts, which is when it should lock. Printing one for a quarter that is not locked asks first; it never locks silently.
   let lockQ = '';
   $('btnPrint').addEventListener('click', () => {
-    const b = bundleOf(), q = b ? bundleQ : settings.quarter; lockQ = q;
+    const b = bundleOf(), q = b ? bundleQ : reportQuarter(); lockQ = q;
     const TEAM_PAGES = ['attendance', 'teams', 'binderTeams'], binder = b ? (b.items || []).some(i => TEAM_PAGES.includes(i.report)) : TEAM_PAGES.includes(sel.value);      // pages that depend on a quarter's colors, the coaches' team list too
     if (App.season && binder && Teams.QUARTERS.includes(q) && TeamPlan.stateOf(App.season, calendar, q, App.today()) !== 'locked') {
       $('lockAskBody').innerHTML = '<h3>Lock ' + esc(q) + ' now?</h3><p>' + esc(q) + ' is not locked yet. Locking makes its team colors final, so the pages you print now match what is played. You can unlock it again on the Color teams tab.</p>' +
@@ -1428,6 +1472,7 @@
   // The data JSON holds the roster (with the Planning Center data as of its last import), calendar and rotation. Opening one
   // replaces them; noImport (restore, new season) does not re-apply an export opened earlier in the session.
   App.loadData = (s, opts) => {
+    locationReportQuarter = '';
     if (App.fileSettingsLoaded) App.fileSettingsLoaded();      // the update and auto-save timers take the file's settings (app-update.js)
     if (App.clubChanged) App.clubChanged();                   // the title typed in this file (config.clubTitle), or the derived one
     if (App.driveSettingsLoaded) App.driveSettingsLoaded();   // the Drive save style and file name come from the file

@@ -1,8 +1,8 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-flagmode.js'] = '1.4.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-flagmode.js'] = '1.5.0';
 // Flag anything: the Flag button in the top bar turns on flag mode; click any part of any tab to leave a note about it. The note is saved in the data file and listed on To do, with Go.
 // The flag stores a trail of labels (flagtrail.js), not a screen position. Esc or the Flag button again leaves the mode.
 (function () {
-  const App = window.App, esc = App.esc, $ = id => document.getElementById(id), FT = window.FlagTrail;
+  const App = window.App, esc = App.esc, $ = id => document.getElementById(id), FT = window.FlagTrail, LC = window.LocationCode;
   const HEAD = 'h2,h3,h4,summary,.plabel,legend,.smhead,caption', PICK = 'button,a,input,select,textarea,label,th,td,summary,h1,h2,h3,h4,.chip,.pcell,.pblock,li,p';
   let on = false, hot = null, kind = 'flag'; const missing = new Set(); App.flagMissing = missing;
   const root = () => document.getElementById('tab-' + App.tab) || document.querySelector('main');
@@ -53,32 +53,68 @@
     return { kid, scope, trail: FT.build({ tab: tabName(App.tab), heading: headingOf(el), row: rowKid ? '' : rowOf(el), label: labelOf(el) }), rowIndex, label: labelOf(el) };
   }
   // ---- flag mode ----
-  // kind is 'flag' (a note on To do) or 'bug' (a bug report or feature request, kept on the Debug tab). Both pick a spot the same way.
+  // Flag and location sharing use the same target picker.
   function setMode(v, k) {
     on = v; kind = on && k === 'bug' ? 'bug' : 'flag'; document.body.classList.toggle('flagmode', on);
     [['btnFlagMode', 'flag'], ['btnBugMode', 'bug']].forEach(([id, kd]) => { const b = $(id); if (!b) return; const lit = on && kind === kd; b.setAttribute('aria-pressed', lit ? 'true' : 'false'); b.classList.toggle('on', lit); });
     if (!on && hot) { hot.classList.remove('flagtarget'); hot = null; }
-    if (on) App.flash(kind === 'bug' ? 'Bug report: click the part of the app it is about. Esc or the Bug button leaves this mode.' : 'Flag mode: click anything to leave a note about it. Esc or the Flag button leaves flag mode.', 'info');
+    if (on) App.flash(kind === 'bug' ? 'Click the part of the app you want to share. Esc or the Bug button leaves this mode.' : 'Flag mode: click anything to leave a note about it. Esc or the Flag button leaves flag mode.', 'info');
   }
-  function dialog(el) {
-    const season = App.season, info = infoOf(el), dlg = $('dlg');
-    const bug = kind === 'bug', lvl = bug ? 'bug' : 'element';
-    const here = Season.flagList(season).filter(f => f.level === lvl && f.tab === App.tab && FT.same(f.trail, info.trail) && (f.rowIndex || 0) === info.rowIndex && viewOk(f, info.scope) && (!f.kid || f.kid === info.kid));
-    dlg.innerHTML = '<h3 style="margin-top:0">' + (bug ? 'Bug report: ' : '&#9873; Flag: ') + esc(info.label || 'this') + '</h3><p class="status">' + esc(FT.readable(info.trail)) + (info.rowIndex ? ' (row ' + (info.rowIndex + 1) + ' of that name)' : '') + (bug
-      ? '<br>This goes on the Debug tab, not To do, where it can be answered. Describe the problem or the feature you would like. Do not write a child\'s name; to report about one child\'s record, click that child\'s row.</p>'
-      : '<br>The note shows on the To do tab, with a Go button to come back here, until you clear it.</p>') +
-      here.map(f => '<p class="flagnote"><b class="notetext">' + esc(f.note) + '</b> <span class="status">' + esc(Model.md(f.at)) + '</span> <button type="button" data-dlgclear="' + esc(f.id) + '">Clear</button></p>').join('') +
-      '<label>Note <textarea id="flNote" rows="3" style="width:100%" placeholder="' + (bug ? 'What went wrong, or what you would like the app to do' : 'What to check') + '"></textarea></label><div class="dlgbtns"><button id="flCancel">Close</button><button id="flSave" class="primary">' + (bug ? 'Add bug report' : 'Add flag') + '</button></div>';
-    $('flCancel').onclick = () => dlg.close();
-    // Save leaves flag mode: the page stays where it is, so Save and the other buttons work at once. Another note is one more press of the Flag button.
-    $('flSave').onclick = () => {
-      const ver = (document.querySelector('meta[name="app-version"]') || {}).content || '';
-      try { App.addFlag(Object.assign({}, info.scope, { level: lvl, kid: info.kid || undefined, tab: App.tab, trail: info.trail, label: info.label, rowIndex: info.rowIndex, note: $('flNote').value, filter: (el && el.tagName === 'SELECT' && el.id) ? { id: el.id, value: el.value } : undefined, ver: bug ? ver : undefined })); } catch (err) { App.flash(err.message, 'error'); return; }
-      dlg.close(); setMode(false);
-      if (bug) { if (App.renderDebug) App.renderDebug(); App.flash('Bug report added. It is on the Debug tab (Options, then Debug).', 'info'); }      // a bug report never touches the To do badge
-      else { if (App.updateTodoBadge) App.updateTodoBadge(); App.flash('Flag added. It is on the To do tab.', 'info'); }
+  function shareDialog(el) {
+    const tab = App.tab, dlg = $('dlg');
+    const target = Object.entries(LC.targets[tab] || {}).find(([, selector]) => el.closest(selector))?.[0];
+    const adapter = App.locationViews && App.locationViews[tab];
+    const share = LC.capture(tab, target, adapter ? adapter.get() : {});
+    setMode(false);
+    dlg.innerHTML = '<h3 style="margin-top:0">Share a location</h3><p>Send this code with your description. The recipient can open it in Debug.</p>' +
+      (!target ? '<p class="status">This code opens the screen.</p>' : '') +
+      (share.omitted.length ? '<p class="status">This code leaves out ' + esc(share.omitted.join(', ')) + '.</p>' : '') +
+      '<label>Location code <input id="shareLocationCode" type="text" readonly></label><p id="shareLocationStatus" role="status"></p>' +
+      '<div class="dlgbtns"><button type="button" id="shareLocationClose">Close</button><button type="button" id="copyLocation" class="primary">Copy location code</button></div>';
+    const input = $('shareLocationCode');
+    input.value = share.code;
+    dlg.onchange = null;
+    dlg.oncancel = null;
+    $('shareLocationClose').onclick = () => dlg.close();
+    $('copyLocation').onclick = async () => {
+      try { await navigator.clipboard.writeText(input.value); $('shareLocationStatus').textContent = 'Location code copied.'; }
+      catch (err) { input.focus(); input.select(); $('shareLocationStatus').textContent = 'Use your device’s Copy command to copy the selected code.'; }
     };
-    // Esc in the note box cancels it without saving, and leaves flag mode.
+    dlg.showModal(); input.select();
+  }
+  App.openLocation = code => {
+    const value = LC.decode(code);
+    if (App.draftPending && App.draftPending()) throw new Error('Apply or discard your pending changes before opening a location.');
+    if (!$('tab-' + value.tab)) throw new Error('This screen is unavailable in this version.');
+    const adapter = App.locationViews && App.locationViews[value.tab];
+    // These adapters set only view state. The supplied code is never a selector or a change event.
+    App.showTab(value.tab, value.tab === 'games' ? 'games' : undefined);
+    if (App.tab !== value.tab) return;
+    const skipped = adapter ? adapter.open(value.view || {}) : Object.keys(value.view || {});
+    const selector = value.target && LC.targets[value.tab][value.target], hit = selector && root().querySelector(selector);
+    const visible = hit && hit.getClientRects().length;
+    if (visible) {
+      hit.scrollIntoView({ block: 'center' });
+      hit.classList.add('flashflag');
+      setTimeout(() => hit.classList.remove('flashflag'), 2500);
+    } else App.pageScroll.to(0);
+    if (value.target && !visible) skipped.push('highlighted area');
+    App.flash(skipped.length ? 'Opened ' + tabName(value.tab) + '. Unavailable here: ' + skipped.join(', ') + '.' : 'Opened ' + tabName(value.tab) + '.', skipped.length ? 'warn' : 'info');
+  };
+  function flagDialog(el) {
+    const season = App.season, info = infoOf(el), dlg = $('dlg');
+    const here = Season.flagList(season).filter(f => f.level === 'element' && f.tab === App.tab && FT.same(f.trail, info.trail) && (f.rowIndex || 0) === info.rowIndex && viewOk(f, info.scope) && (!f.kid || f.kid === info.kid));
+    dlg.innerHTML = '<h3 style="margin-top:0">&#9873; Flag: ' + esc(info.label || 'this') + '</h3><p class="status">' + esc(FT.readable(info.trail)) + (info.rowIndex ? ' (row ' + (info.rowIndex + 1) + ' of that name)' : '') +
+      '<br>The note shows on the To do tab, with a Go button to come back here, until you clear it.</p>' +
+      here.map(f => '<p class="flagnote"><b class="notetext">' + esc(f.note) + '</b> <span class="status">' + esc(Model.md(f.at)) + '</span> <button type="button" data-dlgclear="' + esc(f.id) + '">Clear</button></p>').join('') +
+      '<label>Note <textarea id="flNote" rows="3" style="width:100%" placeholder="What to check"></textarea></label><div class="dlgbtns"><button id="flCancel">Close</button><button id="flSave" class="primary">Add flag</button></div>';
+    $('flCancel').onclick = () => dlg.close();
+    $('flSave').onclick = () => {
+      try { App.addFlag(Object.assign({}, info.scope, { level: 'element', kid: info.kid || undefined, tab: App.tab, trail: info.trail, label: info.label, rowIndex: info.rowIndex, note: $('flNote').value, filter: (el && el.tagName === 'SELECT' && el.id) ? { id: el.id, value: el.value } : undefined })); } catch (err) { App.flash(err.message, 'error'); return; }
+      dlg.close(); setMode(false);
+      if (App.updateTodoBadge) App.updateTodoBadge();
+      App.flash('Flag added. It is on the To do tab.', 'info');
+    };
     dlg.oncancel = () => setMode(false);
     dlg.querySelectorAll('[data-dlgclear]').forEach(b => { b.onclick = () => { App.clearFlag(b.dataset.dlgclear); dlg.close(); if (App.updateTodoBadge) App.updateTodoBadge(); }; });
     dlg.showModal(); $('flNote').focus();
@@ -88,13 +124,13 @@
     if (e.target.closest('#btnFlagMode,#btnBugMode,dialog,#splash,.modal-wrap,#flagLayer,.flagpop')) return;      // a yellow flag and its popup work as they do outside flag mode
     e.preventDefault(); e.stopPropagation();
     if (!App.season) { App.flash('Open a data file first: the flag is kept in it.', 'warn'); setMode(false); return; }
-    const el = pickTarget(e.target); if (el) dialog(el);
+    const el = pickTarget(e.target); if (el) (kind === 'bug' ? shareDialog : flagDialog)(el);
   }, true);
   document.addEventListener('mouseover', e => { if (!on) return; const el = pickTarget(e.target); if (el === hot) return; if (hot) hot.classList.remove('flagtarget'); hot = el; if (el) el.classList.add('flagtarget'); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && on && !document.querySelector('dialog[open]')) { e.preventDefault(); setMode(false); } });
   // Each button turns its own mode on; pressing the other one switches; pressing the same one again leaves the mode.
   $('btnFlagMode').addEventListener('click', () => { if (!on && !App.season) { App.flash('Open a data file first: the flag is kept in it.', 'warn'); return; } setMode(!(on && kind === 'flag'), 'flag'); });
-  const bugBtn = $('btnBugMode'); if (bugBtn) bugBtn.addEventListener('click', () => { if (!on && !App.season) { App.flash('Open a data file first: the bug report is kept in it.', 'warn'); return; } setMode(!(on && kind === 'bug'), 'bug'); });
+  const bugBtn = $('btnBugMode'); if (bugBtn) bugBtn.addEventListener('click', () => { if (!on && !App.season) { App.flash('Open a data file first: then choose where to share.', 'warn'); return; } setMode(!(on && kind === 'bug'), 'bug'); });
   // The Bug button shows only when the Options switch is on (config.bugButton); off hides the button and leaves every report where it is.
   App.syncBugButton = () => { const b = $('btnBugMode'); if (!b) return; const show = !!(App.season && App.season.config && App.season.config.bugButton === true); b.hidden = !show; if (!show && on && kind === 'bug') setMode(false); };
   // ---- Go: open the tab, rebuild the trails there, and find the one that matches ----

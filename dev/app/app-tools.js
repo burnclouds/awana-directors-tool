@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.10.3';
+(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.10.4';
 // Debug and Validate tabs. Debug: which version of every file is running, what is open, and the dates of the CSV/JSON files.
 // Validate: check a data file, Planning Center export or older CSV for problems without opening it into the app.
 (function () {
@@ -134,7 +134,7 @@
   let bugFilter = 'open', bugEditing = '', bugBy = 'leader';
   const STATUS_WORD = { open: 'Open', fixed: 'Fixed', dropped: 'Dropped' }, BY_WORD = { leader: 'Leader', developer: 'Developer' };
   function bugsHtml() {
-    const s = App.season; if (!s) return '<h3>Bug reports and feature requests</h3><p class="status">Open a data file: bug reports are kept in it.</p>';
+    const s = App.season; if (!s || !Season.bugList(s).length) return '';
     const all = Season.bugList(s), openN = all.filter(f => Season.bugStatusOf(f) === 'open').length, list = all.filter(f => bugFilter === 'all' || Season.bugStatusOf(f) === bugFilter);
     const FT = window.FlagTrail, name = id => { const p = App.master && App.master.people.find(x => x[Model.X.ID] === id); return p ? Model.fullName(p) : '(no longer on the roster)'; };
     const rows = list.map(f => {
@@ -148,7 +148,7 @@
         '<td>' + (talk || '<span class="status">&mdash;</span>') + (edit ? '<div class="bugedit"><label>Your reply <textarea data-bugtext rows="3"></textarea></label><label>By <select data-bugby><option value="leader"' + (bugBy === 'leader' ? ' selected' : '') + '>Leader</option><option value="developer"' + (bugBy === 'developer' ? ' selected' : '') + '>Developer</option></select></label><button type="button" data-bugadd="' + esc(f.id) + '" class="primary">Add reply</button><button type="button" data-bugcancel>Cancel</button></div>' : '') + '</td>' +
         '<td>' + (f.tab ? '<button type="button" data-buggo="' + esc(f.id) + '">Go</button> ' : '') + (edit ? '' : '<button type="button" data-bugreply="' + esc(f.id) + '">Reply</button> ') + '<button type="button" data-bugdel="' + esc(f.id) + '">Delete</button></td></tr>';
     }).join('');
-    return '<h3 id="dbgBugs">Bug reports and feature requests (' + openN + ' open)</h3><p class="status">Added with the Bug button (turn it on under Options). They are kept in the data file, so every leader sees the same list and the same conversation: reply to a report as often as you like, and mark it Open, Fixed or Dropped. They never appear on To do.</p>' +
+    return '<h3 id="dbgBugs">Saved bug reports (' + openN + ' open)</h3><p class="status">Earlier reports and replies are kept in this file.</p>' +
       '<p class="bugfilter" role="group" aria-label="Show">' + [['all', 'All'], ['open', 'Open'], ['fixed', 'Fixed'], ['dropped', 'Dropped']].map(([k, l]) => '<button type="button" data-bugfilter="' + k + '" aria-pressed="' + (bugFilter === k ? 'true' : 'false') + '"' + (bugFilter === k ? ' class="on"' : '') + '>' + l + '</button>').join(' ') + '</p>' +
       (list.length ? '<div class="scroll" style="max-height:none"><table class="roster"><thead><tr><th>Status</th><th>Where</th><th>Child</th><th>Report</th><th>Reported</th><th>Reply</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<p class="status">' + (all.length ? 'None with that status.' : 'No bug reports yet.') + '</p>');
   }
@@ -164,7 +164,10 @@
       ['Planning Center data as of', esc((s.roster && s.roster.pcAsOf) || '–')], ['Unsaved changes', App.dirty() ? 'yes' : 'no'],
       ['Last big draw', App.drawStats ? esc(App.drawStats.n + ' ' + App.drawStats.what + ' in ' + (App.drawStats.ms / 1000).toFixed(2) + ' s') : 'none yet']] : null;
     let storage = '–'; try { storage = Object.keys(localStorage).filter(k => k.startsWith('awana')).join(', ') || 'none'; } catch (e) { storage = 'blocked'; }
-    $('debugWrap').innerHTML = bugsHtml() +
+    $('debugWrap').innerHTML =
+      '<section aria-labelledby="dbgLocationHeading"><h3 id="dbgLocationHeading">Open a location code</h3><p>Paste a code shared from the Bug button to open its screen and available filters.</p>' +
+      '<form id="dbgLocationForm"><label for="dbgLocationCode">Location code</label> <input id="dbgLocationCode" type="text" required autocomplete="off" spellcheck="false" maxlength="' + LocationCode.MAX + '">' +
+      ' <button type="submit">Open location</button><p id="dbgLocationStatus" role="status"></p></form></section>' + bugsHtml() +
       '<h3>Versions</h3>' + table(['What', 'Version'], state) +
       '<p><a href="version-history.html" target="_blank" rel="noopener">Version history: every version and lettered sub-version, from 1.44 on</a></p>' +
       '<h3>Scripts on this page (' + scripts.length + ')</h3>' + table(['Script', 'Version'], scripts) +
@@ -179,6 +182,13 @@
   if (App.onRefresh) App.onRefresh.push(() => {
     if (odd && App.season) odd = oddList(App.season);
     if ($('debugWrap').offsetParent) renderDebug();
+  });
+  $('debugWrap').addEventListener('submit', e => {
+    if (e.target.id !== 'dbgLocationForm') return;
+    e.preventDefault();
+    $('dbgLocationStatus').textContent = '';
+    try { App.openLocation($('dbgLocationCode').value); }
+    catch (err) { $('dbgLocationStatus').textContent = err.message; }
   });
   $('debugWrap').addEventListener('click', e => {
     const t = e.target.closest('[data-bugfilter],[data-bugreply],[data-bugadd],[data-bugcancel],[data-bugdel],[data-buggo],[data-bugrm]'); if (!t || !App.season) return;

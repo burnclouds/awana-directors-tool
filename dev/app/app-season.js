@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.99.6';
+(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.99.7';
 // Season tabs: Attendance, Games, Awards, Progress, History. Talks to app.js through window.App.
 // The data JSON is the only file we write: season records, roster extras, calendar and rotation. Every edit goes through touchSeason().
 (function () {
@@ -472,6 +472,24 @@
           '<td class="yr">' + t.year.a + '</td></tr>'; }).join('') + '</tbody></table>';  }
   // What the Recent places list remembers about these tabs (app-trail.js): enough to open the same night, class or child again.
   const placeName = id => { const p = App.master && App.master.people.find(x => idOf(x) === id); return p ? Model.fullName(p) : ''; };
+  App.locationViews.attend = {
+    get: () => ({
+      date: $('attDate')?.value,
+      room: $('attRoom').value,
+      absences: $('absView')?.value
+    }),
+    open(view) {
+      const skipped = [], nights = nightList().map(n => n.date);
+      if (view.date && nights.includes(view.date)) ui.attDate = view.date;
+      else if (view.date) skipped.push('night ' + view.date);
+      if (view.room && App.master && roomsWithKids().includes(view.room)) ui.attRoom = view.room;
+      else if (view.room) skipped.push(view.room + ' class');
+      if (view.absences && ui.attRoom === 'Volunteers' && (!view.room || view.room === ui.attRoom)) ui.absView = view.absences;
+      else if (view.absences) skipped.push('volunteer absence filter');
+      renderAttend();
+      return skipped;
+    }
+  };
   App.places.attend = { get: () => ui.attDate && ui.attRoom ? { key: ui.attDate + '|' + ui.attRoom, label: 'Attendance \u00b7 ' + MD(ui.attDate) + ' \u00b7 ' + ui.attRoom, state: { date: ui.attDate, room: ui.attRoom } } : null,
     set: s => { ui.attDate = s.date; ui.attRoom = s.room; } };
   App.places.games = { get: () => ui.gameDate ? { key: ui.gameDate, label: 'Games \u00b7 ' + MD(ui.gameDate), state: { date: ui.gameDate } } : null,
