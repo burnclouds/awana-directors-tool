@@ -34,7 +34,7 @@ const mk = ({ latePage = late, lateStatus = 200 } = {}) => {
     if (endpoint === 'registrations') return new Response(JSON.stringify(registration));
     assert.equal(endpoint, 'attendees');
     if (url.searchParams.has('offset')) return new Response(JSON.stringify(latePage), { status: lateStatus });
-    url.searchParams.set('offset', '100');
+    url.searchParams.set('offset', String(early.data.length));
     return new Response(JSON.stringify({ ...early, links: { next: url.href } }));
   } });
   return { client, requests };

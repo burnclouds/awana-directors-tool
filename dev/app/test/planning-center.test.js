@@ -56,7 +56,7 @@ async function main() {
     reply({ errors: [{}] }, 429, { 'Retry-After': '2' }) : reply({ data: [resource('1')], links: { next } }) });
   assert.deepEqual(await pageTwoFailed.readPages(endpoint, opts), { status: 'unavailable', reason: 'rate-limited', retryAfter: '2' });
 
-  for (const invalid of ['https://example.invalid/' + next, next.replace('/12/', '/13/'), next + '&filter=waitlist', endpoint]) {
+  for (const invalid of ['https://example.invalid/' + next, next.replace('/12/', '/13/'), next + '&filter=waitlist', endpoint, next.replace('offset=1', 'offset=2')]) {
     let count = 0;
     const client = PC.createClient({ accessToken: 'TEST-token', fetch: async () => {
       count++;
@@ -65,6 +65,12 @@ async function main() {
     assert.equal((await client.readPages(endpoint, opts)).status, 'unavailable');
     assert.equal(count, 1);
   }
+
+  const incomplete = PC.createClient({ accessToken: 'TEST-token', fetch: async () => reply({ data: [resource('1')], meta: { total_count: 2 } }) });
+  assert.deepEqual(await incomplete.readPages(endpoint, opts), { status: 'unavailable', reason: 'incomplete-pagination' });
+  const linkObject = PC.createClient({ accessToken: 'TEST-token', fetch: async url => new URL(url).searchParams.has('offset') ?
+    reply({ data: [resource('2')] }) : reply({ data: [resource('1')], links: { next: { href: next } } }) });
+  assert.equal((await linkObject.readPages(endpoint, opts)).status, 'complete');
 
   const controller = new AbortController();
   const aborted = PC.createClient({ accessToken: 'TEST-token', fetch: async () => { controller.abort(); return reply({ data: [resource('1')] }); } });

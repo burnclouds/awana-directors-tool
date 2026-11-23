@@ -40,7 +40,10 @@
     const states = url.searchParams.getAll('state'), codes = url.searchParams.getAll('code');
     if (url.hash || url.username || url.password || url.origin + url.pathname !== pending.redirectUri ||
         states.length !== 1 || !pending.state || states[0] !== pending.state) return unavailable('invalid-callback');
-    if (url.searchParams.has('error')) return unavailable('authorization-denied');
+    if (url.searchParams.has('error')) {
+      pending.state = ''; pending.verifier = '';
+      return unavailable('authorization-denied');
+    }
     if (codes.length !== 1 || !codes[0]) return unavailable('invalid-callback');
 
     const body = new URLSearchParams({
@@ -91,7 +94,11 @@
         if (!response.ok) return failure(response);
         const doc = await response.json();
         if (aborted(signal)) return unavailable('canceled');
-        return { status: 'complete', data: project(doc) };
+        if (!doc || !Object.prototype.hasOwnProperty.call(doc, 'data') || (doc.errors && doc.errors.length)) {
+          return unavailable('invalid-response');
+        }
+        try { return { status: 'complete', data: project(doc) }; }
+        catch { return unavailable('invalid-response'); }
       } catch { return unavailable(aborted(signal) ? 'canceled' : 'request-failed'); }
     }
     async function readPages(path, { version, signal, project }) {
@@ -99,25 +106,33 @@
       if (!accessToken) return unavailable('authorization-required');
       let first;
       try { first = apiUrl(path); } catch { return unavailable('invalid-endpoint'); }
-      let page = first;
-      const scope = collection(first), seen = new Set(), rows = [];
+      let page = first, expectedTotal;
+      const scope = collection(first), rows = [];
       while (page) {
         if (aborted(signal)) return unavailable('canceled');
-        page.searchParams.sort();
-        if (seen.has(page.href) || collection(page) !== scope) return unavailable('invalid-pagination');
-        seen.add(page.href);
+        const offsets = page.searchParams.getAll('offset');
+        if (collection(page) !== scope || offsets.length > 1 || (offsets[0] || '0') !== String(rows.length)) {
+          return unavailable('invalid-pagination');
+        }
         const result = await read(page.href, { version, signal, project: doc => doc });
         if (result.status !== 'complete') return result;
         const doc = result.data;
-        if (!doc || !Array.isArray(doc.data) || (doc.errors && doc.errors.length)) return unavailable('invalid-response');
-        let next;
-        try {
-          doc.data.forEach(resource => rows.push(project(resource, doc.included || [])));
-          next = doc.links && doc.links.next;
-          if (next != null && (typeof next !== 'string' || !next)) return unavailable('invalid-pagination');
-          page = next ? apiUrl(next, page.href) : null;
-        } catch { return unavailable('invalid-response'); }
+        if (!Array.isArray(doc.data) || (doc.included !== undefined && !Array.isArray(doc.included))) return unavailable('invalid-response');
+        const total = doc.meta && doc.meta.total_count;
+        if (Number.isSafeInteger(total) && total >= 0) {
+          if (expectedTotal !== undefined && expectedTotal !== total) return unavailable('incomplete-pagination');
+          expectedTotal = total;
+        }
+        try { doc.data.forEach(resource => rows.push(project(resource, doc.included || []))); }
+        catch { return unavailable('invalid-response'); }
+        const link = doc.links && doc.links.next;
+        const next = link && typeof link === 'object' ? link.href : link;
+        if (link == null) break;
+        if (typeof next !== 'string' || !next || !doc.data.length) return unavailable('invalid-pagination');
+        try { page = apiUrl(next, page.href); }
+        catch { return unavailable('invalid-pagination'); }
       }
+      if (expectedTotal !== undefined && expectedTotal !== rows.length) return unavailable('incomplete-pagination');
       return { status: 'complete', rows };
     }
     return { read, readPages };
