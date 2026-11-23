@@ -80,6 +80,11 @@ async function main() {
   assert.deepEqual(Identity.resolve(linked, target), { status: 'matched', id: 'roster-a' });
   assert.deepEqual(Identity.resolve(linked, { ...target, organizationId: 'church-c' }), { status: 'unmatched' });
   assert.deepEqual(Identity.resolve(linked.concat({ ...target, id: 'other' }), target), { status: 'ambiguous' });
+  assert.deepEqual(Identity.localIds(linked, target), ['roster-a']);
+  assert.deepEqual(Identity.localIds(linked.concat({ ...target, id: 'other' }), target), []);
+  const reverseConflict = linked.concat({ organizationId: 'church-a', personId: '2', id: 'roster-a' });
+  assert.deepEqual(Identity.resolve(reverseConflict, target), { status: 'ambiguous' });
+  assert.deepEqual(Identity.localIds(reverseConflict, target), []);
   console.log('Mocked Planning Center OAuth, pagination and identity tests passed.');
 }
 main().catch(err => { console.error(err); process.exitCode = 1; });
