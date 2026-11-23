@@ -232,3 +232,35 @@ test('theme and event reuse leaves protected or named dates intact and proposes 
   const next = Season.newSeason(s, '2026-27');
   assert.deepEqual(next.config.lastYearCalendar, Calendar.archive(old));
 });
+
+test('preview reports which series lessons would move or be skipped', () => {
+  const rows = [night('2026-10-07'), night('2026-10-14'), night('2026-10-21')];
+  const config = { lessons: { on: true, groups: { Puggles: { items: ['A', 'B', 'C'] } } } };
+  const planned = rows.slice(), cancelled = rows.slice();
+  planned[1] = Calendar.setState(rows[1], 'planned');
+  cancelled[1] = Calendar.setState(rows[1], 'cancelled', 'Weather');
+  const moved = Calendar.lessonChanges(rows, planned, config);
+  assert.deepEqual(moved.map(x => [x.date, x.after.text]), [['2026-10-14', ''], ['2026-10-21', 'B']]);
+  const skipped = Calendar.lessonChanges(rows, cancelled, config);
+  assert.deepEqual(skipped.map(x => [x.date, x.after.kind, x.after.text]), [['2026-10-14', 'missed', 'B']]);
+});
+
+test('merge catches changed season classification for an imported sign-off', () => {
+  const mine = Season.blank('2026-27'), other = Season.blank('2026-27');
+  mine.calendar = [night('2026-10-07'), night('2026-10-14')];
+  other.calendar = [night('2026-10-14')];
+  mine.progress = { child: { HG: { 'Rank.1': '2026-10-07' } } };
+  const combined = Object.assign({}, mine, { calendar: other.calendar });
+  assert.deepEqual(Safety.mergeConflicts(mine, other, combined, '2026-10-20'), [
+    { date: '2026-10-07', reasons: { 'season classification would change': 1 } }
+  ]);
+});
+
+test('calendar comparison flags newly out-of-order quarters without duplicating old issues', () => {
+  const s = Season.blank('2026-27');
+  const before = [night('2026-10-07', 'Q1'), night('2026-10-21', 'Q2')];
+  const invalid = [before[0], night('2026-10-14', 'Q3'), before[1]];
+  const impacts = Safety.compare(s, before, invalid, '2026-09-01');
+  assert(impacts.blocks.some(row => row.date === '2026-10-21' && row.reasons['quarter would go backward']));
+  assert.deepEqual(Safety.compare(s, invalid, invalid, '2026-09-01').blocks, []);
+});

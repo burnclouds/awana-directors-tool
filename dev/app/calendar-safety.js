@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['calendar-safety.js'] = '1.2.0';
+(this.AwanaVersions = this.AwanaVersions || {})['calendar-safety.js'] = '1.2.1';
 // N3: inspect calendar dependencies and build a detached proposal before changing the open file.
 (function (root) {
   const Calendar = root.Calendar || require('./calendar.js');
@@ -78,6 +78,18 @@
     return [...dates].sort();
   }
 
+  function quarterRegressions(rows) {
+    const out = [];
+    let last = -1;
+    Calendar.nights(Calendar.sort(rows.slice())).forEach(row => {
+      const quarter = Calendar.QUARTERS.indexOf(row.Quarter);
+      if (quarter < 0) return;
+      if (quarter < last) out.push(row.Date);
+      last = Math.max(last, quarter);
+    });
+    return out;
+  }
+
   // Used by regeneration and by other routes that would replace or roll the existing schedule.
   function compare(season, previous, candidate, today, evidence = inspect(season, previous, today)) {
     const next = meetingIndex(activeRows(season, candidate)), blocks = [], existing = [];
@@ -99,6 +111,9 @@
           !before.some(old => Calendar.isNight(old) && old.Quarter === r.Quarter))) reasons['locked quarter'] = 1;
       if (Object.keys(reasons).length) blocks.push({ date, reasons });
     }
+    const priorOrder = new Set(quarterRegressions(activeRows(season, previous)));
+    quarterRegressions(activeRows(season, candidate)).filter(date => !priorOrder.has(date))
+      .forEach(date => blocks.push({ date, reasons: { 'quarter would go backward': 1 } }));
     const beforeStart = Season.seasonStart(Object.assign({}, season, { calendar: previous.filter(valid) }));
     const afterStart = Season.seasonStart(Object.assign({}, season, { calendar: candidate.filter(valid) }));
     if (beforeStart && afterStart && beforeStart !== afterStart) {
@@ -186,6 +201,14 @@
         const relevant = Object.keys(reasons).filter(r => Object.hasOwn(before, r) && stable(before[r]) !== stable(against[r]) &&
           retained[r] && Object.keys(retained[r]).length);
         if (relevant.length) changed.set(date, relevant);
+      }
+      const beforeStart = Season.seasonStart(origin), afterStart = Season.seasonStart(merged);
+      if (beforeStart && afterStart && beforeStart !== afterStart) {
+        const previous = new Set(adoptedAlternative ? classificationDates(alternative) : []);
+        const current = new Set(classificationDates(merged));
+        classificationDates(origin).filter(date => current.has(date) && !previous.has(date) &&
+          (date < beforeStart) !== (date < afterStart)).forEach(date =>
+          result.set(date, Object.assign(result.get(date) || {}, { 'season classification would change': 1 })));
       }
       if (!changed.size) continue;
       const changesCompletedActivity = [...changed.values()].some(reasons => reasons.some(r => Object.values(activities).includes(r)));
