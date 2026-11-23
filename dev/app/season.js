@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.74.4';
+(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.74.5';
 // Season store: everything recorded during one club year, kept in one JSON file keyed by person ID
 // (attendance, games, awards, handbooks, section-by-section progress, the roster) plus the lists and templates they use.
 //
@@ -665,6 +665,12 @@
     // the closed year's counts, once; earlier years' counts stay (a year already recorded is not added again). A season with no year label cannot be named, so only the earlier ones are carried.
     { const carried = { pastTurnout: clone(s.pastTurnout || {}) }; if (s.year) addPastYear(carried, s.year, turnoutCounts(s, s.calendar || [], '')); if (carried.pastTurnout && Object.keys(carried.pastTurnout).length) n.pastTurnout = carried.pastTurnout; }
     n.config = clone(s.config); n.config.teamsOk = { repeats: [], uneven: [] }; n.config.todoIgnored = []; delete n.config.teamPlan; n.config.yearBook = { Cubbies: '', Sparks: '', 'T&T': '' };      // colors start over each year, so what was accepted last year does not carry; the year's books are chosen again each year (how Sparks use their books is club policy and carries over)
+    delete n.config.breaks;
+    if (isObj(n.config.lessons) && isObj(n.config.lessons.groups)) {
+      Object.values(n.config.lessons.groups).forEach(group => {
+        if (isObj(group)) { delete group.from; delete group.items; }
+      });
+    }
     ['roster', 'calendar', 'rotation'].forEach(k => { n[k] = clone(s[k]); });
     // Progress and awards come forward ONCE, here (Mike, 2026-11-13): every sign-off (finished or not), the handbooks, books finished before, dates received, and the awards told to the group, handed out, held back or marked no date.
     // They are last year's record: config.carriedThrough (the closed year's last night) marks the boundary, and every earlier-years rule (seasonStart, awardLedger, suggestedAwards) treats anything dated on or before it as earlier-year,

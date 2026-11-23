@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['validate.js'] = '1.18.3';
+(this.AwanaVersions = this.AwanaVersions || {})['validate.js'] = '1.18.4';
 // File checks for the Validate and Debug tabs. Pure functions: text in, findings out (nothing is read from or written to disk).
 //   validate(text, name) -> { kind, findings: [{ level: 'error' | 'warn' | 'info', msg, check }] }   (check: the part of the file the finding is about: a section name, 'config', 'roster', 'ghosts', 'calendar', 'history', 'replay' or 'file')
 //   inspect(text, name, lastModifiedMs) -> { kind, nameStamp, modified, facts }   (the dates and counts shown on the Debug tab)
@@ -30,7 +30,7 @@
   // What the data-file check covers. test/validate.test.js fails when a section (Season.SECTIONS) or a config key the code uses is missing here, so a new
   // one cannot be added without a check; each entry is exercised by a mutation test there.
   const CHECKED_SECTIONS = ['config', 'handbooks', 'attendance', 'awards', 'given', 'givenNoDate', 'held', 'flags', 'doneBooks', 'doneReviews', 'received', 'adults', 'teamMoves', 'games', 'progress', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout', 'absences', 'roster', 'calendar', 'rotation'];      // (history is checked too, but is not one of Season.SECTIONS: it is the record of changes to them)
-  const CHECKED_CONFIG = ['clubDay', 'blueJewelWeeks', 'teamOrder', 'saveStyleDrive', 'saveStyleLocal', 'autoUpdate', 'autoSave', 'drivePinDays', 'sparksBooks', 'yearBook', 'placePoints', 'books', 'progress', 'awardLists', 'exclude', 'completion', 'endOfYear', 'store', 'teamPlan', 'teamsOk', 'todoIgnored', 'driveDirs', 'bundles', 'bookOrder', 'slideNames', 'medRead', 'medPrinted', 'clubTitle', 'driveKeepName', 'cubbiesDetail', 'tntBook', 'carriedThrough', 'bugButton', 'startTab', 'lessons', 'showHiddenNotes', 'breaks', 'easterFlag'];
+  const CHECKED_CONFIG = ['clubDay', 'blueJewelWeeks', 'teamOrder', 'saveStyleDrive', 'saveStyleLocal', 'autoUpdate', 'autoSave', 'drivePinDays', 'sparksBooks', 'yearBook', 'placePoints', 'books', 'progress', 'awardLists', 'exclude', 'completion', 'endOfYear', 'store', 'teamPlan', 'teamsOk', 'todoIgnored', 'driveDirs', 'bundles', 'bookOrder', 'slideNames', 'medRead', 'medPrinted', 'clubTitle', 'driveKeepName', 'cubbiesDetail', 'tntBook', 'carriedThrough', 'bugButton', 'startTab', 'lessons', 'showHiddenNotes', 'breaks', 'easterFlag', 'clubTagline'];
 
   // ---------- the data file ----------
   function validateData(text, name, out) {
@@ -57,6 +57,7 @@
       err('Calendar breaks must have a name and a valid date range.');
     }
     if (cfg.easterFlag !== undefined && typeof cfg.easterFlag !== 'boolean') err('The Easter week flag must be true or false.');
+    if (cfg.clubTagline !== undefined && typeof cfg.clubTagline !== 'string') err('The club calendar subtitle must be text.');
     if (!clubDayOk) err('The club day setting is ' + JSON.stringify(cfg.clubDay) + ' (it must be 0 for Sunday through 6 for Saturday).');
     if (cfg.blueJewelWeeks !== undefined && !(Array.isArray(cfg.blueJewelWeeks) && cfg.blueJewelWeeks.every((n, i, a) => typeof n === 'number' && (i === 0 || n > a[i - 1])))) err('Blue Jewel weeks must be a rising list of numbers.');
     if (cfg.teamOrder !== undefined && !(Array.isArray(cfg.teamOrder) && cfg.teamOrder.length === TEAMS.length && TEAMS.every(t => cfg.teamOrder.includes(t)))) err('The team color order must list Red, Blue, Green and Yellow once each (it is ' + JSON.stringify(cfg.teamOrder) + ').');
@@ -68,7 +69,18 @@
       if (!isObj(L)) err('The lessons setting should be a record with on and groups.');
       else {
         if (L.on !== undefined && typeof L.on !== 'boolean') err('lessons.on should be true or false.');
-        if (L.groups !== undefined) { if (!isObj(L.groups)) err('lessons.groups should be a record of groups.'); else Object.keys(L.groups).forEach(g => { if (!Calendar.GROUPS.includes(g)) warn('lessons.groups has a group this app does not know: ' + g + '.'); else if (!isObj(L.groups[g]) || (L.groups[g].on !== undefined && typeof L.groups[g].on !== 'boolean')) err('lessons.groups.' + g + ' should be a record with on true or false.'); }); }
+        if (L.groups !== undefined && !isObj(L.groups)) err('lessons.groups should be a record of groups.');
+        else Object.entries(L.groups || {}).forEach(([g, series]) => {
+          if (!Calendar.GROUPS.includes(g)) warn('lessons.groups has a group this app does not know: ' + g + '.');
+          else if (!isObj(series) || (series.on !== undefined && typeof series.on !== 'boolean')) err('lessons.groups.' + g + ' should be a record with on true or false.');
+          else {
+            if (series.from !== undefined && series.from !== '' && !isDate(series.from)) err(g + ' lesson series needs a valid start date.');
+            if (series.items !== undefined && (!Array.isArray(series.items) || series.items.some(item => typeof item !== 'string' || !item.trim()))) err(g + ' lesson series should be a list of non-blank lessons.');
+            for (const policy of ['planned', 'unplanned']) {
+              if (series[policy] !== undefined && !['move', 'skip'].includes(series[policy])) err(g + ' lesson series needs move or skip for ' + policy + ' closures.');
+            }
+          }
+        });
       }
     }
     if (cfg.showHiddenNotes !== undefined && typeof cfg.showHiddenNotes !== 'boolean') err('The showHiddenNotes setting should be true or false.');      // To do: show the hidden notes and flags (N19)

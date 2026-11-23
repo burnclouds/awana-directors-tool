@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.26.3';
+(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.26.4';
 // Print reports. Each render(ctx) returns HTML; ctx = { master, settings, opts }.
 (function (root) {
   const M = root.Model || (typeof require !== 'undefined' ? require('./model.js') : null);
@@ -223,16 +223,25 @@
   function lessons(ctx) {
     const all = ctx.calendar || [], cal = all.filter(r => r.Type !== 'Event');
     if (!cal.length) return '<p class="empty">Load a calendar on the Calendar tab first.</p>';
-    const L = Cal.lessonSettings(ctx.season && ctx.season.config, all);
+    const config = ctx.season && ctx.season.config, L = Cal.lessonSettings(config, all);
     if (!L.on) return '<p class="empty">Lessons by week are not turned on (Calendar tab, Lessons by week).</p>';
     const enabled = Cal.GROUPS.filter(g => L.groups[g].on);
     if (!enabled.length) return '<p class="empty">Every group is switched off for lessons by week (Calendar tab, Lessons by week).</p>';
-    const clubNights = cal.filter(Cal.isNight);
-    const groups = enabled.filter(g => clubNights.some(r => String(r[Cal.lessonCol(g)] ?? '').trim()));
+    const series = new Map(enabled.map(g => [g, Cal.lessonsFor(all, g, config)]));
+    const groups = enabled.filter(g => cal.some(r => {
+      const value = series.get(g).get(r.Date);
+      return value && value.text && (Cal.isNight(r) || value.kind === 'missed');
+    }));
     const head = '<tr><th>Date</th><th>Theme</th>' + groups.map(g => '<th>' + esc(g) + '</th>').join('') + '</tr>';
-    const body = cal.map(r => r['No Club'] === '1'
-      ? '<tr><td>' + Cal.short(r.Date) + '</td><td colspan="' + (groups.length + 1) + '"><span class="none">NO CLUB</span>' + (r.Theme ? ' <span class="none">' + esc(r.Theme) + '</span>' : '') + '</td></tr>'
-      : '<tr><td>' + Cal.short(r.Date) + '</td><td>' + esc(r.Theme) + '</td>' + groups.map(g => '<td>' + esc(r[Cal.lessonCol(g)]) + '</td>').join('') + '</tr>').join('');
+    const body = cal.map(r => {
+      const pick = g => series.get(g).get(r.Date) || {};
+      const date = '<tr><td>' + Cal.short(r.Date) + '</td>';
+      if (Cal.isNight(r)) return date + '<td>' + esc(r.Theme) + '</td>' + groups.map(g => '<td>' + esc(pick(g).text) + '</td>').join('') + '</tr>';
+      const status = r.Cancelled ? 'CANCELLED' + (r.Cancelled === 'Cancelled' ? '' : ' (' + r.Cancelled + ')') : 'NO CLUB';
+      const label = '<span class="none">' + esc(status) + '</span>' + (r.Theme ? ' <span class="none">' + esc(r.Theme) + '</span>' : '');
+      if (!groups.some(g => pick(g).kind === 'missed')) return date + '<td colspan="' + (groups.length + 1) + '">' + label + '</td></tr>';
+      return date + '<td>' + label + '</td>' + groups.map(g => '<td>' + (pick(g).kind === 'missed' ? '<s>' + esc(pick(g).text) + '</s>' : '') + '</td>').join('') + '</tr>';
+    }).join('');
     return sheet('Lessons by week', '<table class="grid wrap"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>', 'portrait');
   }
 
@@ -315,6 +324,7 @@
     const config = (ctx.season || {}).config || {}, showLessons = !!(ctx.opts || {}).lessons;
     const lessonConfig = Cal.lessonSettings(config, rows);
     const groups = showLessons && lessonConfig.on ? Cal.GROUPS.filter(group => lessonConfig.groups[group].on) : [];
+    const series = new Map(groups.map(g => [g, Cal.lessonsFor(rows, g, config)]));
     rows.filter(Cal.isNight).forEach(row => last.set(row.Quarter, row));
     rows.forEach(row => {
       const month = row.Date.slice(0, 7);
@@ -330,11 +340,11 @@
       const cancellation = row.Cancelled && row.Cancelled !== 'Cancelled' ? ' (' + row.Cancelled + ')' : '';
       const title = !Cal.isNight(row) ? (row.Cancelled ? 'CANCELLED' + cancellation : 'NO CLUB') : row.Theme || 'Club night';
       const date = Cal.short(row.Date) + '/' + row.Date.slice(0, 4), quarter = labels[row.Quarter] && last.get(row.Quarter) === row;
-      const lessons = (Cal.isNight(row) || row.Cancelled) ? groups.map(group => {
-        const text = row[Cal.lessonCol(group)];
-        return text && text !== '-' ? group + ' ' + text : '';
-      }).filter(Boolean).join(' · ') : '';
-      const lesson = '<div class="callessons">' + (row.Cancelled ? '<s>' + esc(lessons) + '</s>' : esc(lessons)) + '</div>';
+      const lessons = groups.map(group => {
+        const value = series.get(group).get(row.Date);
+        return value && value.text && (Cal.isNight(row) || value.kind === 'missed') ? group + ' ' + value.text : '';
+      }).filter(Boolean).join(' · ');
+      const lesson = '<div class="callessons">' + (Cal.isNight(row) ? esc(lessons) : '<s>' + esc(lessons) + '</s>') + '</div>';
       m.nights.push({ html: '<div class="caldate"><strong>' + esc(date) + '</strong> ' + esc(title) +
         (time ? ' · ' + esc(time) : '') + (row.Holiday ? ' <small>' + esc(row.Holiday) + '</small>' : '') +
         (lessons ? lesson : '') + (quarter ? '<div class="calq">End of ' + labels[row.Quarter] + ' Quarter</div>' : '') + '</div>',

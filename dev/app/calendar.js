@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.5.0';
+(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.6.0';
 // Club calendar: one row per club night or event. Stored as its own CSV so it can be rolled forward each year.
 (function (root) {
   const Csv = root.Csv || (typeof require !== 'undefined' ? require('./csv.js') : null);
@@ -89,6 +89,39 @@
     const L = config && config.lessons && typeof config.lessons === 'object' && !Array.isArray(config.lessons) ? config.lessons : null, out = { on: L && typeof L.on === 'boolean' ? L.on : hasLessons(rows), groups: {} };
     GROUPS.forEach(g => { const o = L && L.groups && L.groups[g]; out.groups[g] = { on: !(o && o.on === false) }; }); return out;
   }
+  function lessonSeries(config, group) {
+    const raw = (((config || {}).lessons || {}).groups || {})[group] || {};
+    return {
+      from: validDate(raw.from) ? raw.from : '',
+      items: Array.isArray(raw.items) ? raw.items.filter(item => typeof item === 'string' && item.trim()) : [],
+      planned: raw.planned === 'skip' ? 'skip' : 'move',
+      unplanned: raw.unplanned === 'move' ? 'move' : 'skip'
+    };
+  }
+  function numberItems(units, perUnit, start = '1.1') {
+    if (!Number.isInteger(units) || units < 1 || units > 50 || !Number.isInteger(perUnit) || perUnit < 1 || perUnit > 50) return [];
+    const items = Array.from({ length: units * perUnit }, (_, i) => (Math.floor(i / perUnit) + 1) + '.' + (i % perUnit + 1));
+    const from = items.indexOf(start);
+    return from === -1 ? [] : items.slice(from);
+  }
+  function lessonsFor(rows, group, config) {
+    const series = lessonSeries(config, group), field = lessonCol(group);
+    const ordered = sort(rows.filter(row => row && validDate(row.Date) && row.Type !== 'Event'));
+    const from = series.from || ordered.find(isNight)?.Date, out = new Map();
+    let index = 0;
+    for (const row of ordered) {
+      if (out.has(row.Date)) continue;
+      const manual = String(row[field] || '').trim(), state = stateOf(row);
+      if (manual) { out.set(row.Date, { text: manual === '-' ? '' : manual, kind: 'hand' }); continue; }
+      if (!from || row.Date < from) { out.set(row.Date, { text: '', kind: 'none' }); continue; }
+      const policy = state === 'planned' ? series.planned : series.unplanned;
+      if (state !== 'meets' && policy === 'move') { out.set(row.Date, { text: '', kind: 'off' }); continue; }
+      const text = series.items[index++] || '';
+      if (state === 'meets') out.set(row.Date, { text, kind: text ? 'series' : 'none' });
+      else out.set(row.Date, { text, kind: text ? 'missed' : 'off', reason: row.Cancelled || row.Holiday || 'No club' });
+    }
+    return out;
+  }
   function coloringUrl(value) {
     if (typeof value !== 'string' || !/^https:\/\//i.test(value.trim())) return '';
     try {
@@ -104,7 +137,7 @@
     if (!row || !settings.on) return [];
     return GROUPS.flatMap(group => {
       const url = coloringUrl(row[coloringCol(group)]);
-      return url && settings.groups[group].on ? [{ group, lesson: row[lessonCol(group)] || '', url }] : [];
+      return url && settings.groups[group].on ? [{ group, lesson: lessonsFor(rows, group, config).get(date)?.text || '', url }] : [];
     });
   }
   const ymd = (year, month, day) => String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
@@ -187,6 +220,6 @@
     }
     return sorted;
   }
-  const api = { COLS, GROUPS, lessonCol, coloringCol, coloringUrl, coloringSheets, tidy, lessonSettings, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, stateOf, setState, validTime, timeText, quartersIn, DAYS, weekday, dayName, offDay, offDays, recommendBreaks, generate, suggestQuarters, applyQuarters };
+  const api = { COLS, GROUPS, lessonCol, coloringCol, coloringUrl, coloringSheets, tidy, lessonSettings, lessonSeries, numberItems, lessonsFor, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, stateOf, setState, validTime, timeText, quartersIn, DAYS, weekday, dayName, offDay, offDays, recommendBreaks, generate, suggestQuarters, applyQuarters };
   if (typeof module !== 'undefined') module.exports = api; else root.Calendar = api;
 })(this);
