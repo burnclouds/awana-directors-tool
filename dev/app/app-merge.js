@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-merge.js'] = '1.0.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app-merge.js'] = '1.0.2';
 // Merge a data file (File menu > Merge a data file): the screen for datamerge.js. Three steps, nothing is saved until Apply on the last one:
 //   1. Summary of everything the merge would do, as a categorized diff (counts, filters, a download).
 //   2. The real conflicts, if there are any: each one needs a choice (Keep mine, Take theirs, or Edit).
@@ -95,7 +95,11 @@
     if (other.year && mine.year && other.year !== mine.year && !(await App.ask.confirm('That file is for club year ' + other.year + ' and this one is ' + mine.year + '. Merge anyway?', { title: 'Different club year', ok: 'Merge anyway' }))) return;      /* a merge replaces the session, which clears Undo: it stays a confirmation */
     const plan = DM.plan(mine, other, Object.assign({ from: name }, App.mergeNames(mine)));
     return App.mergeScreen(plan, { name }).then(r => {
-      if (!r) return; const out = DM.finish(plan, r.choices), n = r.counts; App.mergeIn.apply(out);
+      if (!r) return;
+      const out = DM.finish(plan, r.choices), n = r.counts;
+      const impacts = CalendarSafety.mergeConflicts(mine, other, out, App.today());
+      if (impacts.length) return App.ask.alert('The merged calendar would affect club records from another copy. Review the dates before merging. ' + CalendarSafety.summary(impacts), { title: 'Calendar needs review' });
+      App.mergeIn.apply(out);
       App.flash('Merged ' + name + ': added ' + n.Added + ', changed ' + n.Changed + ', ' + n.Review + ' to review. Not saved yet: save the data file when you are ready.', 'info');
     });
   };
