@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['calendar-safety.js'] = '1.0.0';
+(this.AwanaVersions = this.AwanaVersions || {})['calendar-safety.js'] = '1.2.0';
 // N3: inspect calendar dependencies and build a detached proposal before changing the open file.
 (function (root) {
   const Calendar = root.Calendar || require('./calendar.js');
@@ -129,8 +129,12 @@
         kept.push({ date: row.Date, reasons: protections || { 'existing calendar row': 1 } });
         return row;
       }
-      const closure = row['No Club'] === '1' || row['No Club By Hand'] === '1' || row.Cancelled;
-      return Object.assign({}, row, closure ? {} : { 'No Club': generatedRow['No Club'], Holiday: generatedRow.Holiday });
+      const handmade = row['No Club By Hand'] === '1' || row.Cancelled || (row['No Club'] === '1' && row['Generated Break'] !== '1');
+      if (handmade) return row;
+      const next = Object.assign({}, row, { 'No Club': generatedRow['No Club'], Holiday: generatedRow.Holiday });
+      if (generatedRow['Generated Break']) next['Generated Break'] = generatedRow['Generated Break'];
+      else delete next['Generated Break'];
+      return next;
     });
     for (const [date, row] of byDate) {
       if (evidence.dates.has(date)) continue;      // Do not invent a meeting to cover orphaned activity.
@@ -151,6 +155,56 @@
     return Object.assign(impact, { rows: proposed, starts, added: [...added], kept, archived });
   }
 
-  const api = { inspect, compare, propose };
+  function linksAt(season, date) {
+    const out = {};
+    Object.entries(activities).forEach(([section, label]) => { out[label] = (season[section] || {})[date]; });
+    out['volunteer absence'] = Object.entries(season.absences || {}).flatMap(([id, entries]) =>
+      Object.entries(entries || {}).filter(([, a]) => a && (a.nights || {})[date]).map(([key]) => id + ':' + key)).sort();
+    out['team move'] = Object.entries(season.teamMoves || {}).flatMap(([id, moves]) =>
+      (Array.isArray(moves) ? moves : []).filter(m => m && m.from === date).map(m => [id, m.q, m.color])).sort();
+    out['dated note'] = Object.entries(season.flags || {}).filter(([, f]) => f && f.date === date).map(([id]) => id).sort();
+    return out;
+  }
+
+  // Calendars merge as whole arrays. Look for records from the other copy that would
+  // lose the date or quarter they had there, even with no ordinary merge conflict.
+  function mergeConflicts(mine, other, merged, today) {
+    const stable = o => JSON.stringify(o, (k, v) => {
+      if (!v || typeof v !== 'object' || Array.isArray(v)) return v;
+      return Object.fromEntries(Object.keys(v).sort().map(key => [key, v[key]]));
+    });
+    const calendar = season => season.calendar || [];
+    const next = calendar(merged), result = new Map();
+    for (const [origin, alternative] of [[mine, other], [other, mine]]) {
+      if (stable(calendar(origin)) === stable(next)) continue;
+      const adoptedAlternative = stable(calendar(alternative)) === stable(next);
+      const evidence = inspect(origin, calendar(origin), today);
+      const changed = new Map();
+      for (const [date, reasons] of evidence.dates) {
+        const before = linksAt(origin, date), against = adoptedAlternative ? linksAt(alternative, date) : {};
+        const retained = linksAt(merged, date);
+        const relevant = Object.keys(reasons).filter(r => Object.hasOwn(before, r) && stable(before[r]) !== stable(against[r]) &&
+          retained[r] && Object.keys(retained[r]).length);
+        if (relevant.length) changed.set(date, relevant);
+      }
+      if (!changed.size) continue;
+      const changesCompletedActivity = [...changed.values()].some(reasons => reasons.some(r => Object.values(activities).includes(r)));
+      const impacts = compare(origin, calendar(origin), next, today, evidence);
+      impacts.blocks.forEach(({ date, reasons }) => {
+        const exact = changed.get(date) || [];
+        const applicable = Object.fromEntries(Object.entries(reasons).filter(([r]) => exact.includes(r) ||
+          (changesCompletedActivity && (r === 'previous schedule' || r === 'locked quarter'))));
+        if (Object.keys(applicable).length) result.set(date, Object.assign(result.get(date) || {}, applicable));
+      });
+    }
+    return [...result].sort(([a], [b]) => a.localeCompare(b)).map(([date, reasons]) => ({ date, reasons }));
+  }
+
+  function summary(blocks) {
+    return blocks.slice(0, 8).map(({ date, reasons }) => date + ' (' + Object.keys(reasons).join(', ') + ')').join('; ') +
+      (blocks.length > 8 ? ' and ' + (blocks.length - 8) + ' more' : '');
+  }
+
+  const api = { inspect, compare, propose, mergeConflicts, summary };
   if (typeof module !== 'undefined') module.exports = api; else root.CalendarSafety = api;
 })(this);

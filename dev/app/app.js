@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.8';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.9';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -1438,6 +1438,37 @@
   // A date box fires "change" as soon as what is typed is a valid date (typing "1" in the month already is), which would re-sort the row and move you away mid-typing. So a date is committed
   // when you leave the box or press Enter; every other box commits as before. A year outside 2000 to 2100 is treated as not finished and is put back.
   const plausibleDate = v => { const y = +String(v).slice(0, 4); return v === '' || (y >= 2000 && y <= 2100); };
+  function checkCalendarReplacement(candidate) {
+    if (candidate.some(row => !row || !Season.isRealDate(row.Date))) throw new Error('The replacement has an invalid calendar date.');
+    if (!App.season) return;
+    const impacts = CalendarSafety.compare(App.season, calendar, candidate, App.today());
+    if (impacts.blocks.length) throw new Error('This replacement affects recorded activity or locked quarters. Use Make calendar to keep those dates. ' + CalendarSafety.summary(impacts.blocks));
+  }
+  const calendarStructure = ['Date', 'Type', 'Quarter', 'No Club'];
+  function structuralCalendarEdit(index, field, row, apply) {
+    if (!App.season) { apply(); return; }
+    const candidate = calendar.slice();
+    if (row) candidate[index] = row; else candidate.splice(index, 1);
+    const openFile = App.season, original = calendar[index];
+    const impact = () => CalendarSafety.compare(openFile, calendar, candidate, App.today()).blocks;
+    const blocks = impact();
+    if (!blocks.length) { apply(); return; }
+    renderCalendar();
+    if (field === 'Date' || field === 'Delete') {
+      App.flash('This calendar date is protected. Add a new row instead. ' + CalendarSafety.summary(blocks), 'warn');
+      return;
+    }
+    const before = JSON.stringify(calendar), initialImpact = JSON.stringify(blocks);
+    App.ask.confirm('This edit can affect scheduled nights and totals. ' + CalendarSafety.summary(blocks) + '. Apply it to this row?', {
+      title: 'Review this calendar edit', ok: 'Apply to this row', danger: true
+    }).then(ok => {
+      if (!ok || App.season !== openFile || calendar[index] !== original) return;
+      if (JSON.stringify(calendar) !== before || JSON.stringify(impact()) !== initialImpact) {
+        App.flash('The calendar or club records changed. Review the edit again.', 'warn'); return;
+      }
+      apply();
+    });
+  }
   function commitCal(t) {
     const c = t.dataset.c, tr = t.closest('tr'); if (!c || !tr) return;
     const r = calendar[+tr.dataset.i]; if (!r) return;
@@ -1447,10 +1478,19 @@
     if (coloring && input.trim() && !v) { t.value = r[c] || ''; App.flash('Use an HTTPS link to a coloring PDF.', 'error'); return; }
     if (coloring) { t.value = v; t.closest('details').querySelector('summary').textContent = v ? 'Edit coloring PDF' : 'Add coloring PDF'; }
     if (t.type === 'date') { const bad = Check.date(v); if (bad) { t.value = r[c] || ''; App.flash((c === 'Date' ? 'Calendar date' : c) + ': ' + bad.msg, 'error'); return; } }
-    if (v === (r[c] || '') && t.type !== 'checkbox') return;
-    r[c] = v; calTouch();
-    if (c === 'Date' || c === 'Type' || c === 'No Club') { Calendar.sort(calendar); renderCalendar(); }
-    renderReport();
+    if (v === (r[c] || '')) return;
+    if (calendarStructure.includes(c)) {
+      const index = +tr.dataset.i, next = Object.assign({}, r, { [c]: v });
+      if (c === 'No Club') {
+        next['No Club By Hand'] = '1';
+        delete next['Generated Break'];
+      }
+      structuralCalendarEdit(index, c, next, () => {
+        calendar[index] = next; Calendar.sort(calendar); calTouch(); renderCalendar(); renderReport();
+      });
+      return;
+    }
+    r[c] = v; calTouch(); renderReport();
   }
   $('calWrap').addEventListener('change', e => { if (e.target.type !== 'date') commitCal(e.target); });
   $('calWrap').addEventListener('focusout', e => { if (e.target.type === 'date') commitCal(e.target); });
@@ -1463,19 +1503,31 @@
     const b = e.target.closest('[data-del]'); if (!b) return;
     const r = calendar[+b.dataset.del];
     /* done at once, with an Undo message (UX-20) */
-    calendar.splice(+b.dataset.del, 1); calTouch(); renderCalendar(); renderReport(); App.done('Deleted ' + r.Date + (r.Theme ? ' ' + r.Theme : '') + ' from the calendar.');
+    structuralCalendarEdit(+b.dataset.del, 'Delete', null, () => {
+      calendar.splice(+b.dataset.del, 1); calTouch(); renderCalendar(); renderReport();
+      App.done('Deleted ' + r.Date + (r.Theme ? ' ' + r.Theme : '') + ' from the calendar.');
+    });
   });
   $('btnCalAdd').addEventListener('click', () => {
     const r = Calendar.blank(), last = calendar[calendar.length - 1];
-    r.Date = last ? last.Date : today(); r.Quarter = last ? last.Quarter : 'Q1';
+    const start = new Date((last ? last.Date : today()) + 'T12:00:00Z');
+    const offset = (clubDay() - start.getUTCDay() + 7) % 7;
+    start.setUTCDate(start.getUTCDate() + (offset || (last ? 7 : 0)));
+    r.Date = start.toISOString().slice(0, 10); r.Quarter = last ? last.Quarter : 'Q1';
     calendar.push(r); calTouch(); renderCalendar();
   });
   $('btnCalShift').addEventListener('click', () => {
     if (!calendar.length) return App.ask.alert('Load a calendar first.');
     App.ask.form({ title: 'Move every date forward', ok: 'Move dates', fields: [
       { name: 'weeks', label: 'Weeks', type: 'number', min: 1, max: 104, step: 1, value: 52, required: true, hint: '52 keeps the same weekdays for next year. Check Easter, Thanksgiving and holiday weeks afterward.' }] }).then(v => {
-      if (!v) return; const w = Math.round(v.weeks); Calendar.shiftWeeks(calendar, w); calTouch(); renderCalendar(); renderReport();
-      App.done('Every date moved forward ' + w + ' week' + (w === 1 ? '' : 's') + '. Check Easter, Thanksgiving and holiday weeks.');
+      if (!v) return;
+      const w = Math.round(v.weeks);
+      try {
+        const candidate = Calendar.shiftWeeks(calendar.map(row => Object.assign({}, row)), w);
+        checkCalendarReplacement(candidate);
+        calendar = candidate; calTouch(); renderCalendar(); renderReport();
+        App.done('Every date moved forward ' + w + ' week' + (w === 1 ? '' : 's') + '. Check Easter, Thanksgiving and holiday weeks.');
+      } catch (err) { App.flash(err.message, 'warn'); }
     });
   });
   // The data JSON holds the roster (with the Planning Center data as of its last import), calendar and rotation. Opening one
@@ -1527,7 +1579,22 @@
           const r = Teams.importList(master, null, it.text); touch(); refresh();
           ['unmatched', 'invalid', 'ambiguous', 'skipped'].forEach(k => { if (r[k].length) problems.push(it.name + ' (' + k + '): ' + r[k].join(', ')); });
         }
-        else if (it.kind === 'calendar') { calendar = Calendar.load(it.text); App.changed(); renderCalendar(); renderReport(); App.onRefresh.forEach(f => f()); }
+        else if (it.kind === 'calendar') {
+          const candidate = Calendar.load(it.text);
+          checkCalendarReplacement(candidate);
+          const omitted = calendar.filter(r => !candidate.some(n => n.Date === r.Date && n.Type === r.Type));
+          const fields = calendar.filter(r => candidate.some(n => n.Date === r.Date && n.Type === r.Type) &&
+            Object.keys(r).some(k => r[k] && !candidate.some(n => n.Date === r.Date && n.Type === r.Type && n[k] === r[k])));
+          if (omitted.length || fields.length) {
+            const dates = rows => [...new Set(rows.map(r => r.Date))].slice(0, 8).join(', ');
+            const details = [omitted.length && omitted.length + ' row(s) omitted: ' + dates(omitted), fields.length && fields.length + ' row(s) changed: ' + dates(fields)].filter(Boolean).join('. ');
+            const before = JSON.stringify(calendar), openFile = App.season;
+            if (!(await App.ask.confirm(details + '. Replace the current calendar with this CSV?', { title: 'Review calendar replacement', ok: 'Replace calendar', danger: true }))) continue;
+            if (App.season !== openFile || JSON.stringify(calendar) !== before) throw new Error('The calendar changed. Open the CSV again to review against the current file.');
+            checkCalendarReplacement(candidate);
+          }
+          calendar = candidate; App.changed(); renderCalendar(); renderReport(); App.onRefresh.forEach(f => f());
+        }
         else if (it.kind === 'rotation') problems.push(it.name + ': the nightly rotation is not tracked here any more, so this file was left out.');
         else if (it.kind === 'season') { App.openedName = it.name; App.localHandle = null; await App.openSeason(it.text); }      // a new file: the next save asks where it goes
         else if (it.kind === 'progresspatch') problems.push(it.name + ': importing a progress patch (from the photo-to-progress agent) was removed, so this file was left out.');

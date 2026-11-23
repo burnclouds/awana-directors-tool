@@ -102,3 +102,39 @@ test('repeating a generated schedule preserves the stored rows', () => {
   const before = Safety.propose(s, [], october, '2026-09-01');
   assert.deepEqual(Safety.propose(s, before.rows, october, '2026-09-01').rows, before.rows);
 });
+
+test('regeneration can reopen a generated future closure but preserves legacy or manually overridden breaks', () => {
+  const s = Season.blank('2026-27');
+  const without = { day: 3, first: '2026-10-07', last: '2026-10-21' };
+  const config = { ...without, breaks: [{ name: 'Off', from: '2026-10-07', to: '2026-10-21' }] };
+  const first = Calendar.generate(config);
+  first[1]['No Club By Hand'] = '1';
+  delete first[2]['Generated Break'];
+  const next = Safety.propose(s, first, without, '2026-09-01');
+  assert.deepEqual(next.rows.map(Calendar.isNight), [true, false, false]);
+  assert(!Object.hasOwn(next.rows[0], 'Generated Break'));
+});
+
+test('merge detects new recorded activity suppressed by a calendar from another copy', () => {
+  const local = Season.blank('2026-27'), remote = Season.blank('2026-27');
+  local.calendar = [night('2026-10-07'), night('2026-10-14')];
+  remote.calendar = [night('2026-10-07')];
+  local.attendance = { '2026-10-14': { child: { a: 1 } } };
+  const merged = Object.assign({}, local, { calendar: remote.calendar });
+  const conflicts = Safety.mergeConflicts(local, remote, merged, '2026-10-15');
+  assert(conflicts.some(r => r.date === '2026-10-14' && r.reasons.attendance));
+  assert.deepEqual(Safety.mergeConflicts(local, remote, local, '2026-10-15'), []);
+});
+
+test('merge preserves accepted same-record corrections while rejecting new absence conflicts', () => {
+  const local = Season.blank('2026-27'), remote = Season.blank('2026-27');
+  local.calendar = [night('2026-10-07'), night('2026-10-14')];
+  remote.calendar = [night('2026-10-07'), night('2026-10-14', 'Q1', { 'No Club': '1' })];
+  local.attendance = remote.attendance = { '2026-10-14': { child: { a: 1 } } };
+  assert.deepEqual(Safety.mergeConflicts(local, remote, remote, '2026-10-15'), []);
+  local.absences = { leader: { trip: { nights: { '2026-10-14': 1 } } } };
+  const merged = Object.assign({}, remote, { absences: local.absences });
+  assert.deepEqual(Safety.mergeConflicts(local, remote, merged, '2026-10-15'), [
+    { date: '2026-10-14', reasons: { 'volunteer absence': 1 } }
+  ]);
+});

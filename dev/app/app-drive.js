@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-drive.js'] = '1.20.2';
+(this.AwanaVersions = this.AwanaVersions || {})['app-drive.js'] = '1.20.3';
 // Google Drive buttons (optional). Stays completely inactive unless drive-config.js has a client ID and API key: then there is no button,
 // no Google script is loaded and every file is opened and saved locally exactly as before.
 (function () {
@@ -127,10 +127,21 @@
     // The automatic save has nobody to ask, so it keeps the old rule: what is already on Drive stays, and what clashed is listed afterwards.
     const interactive = !(opts && opts.auto) && !!App.mergeScreen && !!window.DataMerge;
     // Each pass starts again from ours and the newest remote content; a second pass (someone saved in the gap) reuses the decisions already made and asks again only about something new.
+    const acceptMerge = (mine, other) => {
+      const impacts = CalendarSafety.mergeConflicts(mine, other, merged.season, App.today());
+      if (impacts.length) {
+        const error = new Error('The merged calendar would affect activity on ' + CalendarSafety.summary(impacts) + '. Review the dates and save again.');
+        error.kind = 'calendar';
+        throw error;
+      }
+      body = Season.toJson(merged.season);
+    };
     const merge = async (remote, onlyRemerge) => {
       if (!interactive) {      // the Planning Center block (the export record, its columns, "as of" and every person's values) goes whole from one side, never mixed (R17)
         const theirs = Season.fromJson(remote), al = window.DataMerge && DataMerge.alignPc ? DataMerge.alignPc(c.base, ours, theirs) : { ours, theirs };
-        merged = Season.merge3(c.base, al.ours, al.theirs, { from: 'another save' }); body = Season.toJson(merged.season); return;
+        merged = Season.merge3(c.base, al.ours, al.theirs, { from: 'another save' });
+        acceptMerge(al.ours, al.theirs);
+        return;
       }
       const P = DataMerge.plan(Season.fromJson(remote), Season.fromJson(text), Object.assign({ base: c.base, pc: true, removals: true, from: 'this copy' }, App.mergeNames(ours)));
       if (onlyRemerge && !P.conflicts.length) approved = true;      // nobody else saved: this only brings back what you already approved once, so there is nothing to ask
@@ -140,7 +151,8 @@
         if (!r) { const e = new Error('the merge with the changes on Drive was cancelled'); e.cancelled = true; throw e; }
         choices = r.choices; approved = true;
       }
-      merged = { season: DataMerge.finish(P, choices), conflicts: [], decided: P.conflicts.length, counts: DataMerge.summary(P, P.conflicts.length ? choices : undefined).counts }; body = Season.toJson(merged.season);
+      merged = { season: DataMerge.finish(P, choices), conflicts: [], decided: P.conflicts.length, counts: DataMerge.summary(P, P.conflicts.length ? choices : undefined).counts };
+      acceptMerge(P.mine, P.other);
     };
     const now = await D.head(c.id);
     // c.remerge: the last save merged in someone else's changes but was edited over, so this copy still lacks them. Merge again even when nobody has saved since (R7).
@@ -209,6 +221,7 @@
     if (kind === 'busy') return 'Google Drive is busy right now (it said ' + ((err && err.status) || 'busy') + '). Nothing was changed on Drive. Press Try again in a moment.';
     if (kind === 'offline') return 'This computer could not reach Google Drive. Check the connection, then press Try again. Nothing was changed on Drive.';
     if (kind === 'folder') return 'Google Drive will not let this app save to that folder. Choose the folder again, then press Try again.';
+    if (kind === 'calendar') return msg;
     if (kind === 'changing') return 'Someone else is saving the same file right now. Wait a minute and press Try again; their changes will be merged with yours.';
     return 'Google Drive reported a problem (' + msg + ').';
   };

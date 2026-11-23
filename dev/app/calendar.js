@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.4.0';
+(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.4.1';
 // Club calendar: one row per club night or event. Stored as its own CSV so it can be rolled forward each year.
 (function (root) {
   const Csv = root.Csv || (typeof require !== 'undefined' ? require('./csv.js') : null);
@@ -130,7 +130,7 @@
       const iso = dateOnly(date), closure = breaks.find(b => b.from <= iso && b.to >= iso);
       const sunday = easter(date.getUTCFullYear());
       const holiday = closure ? closure.name.trim() : easterFlag && addDays(sunday, -6) <= iso && iso <= sunday ? 'Easter week' : '';
-      rows.push(Object.assign(blank(), { Date: iso, 'No Club': closure ? '1' : '', Holiday: holiday }));
+      rows.push(Object.assign(blank(), { Date: iso, 'No Club': closure ? '1' : '', Holiday: holiday }, closure ? { 'Generated Break': '1' } : {}));
     }
     return rows;
   }
