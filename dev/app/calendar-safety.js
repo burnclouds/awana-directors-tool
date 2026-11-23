@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['calendar-safety.js'] = '1.0.0';
+(this.AwanaVersions = this.AwanaVersions || {})['calendar-safety.js'] = '1.1.0';
 // N3: inspect calendar dependencies and build a detached proposal before changing the open file.
 (function (root) {
   const Calendar = root.Calendar || require('./calendar.js');
@@ -129,8 +129,12 @@
         kept.push({ date: row.Date, reasons: protections || { 'existing calendar row': 1 } });
         return row;
       }
-      const closure = row['No Club'] === '1' || row['No Club By Hand'] === '1' || row.Cancelled;
-      return Object.assign({}, row, closure ? {} : { 'No Club': generatedRow['No Club'], Holiday: generatedRow.Holiday });
+      const handmade = row['No Club By Hand'] === '1' || row.Cancelled || (row['No Club'] === '1' && row['Generated Break'] !== '1');
+      if (handmade) return row;
+      const next = Object.assign({}, row, { 'No Club': generatedRow['No Club'], Holiday: generatedRow.Holiday });
+      if (generatedRow['Generated Break']) next['Generated Break'] = generatedRow['Generated Break'];
+      else delete next['Generated Break'];
+      return next;
     });
     for (const [date, row] of byDate) {
       if (evidence.dates.has(date)) continue;      // Do not invent a meeting to cover orphaned activity.
@@ -151,6 +155,11 @@
     return Object.assign(impact, { rows: proposed, starts, added: [...added], kept, archived });
   }
 
-  const api = { inspect, compare, propose };
+  function summary(blocks) {
+    return blocks.slice(0, 8).map(({ date, reasons }) => date + ' (' + Object.keys(reasons).join(', ') + ')').join('; ') +
+      (blocks.length > 8 ? ' and ' + (blocks.length - 8) + ' more' : '');
+  }
+
+  const api = { inspect, compare, propose, summary };
   if (typeof module !== 'undefined') module.exports = api; else root.CalendarSafety = api;
 })(this);

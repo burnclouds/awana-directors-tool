@@ -102,3 +102,15 @@ test('repeating a generated schedule preserves the stored rows', () => {
   const before = Safety.propose(s, [], october, '2026-09-01');
   assert.deepEqual(Safety.propose(s, before.rows, october, '2026-09-01').rows, before.rows);
 });
+
+test('regeneration can reopen a generated future closure but preserves legacy or manually overridden breaks', () => {
+  const s = Season.blank('2026-27');
+  const without = { day: 3, first: '2026-10-07', last: '2026-10-21' };
+  const config = { ...without, breaks: [{ name: 'Off', from: '2026-10-07', to: '2026-10-21' }] };
+  const first = Calendar.generate(config);
+  first[1]['No Club By Hand'] = '1';
+  delete first[2]['Generated Break'];
+  const next = Safety.propose(s, first, without, '2026-09-01');
+  assert.deepEqual(next.rows.map(Calendar.isNight), [true, false, false]);
+  assert(!Object.hasOwn(next.rows[0], 'Generated Break'));
+});
