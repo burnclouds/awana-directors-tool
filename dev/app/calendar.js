@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.3.1';
+(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.4.0';
 // Club calendar: one row per club night or event. Stored as its own CSV so it can be rolled forward each year.
 (function (root) {
   const Csv = root.Csv || (typeof require !== 'undefined' ? require('./csv.js') : null);
@@ -89,6 +89,86 @@
       return url && settings.groups[group].on ? [{ group, lesson: row[lessonCol(group)] || '', url }] : [];
     });
   }
-  const api = { COLS, GROUPS, lessonCol, coloringCol, coloringUrl, coloringSheets, tidy, lessonSettings, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, quartersIn, DAYS, weekday, dayName, offDay, offDays };
+  const ymd = (year, month, day) => String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+  const civil = iso => new Date(iso + 'T12:00:00Z');
+  const dateOnly = date => date.toISOString().slice(0, 10);
+  const validDate = iso => typeof iso === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(iso) && Number.isFinite(+civil(iso)) && dateOnly(civil(iso)) === iso;
+  function addDays(iso, days) {
+    const date = civil(iso);
+    date.setUTCDate(date.getUTCDate() + days);
+    return dateOnly(date);
+  }
+  function easter(year) {
+    const a = year % 19, b = Math.floor(year / 100), c = year % 100, d = Math.floor(b / 4), e = b % 4;
+    const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    const k = c % 4, l = (32 + 2 * e + 2 * Math.floor(c / 4) - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451), day = h + l - 7 * m + 114;
+    return ymd(year, Math.floor(day / 31), day % 31 + 1);
+  }
+  function recommendBreaks(first, last) {
+    if (!validDate(first) || !validDate(last) || first > last) return [];
+    const breaks = [];
+    for (let year = +first.slice(0, 4) - 1; year <= +last.slice(0, 4); year++) {
+      const nov = ymd(year, 11, 1), thanks = addDays(nov, (4 - weekday(nov) + 7) % 7 + 21);
+      breaks.push({ name: 'Thanksgiving week', from: addDays(thanks, -4), to: addDays(thanks, 2) });
+      breaks.push({ name: 'Christmas break', from: ymd(year, 12, 21), to: ymd(year + 1, 1, 1) });
+    }
+    return breaks.filter(b => validDate(b.from) && validDate(b.to) && b.from <= last && b.to >= first);
+  }
+  function generate({ day, first, last, breaks = [], easterFlag = true }) {
+    if (!Number.isInteger(day) || day < 0 || day > 6 || !validDate(first) || !validDate(last) || first > last) {
+      throw new Error('Choose a club weekday and a valid first and last date.');
+    }
+    if (breaks.some(b => !b || typeof b.name !== 'string' || !b.name.trim() || !validDate(b.from) || !validDate(b.to) || b.from > b.to)) {
+      throw new Error('Give each break a name and a valid date range.');
+    }
+    const rows = [];
+    const advance = (day - weekday(first) + 7) % 7;
+    const date = civil(first), end = civil(last);
+    date.setUTCDate(date.getUTCDate() + advance);
+    for (; date <= end; date.setUTCDate(date.getUTCDate() + 7)) {
+      const iso = dateOnly(date), closure = breaks.find(b => b.from <= iso && b.to >= iso);
+      const sunday = easter(date.getUTCFullYear());
+      const holiday = closure ? closure.name.trim() : easterFlag && addDays(sunday, -6) <= iso && iso <= sunday ? 'Easter week' : '';
+      rows.push(Object.assign(blank(), { Date: iso, 'No Club': closure ? '1' : '', Holiday: holiday }));
+    }
+    return rows;
+  }
+
+  function suggestQuarters(rows) {
+    const inOrder = sort(rows.slice()).filter(row => row.Type !== 'Event');
+    const open = inOrder.map((row, i) => ({ row, afterBreak: i > 0 && !isNight(inOrder[i - 1]) })).filter(x => isNight(x.row));
+    const n = open.length, window = Math.min(3, Math.floor((n - 1) / 8));
+    const starts = { Q2: '', Q3: '', Q4: '' };
+    let previous = 0;
+    for (let k = 1; k <= 3 && k < n; k++) {
+      const target = k * (n - 1) / 4;
+      const max = n - 1 - Math.min(3 - k, n - k - 1);
+      const options = open.map((x, i) => ({
+        i, afterBreak: x.afterBreak, natural: x.afterBreak || i === 0 || x.row.Date.slice(0, 7) !== open[i - 1].row.Date.slice(0, 7)
+      })).filter(x => x.natural && x.i > previous && x.i <= max && Math.abs(x.i - target) <= window);
+      options.sort((a, b) => Math.abs(a.i - target) - Math.abs(b.i - target) || Number(b.afterBreak) - Number(a.afterBreak) || a.i - b.i);
+      previous = options.length ? options[0].i : Math.min(max, Math.max(previous + 1, Math.round(target)));
+      starts[QUARTERS[k]] = open[previous].row.Date;
+    }
+    return starts;
+  }
+  function applyQuarters(rows, starts) {
+    const open = nights(sort(rows.slice())).map(r => r.Date), openDates = new Set(open);
+    const boundaries = QUARTERS.slice(1).map(q => ({ q, date: starts[q] })).filter(x => x.date);
+    if (boundaries.some((b, i) => !openDates.has(b.date) || b.date === open[0] || b.q !== QUARTERS[i + 1] || (i && b.date <= boundaries[i - 1].date))) {
+      throw new Error('Choose quarter starts in order on separate club nights after the first night.');
+    }
+    const sorted = sort(rows.slice());
+    let next = open[open.length - 1];
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const row = sorted[i];
+      if (openDates.has(row.Date)) next = row.Date;
+      const boundary = boundaries.findLast(b => b.date <= next);
+      sorted[i] = Object.assign({}, row, { Quarter: boundary ? boundary.q : 'Q1' });
+    }
+    return sorted;
+  }
+  const api = { COLS, GROUPS, lessonCol, coloringCol, coloringUrl, coloringSheets, tidy, lessonSettings, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, quartersIn, DAYS, weekday, dayName, offDay, offDays, recommendBreaks, generate, suggestQuarters, applyQuarters };
   if (typeof module !== 'undefined') module.exports = api; else root.Calendar = api;
 })(this);
