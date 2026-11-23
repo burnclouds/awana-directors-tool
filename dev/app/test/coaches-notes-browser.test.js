@@ -22,17 +22,17 @@ function lowest(buf) {
   await page.goto('http://localhost:' + server.address().port + '/index.html'); await page.setInputFiles('#splashFiles', [DATA]); await page.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent));
   await page.evaluate(() => document.querySelector('.tabs button[data-tab="reports"]').click()); await page.waitForTimeout(200);
   const toPdf = async () => { await page.evaluate(() => window.dispatchEvent(new Event('beforeprint'))); await page.emulateMedia({ media: 'print' }); await page.waitForTimeout(250); const buf = await page.pdf({ preferCSSPageSize: true, printBackground: true }); await page.emulateMedia({ media: 'screen' }); await page.evaluate(() => window.dispatchEvent(new Event('afterprint'))); return buf; };
-  const showQ = async q => { await page.evaluate(() => App.showReport('noteSheets')); await page.click('#qWrap button:text-is("' + q + '")'); await page.waitForTimeout(300); };
+  const showQ = async q => { await page.evaluate(() => App.showReport('noteSheets')); await page.click('#btnReportOptions'); await page.click('#qWrap button:text-is("' + q + '")'); await page.click('#pgDone'); await page.waitForTimeout(300); };
   const info = q => page.evaluate(([q]) => ({ n: Calendar.nights(Season.current ? Season.current().calendar : App.calendar ? App.calendar() : [], q).length }), [q]).catch(() => null);
 
   await test('B1/B2: in the Binders group, with the Quarter pills; the blocks follow the quarter', async () => {
     await page.evaluate(() => App.showReport('noteSheets')); await page.waitForTimeout(300);
-    assert.strictEqual((await page.textContent('#rSubs button.on')).trim(), 'Binders'); assert(await page.isVisible('#qWrap'), 'quarter pills');
+    assert.strictEqual((await page.textContent('#rSubs button.on')).trim(), 'Binders'); await page.click('#btnReportOptions'); assert(await page.isVisible('#qWrap'), 'quarter pills'); await page.click('#pgDone');
     await showQ('Q2'); const q2 = await page.locator('#report .nblock').count(); await showQ('Q4'); const q4 = await page.locator('#report .nblock').count();
     assert(q2 > 0 && q4 > q2, 'Q2 ' + q2 + ' Q4 ' + q4); assert.strictEqual(await page.locator('#report .sheet').count(), Math.ceil(q4 / (await page.evaluate(() => Reports.NIGHTS_PER_PAGE))));
   });
   await test('B3: the Print class binders pop-up offers it, ticked for the Coaches binder only', async () => {
-    await page.click('#btnBinders'); await page.waitForTimeout(200); await page.selectOption('#bindQuick', { label: 'Coaches binder' });
+    await page.click('#btnReportOptions'); await page.click('#btnBinders'); await page.waitForTimeout(200); await page.selectOption('#bindQuick', { label: 'Coaches binder' });
     assert(await page.isChecked('#dlg input[data-part="noteSheets"]')); await page.selectOption('#bindQuick', { label: 'Class binder' }); assert(!(await page.isChecked('#dlg input[data-part="noteSheets"]')));
     await page.keyboard.press('Escape'); await page.waitForTimeout(200);
   });
@@ -50,7 +50,7 @@ function lowest(buf) {
     assert.strictEqual(boxes(a4).length, 1, 'Q4 prints on one A4 page'); const low = lowest(a4); if (low) assert(low[0] <= 820, 'A4 text ends at ' + low[0] + 'pt of 842');
   });
   await test('B7: the whole Coaches binder stays portrait', async () => {
-    await page.click('#btnBinders'); await page.waitForTimeout(200); await page.selectOption('#bindQuick', { label: 'Coaches binder' }); await page.click('#bindNone'); await page.click('#bindGo'); await page.waitForTimeout(600);
+    await page.click('#btnReportOptions'); await page.click('#btnBinders'); await page.waitForTimeout(200); await page.selectOption('#bindQuick', { label: 'Coaches binder' }); await page.click('#bindNone'); await page.click('#bindGo'); await page.waitForTimeout(600);
     assert(/Coaches notes/.test(await page.textContent('#report'))); const buf = await toPdf(); boxes(buf).forEach(b => assert.deepStrictEqual(b, [612, 792]));
   });
   await test('B9: on a phone nothing scrolls sideways and the supply table keeps its five columns', async () => {
@@ -61,7 +61,7 @@ function lowest(buf) {
   await test('print at a narrow window shows no app chrome (the phone tab menu "Reports" bar leaked into the print preview)', async () => {
     await page.setViewportSize({ width: 600, height: 900 }); await page.evaluate(() => App.showReport('noteSheets')); await page.waitForTimeout(300);
     await page.evaluate(() => window.dispatchEvent(new Event('beforeprint'))); await page.emulateMedia({ media: 'print' }); await page.waitForTimeout(250);
-    const vis = await page.evaluate(() => ['#tabMenu', '.tabs', '.top', '#rSubs', '#pagePick', '#report .sheet.notes > h2'].map(s => [s, [...document.querySelectorAll(s)].some(e => e.offsetParent !== null || getComputedStyle(e).display !== 'none' && getComputedStyle(e).position === 'fixed')]).filter(x => x[1] && x[0] !== '#rSubs').map(x => x[0]));
+    const vis = await page.evaluate(() => ['#tabMenu', '.tabs', '.top', '#rSubs', '#pageSum', '#report .sheet.notes > h2'].map(s => [s, [...document.querySelectorAll(s)].some(e => e.offsetParent !== null || getComputedStyle(e).display !== 'none' && getComputedStyle(e).position === 'fixed')]).filter(x => x[1] && x[0] !== '#rSubs').map(x => x[0]));
     await page.emulateMedia({ media: 'screen' }); await page.setViewportSize({ width: 1366, height: 900 }); await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
     assert.deepStrictEqual(vis, [], 'visible in print: ' + vis.join(', '));
   });

@@ -10,6 +10,7 @@ const KID = '7000001_Test_Kid';
 // one change per newly tracked section, through the same functions the screens use
 const edits = {
   progressNoDate: s => Season.markSignsNoDate(s, KID, 'AoG', ['1.1'], '2026-10-07'),
+  doneReviews: s => Season.setReviewsDone(s, KID, 'HG', true),
   extraSheets: s => Season.addExtraSheet(s, KID, 'WR'),
   announcedNoDate: s => Season.setAnnNoDate(s, KID, 'HG Red Jewel 1', true),
   blueWings: s => { (s.blueWings = s.blueWings || {})[KID] = [{ book: 'HG', slot: 1, n: 1, threshold: 2, earned: '2025-10-01', date: '2025-11-05', year: '2025-26' }]; },
@@ -54,7 +55,7 @@ test('a season with none of the new sections can still be snapshotted, diffed an
   assert.doesNotThrow(() => Season.snapshot(s)); assert.deepStrictEqual(Season.diff(Season.snapshot(s), s), []);
 });
 test('merging the FIRST entry in a section the file leaves out while empty is not a conflict (CR-03)', () => {
-  ['absences', 'extraSheets', 'blueOverrides', 'progressNoDate', 'announcedNoDate', 'blueWings', 'blueDrops', 'pastTurnout'].forEach(k => {
+  ['absences', 'extraSheets', 'blueOverrides', 'progressNoDate', 'announcedNoDate', 'blueWings', 'blueDrops', 'pastTurnout', 'doneReviews'].forEach(k => {
     const open = () => Season.fromJson(Season.toJson(Season.blank('2026-27')));      // a real opened file: the section is not there
     const base = open(), theirs = open(), ours = open(); ours[k] = { entry: { value: 1 } };
     const r = Season.merge3(base, ours, theirs, {});
@@ -62,6 +63,6 @@ test('merging the FIRST entry in a section the file leaves out while empty is no
     assert(r.season[k] && r.season[k].entry, k + ': the entry is in the merged season');
   });
   const e = Season.fromJson(Season.toJson(Season.blank('2026-27')));
-  assert(!/"extraSheets"|"blueWings"/.test(Season.toJson(Season.merge3(e, e, e, {}).season)), 'an empty section is still left out of the file');
+  assert(!/"extraSheets"|"blueWings"|"doneReviews"/.test(Season.toJson(Season.merge3(e, e, e, {}).season)), 'an empty section is still left out of the file');
 });
 console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

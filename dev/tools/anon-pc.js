@@ -3,7 +3,7 @@
 'use strict';
 
 // Top-level keys the tool knows how to handle (anything else, of any type, stops the run).
-const TOP_HANDLED = ['format', 'version', 'year', 'fake', 'config', 'roster', 'calendar', 'rotation', 'handbooks', 'attendance', 'games', 'awards', 'given', 'givenNoDate', 'held', 'flags', 'absences', 'doneBooks', 'received', 'adults', 'teamMoves', 'progress', 'history', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout'];
+const TOP_HANDLED = ['format', 'version', 'year', 'fake', 'config', 'roster', 'calendar', 'rotation', 'handbooks', 'attendance', 'games', 'awards', 'given', 'givenNoDate', 'held', 'flags', 'absences', 'doneBooks', 'doneReviews', 'received', 'adults', 'teamMoves', 'progress', 'history', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout'];
 const ROSTER_HANDLED = ['cols', 'pcCols', 'pcKeys', 'pcAsOf', 'pcSource', 'pcExport', 'people'];
 const PERSON_HANDLED = ['pc', 'v'];
 const CAPTURE_KEYS = ['at', 'hash', 'header', 'names', 'rows', 'blankRows', 'ids', 'loose'];      // the same list as Model.CAPTURE_KEYS (test/pc-capture.test.js checks they agree)

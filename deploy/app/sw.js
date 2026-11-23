@@ -3,8 +3,8 @@
 // A page load is answered from the release's own cache (one release per page, never a mix); the update check's fetch of index.html
 // goes to the server, so it always sees the newest copy. The app's files are cached whole per release; cross-origin requests
 // (Google, sign-in) are not touched; data is never cached.
-const RELEASE = '1.51.19b+2026-11-20';
-const SHELL = ["app-ask.js","app-drive.js","app-flagmarks.js","app-flagmode.js","app-flagpop.js","app-help.js","app-info.js","app.js","app-merge.js","app-options.js","app-person.js","app-search.js","app-season.js","app-stats.js","app-store.js","app-sw.js","app-teamgrid.js","app-todo.js","app-tools.js","app-topbar.js","app-trail.js","app-update.js","calendar.js","catalog.js","check.js","csv.js","datamerge.js","drive-config.js","drive.js","flagtrail.js","fonts.css","icon-192.png","icon-512.png","icon.svg","index.html","info.js","intake.js","manifest.json","model.js","pace.js","reports.js","reports-season.js","rotation.js","season.js","slides.js","stats.js","store.js","style.css","teamplan.js","teams.js","todo.js","validate.js","version-history.html"];
+const RELEASE = '1.51.20+2026-11-22';
+const SHELL = ["app-ask.js","app-drive.js","app-flagmarks.js","app-flagmode.js","app-flagpop.js","app-help.js","app-info.js","app-merge.js","app-options.js","app-person.js","app-search.js","app-season.js","app-stats.js","app-store.js","app-sw.js","app-teamgrid.js","app-todo.js","app-tools.js","app-topbar.js","app-trail.js","app-update.js","app.js","backlog.html","calendar.js","catalog.js","check.js","csv.js","datamerge.js","drive-config.js","drive.js","flagtrail.js","fonts.css","icon-192.png","icon-512.png","icon.svg","index.html","info.js","intake.js","manifest.json","model.js","pace.js","reports-season.js","reports.js","rotation.js","season.js","slides.js","stats.js","store.js","style.css","teamplan.js","teams.js","todo.js","validate.js","version-history.html"];
 const CACHE = 'awana-shell-' + RELEASE;
 const PREFIX = 'awana-shell-';
 

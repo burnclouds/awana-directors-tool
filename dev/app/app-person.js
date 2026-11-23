@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-person.js'] = '1.26.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app-person.js'] = '1.26.3';
 // Person tab: pick one person and see or edit everything held about them (Planning Center fields, club record, uniform,
 // attendance, awards, progress summary, change history). Reuses the edits the other tabs make; nothing here has its own storage.
 (function () {
@@ -106,7 +106,7 @@
     const U = Model.UNI, items = Model.uniformItems(p);
     return '<section class="pcard"><h3>Uniform</h3><p>' + (items.length ? items.map(i => '<span class="chip">' + esc(i) + '</span>').join('') + ' <span class="status">ordered and paid in Planning Center</span>' : '<span class="status">No uniform ordered in Planning Center.</span>') + '</p>' +
       '<div class="pgrid">' + UNI_FIELDS.filter(x => !x[2] || p[U[x[0]]]).map(([k, l]) => '<div class="pf"><span>' + l + '</span>' + fieldFlag(p, 'Uniform · ' + l, l) + (['ORDERED', 'RECEIVED', 'GIVEN'].includes(k) ? App.uniDateHtml(U[k], p[U[k]]) : '<input type="text" data-u="' + U[k] + '" value="' + esc(p[U[k]]) + '">') + '</div>').join('') + '</div>' +
-      '<label class="pf chk" title="Handed over, but I do not have the date. Counts as given out, like a date."><input type="checkbox" data-flag="' + U.GIVEN_FLAG + '"' + (p[U.GIVEN_FLAG] ? ' checked' : '') + '> Given out, but I do not have the date' + fieldFlag(p, 'Uniform · Given out, no date', 'Given out, no date') + '</label></section>';
+      '<label class="pf chk" title="Handed over, but I do not have the date. Counts as given out, like a date."><input type="checkbox" data-flag="' + U.GIVEN_FLAG + '"' + (Model.uniHasGivenDate(p) ? ' disabled' : p[U.GIVEN_FLAG] ? ' checked' : '') + '> Given out, but I do not have the date' + fieldFlag(p, 'Uniform · Given out, no date', 'Given out, no date') + '</label></section>';
   }
   function secAttend(p, g, season) {
     const id = idOf(p), cols = App.markCols[g] || App.markCols.Puggles, today = App.today(), teams = Model.hasColorTeams(g);
@@ -129,7 +129,7 @@
       '</section>';
   }
   // The Awards tab of a child's page: a presentation view for building the slides. Earned is read-only (it comes from the progress sheets and attendance); this tab shows whether each award has been told to the group
-  // and lets you announce it on a night, or open the Announce page or the slide for that night. There is no Given tick here: awards are handed over in class and signed off on the paper sheet.
+  // and lets you announce it on a night, or open the Announce page or the slide for the current club night. There is no Given tick here: awards are handed over in class and signed off on the paper sheet.
   function awardsTab(p, g, season) {
     const id = idOf(p), rows = Season.awardLedger(season, id, g, App.calendar), skip = (season.config.exclude || {})[g] || [], nights = App.nightList().map(n => n.date);
     const night = nights.includes(ui.awNight) ? ui.awNight : App.nextNight(), waiting = rows.filter(r => r.earned && !r.announced && !r.held && !skip.includes(r.award));
@@ -140,7 +140,7 @@
       '<p class="status">Earned comes from the progress sheets and attendance, so it is changed there. Awards are handed over in class and signed off on the paper sheet, so Given is entered on the Progress sub-tab, under the award’s section.</p>' +
       (rows.length ? '<div class="pscroll"><table class="roster"><thead><tr><th>Award</th><th>Earned</th><th>Announced</th><th>Hold</th><th>Given</th></tr></thead><tbody>' + rows.map(r => '<tr class="' + (r.given ? 'st-given' : r.held ? 'st-held' : '') + '"><td>' + esc(Season.awardLabel(season, id, r.award)) + fieldFlag(p, 'Awards earned · ' + Season.awardLabel(season, id, r.award), Season.awardLabel(season, id, r.award)) + (Season.isEndOfYear(season, g, r.award) ? ' <span class="chip">End of year</span>' : '') + '</td><td class="status">' + esc(r.earned ? MD(r.earned) : 'by hand') + '</td><td>' + told(r) + '</td><td>' + (r.earned && !r.announced && !skip.includes(r.award) ? '<label title="Keep this award off the slides until you release it"><input type="checkbox" data-pehold="' + esc(r.award) + '"' + (r.held ? ' checked' : '') + ' aria-label="Hold ' + esc(Season.awardLabel(season, id, r.award)) + '"></label>' : '') + '</td><td class="status">' + esc(given(r)) + '</td></tr>').join('') + '</tbody></table></div>' :
         '<p class="status">Nothing earned yet this season.</p>') +
-      '<p><label>Night <select id="peAwNight" aria-label="Night to announce on">' + nights.map(d => '<option value="' + esc(d) + '"' + (d === night ? ' selected' : '') + '>' + esc(MD(d)) + '</option>').join('') + '</select></label> ' +
+      '<p><label>Manual announcement date <select id="peAwNight" aria-label="Manual announcement date">' + nights.map(d => '<option value="' + esc(d) + '"' + (d === night ? ' selected' : '') + '>' + esc(MD(d)) + '</option>').join('') + '</select></label> ' +
       (waiting.length > 1 ? '<button type="button" data-peannall="1">Announce all ' + waiting.length + ' on ' + esc(MD(night)) + '</button> ' : '') +
       '<button type="button" data-peannpage="1">Open the Announce page</button> <button type="button" data-peslide="1">Open the slide</button></p></section>';
   }
@@ -264,13 +264,18 @@
       const slot = $('personWrap').querySelector('[data-slot="' + CSS.escape(t.dataset.pc) + '"]'); if (slot) slot.innerHTML = pcMark(p, t.dataset.pc);
       changed(t.dataset.pc === C.ROOM || t.dataset.pc === C.SELECTION);
     } else if (t.dataset.flag) {
-      if (t.dataset.flag === X.ACTIVE) Model.setActive(p, t.checked); else p[t.dataset.flag] = t.checked ? '1' : ''; changed(true);
+      if (t.dataset.flag === X.ACTIVE) Model.setActive(p, t.checked);
+      else if (t.dataset.flag === Model.UNI.GIVEN_FLAG) Model.setUniformField(p, t.dataset.flag, t.checked ? '1' : '');
+      else p[t.dataset.flag] = t.checked ? '1' : '';
+      changed(true);
     } else if (t.dataset.team) {
       if (App.checkTeamPick) App.checkTeamPick(p, t.dataset.team, t.value);      // a repeat or uneven teams is said, never blocked (Fable review A8)
       Model.setTeamChoice(App.master, p, t.dataset.team, t.value); changed(true);
     } else if (t.dataset.u) {
       if (App.dateHeld(t) || !App.uniDateOk(t)) return;      // a date being typed over, or a year still being typed: saved when the box is left
-      p[t.dataset.u] = t.value; changed(false); if (t.dataset.udate && t.type === 'text' && /^\d{4}-\d{2}-\d{2}$/.test(t.value)) render();      // a typed-over legacy value is a date now: show the picker
+      Model.setUniformField(p, t.dataset.u, t.value);
+      if (t.dataset.u === Model.UNI.GIVEN) App.updateUniformGivenFlag($('personWrap').querySelector('input[data-flag="' + Model.UNI.GIVEN_FLAG + '"]'), p);
+      changed(false); if (t.dataset.udate && t.type === 'text' && /^\d{4}-\d{2}-\d{2}$/.test(t.value)) render();      // a typed-over legacy value is a date now: show the picker
     } else if (t.dataset.hb) {
       App.saveHandbook(t.closest('.hbbox'), idOf(p)); stale = true; if (ui.attn) applyAttention(p);
     } else if (t.dataset.mark) {
@@ -305,7 +310,7 @@
       const night = $('peAwNight') ? $('peAwNight').value : '', g = Model.groupOf(Model.room(p));
       if (ann.dataset.peann !== undefined) Season.announce(season, night, [[idOf(p), ann.dataset.peann]]);
       else if (ann.dataset.peannall) Season.announce(season, night, Season.pendingAwards(season, idOf(p), g, App.calendar).map(r => [idOf(p), r.award]));      // held awards are skipped by announce
-      else { if (stale) { stale = false; App.refresh(); } App.awardsFor(idOf(p), night, !!ann.dataset.peslide); return; }
+      else { if (stale) { stale = false; App.refresh(); } App.awardsFor(idOf(p), !!ann.dataset.peslide); return; }
       changed(true); return;
     }
     if (t.id === 'peMoveAdd') { const to = $('peMoveTeam').value, from = $('peMoveFrom').value; if (to && from) { try { Season.setTeamMove(season, idOf(p), App.quarterOf(from), from, to, App.calendar); } catch (err) { App.flash(err.message, 'error'); return; } changed(true); } return; }  });
@@ -315,7 +320,7 @@
   // The place is the child and the sub-tab (S13): a live update or a Recent places jump returns to the same child on the same sub-tab.
   App.places.person = { get: () => ui.id && person() ? { key: ui.id, label: 'Person \u00b7 ' + Model.fullName(person()), state: { id: ui.id, sub: ui.sub } } : null,
     set: s => { ui.role = 'all'; ui.group = 'All'; ui.cls = 'All'; ui.q = ''; ui.id = s.id; ui.subPickedFor = ''; ui.attn = ''; ui.back = ''; if (s.sub) ui.sub = s.sub; } };      // for the Recent places list (app-trail.js) and the live-update handoff (app-update.js)
-  $('personWrap').addEventListener('click', e => { const u = e.target.closest('button[data-utoday]'), pp = person(); if (u && pp) { pp[u.dataset.utoday] = App.today(); changed(false); render(); } });
+  $('personWrap').addEventListener('click', e => { const u = e.target.closest('button[data-utoday]'), pp = person(); if (u && pp) { Model.setUniformField(pp, u.dataset.utoday, App.today()); changed(false); render(); } });
   // Volunteer absences on the Attendance sub-tab (S11): clear one night, the whole absence, or the remaining nights; add a new one.
   $('personWrap').addEventListener('click', e => {
     const pp = person(); if (!pp) return; const pid = idOf(pp);

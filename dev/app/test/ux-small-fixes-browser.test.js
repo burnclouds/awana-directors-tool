@@ -48,10 +48,10 @@ const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) +
     const r = await p.evaluate(() => { const b = document.getElementById('tabMenuBadge'); return { n: b.textContent, title: b.title, label: b.getAttribute('aria-label') }; });
     if (r.n) assert(/\d+ to do, \d+ awards? to announce/.test(r.title) && r.title === r.label, JSON.stringify(r)); await ctx.close();
   });
-  await test('UX-16: Attendance, Awards and Reports use the same night text, and Monday 11/16 shows "last" (11/11) and "next" (11/18)', async () => {
+  await test('UX-16: Attendance defaults to the last night and Announce uses the current club night', async () => {
     const { p, ctx } = await open(1280);
     await tab(p, 'attend'); await p.waitForTimeout(300); const att = await p.$eval('#attDate', s => s.options[s.selectedIndex].textContent); assert(/^Wed 11\/11 \(Q\d\) · last/.test(att), att);
-    await tab(p, 'awards'); await p.waitForTimeout(300); const aw = await p.$eval('#awDate', s => s.options[s.selectedIndex].textContent); assert(/^Wed 11\/18 \(Q\d\) · next/.test(aw), aw);
+    await tab(p, 'awards'); await p.waitForTimeout(300); const aw = await p.textContent('#awSecAnnounce h3'); assert(/^Announce on 11\/18 /.test(aw), aw);
     assert.strictEqual(await p.locator('#oDateSel').count(), 0, 'the Reports tab has no Night picker any more (only the retired weekly award slips used it)'); await ctx.close();
   });
   await test('UX-30 (390): a Roster checkbox has a 44px footprint (a 32px box with 6px around it)', async () => {

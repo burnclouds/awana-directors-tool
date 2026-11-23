@@ -23,12 +23,16 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   const sub = async id => { const w = /Ceremony/.test(id) ? 'ceremony' : /Hand/.test(id) ? 'hand' : 'announce'; await page.click('#awSubs button[data-awsub="' + w + '"]'); await page.waitForTimeout(150); };
   const h = async id => { await sub(id); return page.evaluate(i => { const e = document.querySelector('#' + i + ' h3'); return e ? e.textContent.trim() : ''; }, id); };
   const T = async id => { await sub(id); return page.textContent('#' + id); };
-  await test('the tab is three lists, with one filter and sort bar: group (all by default), class, sort, and the night to announce on', async () => {
+  await test('the tab is three lists, with one filter and sort bar: group (all by default), class, sort, and award type', async () => {
     assert(/Announce on/.test(await h('awSecAnnounce')) && /To hand out/.test(await h('awSecHand')) && /End-of-year awards/.test(await h('awSecCeremony')), 'Announce: to tell; Hand out: to hand out; End of year: the ceremony list'); assert.strictEqual(await page.locator('#awSubs button').count(), 3);
-    assert.strictEqual(await page.inputValue('#awGroup'), 'All'); assert.deepStrictEqual(await page.$$eval('#awSort option', o => o.map(x => x.value)), ['class', 'award', 'earned']); assert(/Announce on/.test(await page.textContent('#awDateWrap')));
+    assert.strictEqual(await page.inputValue('#awGroup'), 'All'); assert.deepStrictEqual(await page.$$eval('#awSort option', o => o.map(x => x.value)), ['class', 'award', 'earned']); assert(/Announce on/.test(await h('awSecAnnounce')));
   });
-  await test('the night to announce on defaults to the next club night on or after today (and can be changed)', async () => {
-    const r = await page.evaluate(() => { const t = App.today(), nights = [...document.querySelectorAll('#awDate option')].map(o => o.value), next = nights.find(d => d >= t) || nights[nights.length - 1]; return { chosen: document.querySelector('#awDate').value, next }; }); assert.strictEqual(r.chosen, r.next);
+  await test('the Announce page displays the current club night without a date picker', async () => {
+    await sub('awSecAnnounce');
+    const night = await page.evaluate(() => { const t = App.today(), nights = App.nightList().map(n => n.date); return nights.find(d => d >= t) || nights[nights.length - 1]; });
+    const [, month, day] = night.split('-');
+    assert.match(await page.textContent('#awSecAnnounce h3'), new RegExp('^Announce on ' + Number(month) + '/' + Number(day) + ' '));
+    assert.strictEqual(await page.locator('#awDate').count(), 0);
   });
   await test('To tell the group lists what is earned and not yet told (all groups)', async () => {
     const t = await T('awSecAnnounce'); assert(/Green Jewel 1/.test(t) && /Blue Emblem 1/.test(t), t.slice(0, 300)); await sub('awSecAnnounce'); assert((await page.locator('#awSecAnnounce tbody tr[data-award]').count()) >= 2, 'the two earned from Progress (and any Blue Jewels from attendance)');
@@ -60,24 +64,24 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     const b0 = await badge(); const row = page.locator('#awSecAnnounce tbody tr', { hasText: 'Blue Emblem 1' }); await row.locator('input[data-hold]').check(); await page.waitForTimeout(300);
     assert.strictEqual(await page.evaluate(i => Object.keys(App.season.held[i] || {}).length, setup.tt[1]), 1, 'the hold is saved in the season');
     assert.strictEqual(await page.locator('#awSecAnnounce tbody tr.held').count(), 1, 'the held row is dimmed and still listed'); assert.strictEqual(await page.locator('#awSecAnnounce tbody tr[data-award]').count(), before);
-    assert.strictEqual(await badge(), b0 - 1, 'held awards are not counted'); assert(!/Blue Emblem 1/.test(await page.evaluate(() => Slides.buildSlides(App.season, App.master, document.querySelector('#awDate').value, { calendar: App.calendar }).slides.map(s => JSON.stringify(s.entries)).join())), 'held: not on the slides');
+    assert.strictEqual(await badge(), b0 - 1, 'held awards are not counted'); assert(!/Blue Emblem 1/.test(await page.evaluate(() => Slides.buildSlides(App.season, App.master, App.nextNight(), { calendar: App.calendar }).slides.map(s => JSON.stringify(s.entries)).join())), 'held: not on the slides');
     await page.locator('#awSecAnnounce tbody tr.held input[data-hold]').click(); await page.waitForTimeout(300);      // click, not uncheck(): the row is redrawn by the click
-    assert.strictEqual(await page.locator('#awSecAnnounce tbody tr.held').count(), 0, 'released'); assert.strictEqual(await badge(), b0, 'released awards are counted again'); assert(/Blue Emblem 1/.test(await page.evaluate(() => Slides.buildSlides(App.season, App.master, document.querySelector('#awDate').value, { calendar: App.calendar }).slides.map(s => JSON.stringify(s.entries)).join())), 'released: on the slides again');
+    assert.strictEqual(await page.locator('#awSecAnnounce tbody tr.held').count(), 0, 'released'); assert.strictEqual(await badge(), b0, 'released awards are counted again'); assert(/Blue Emblem 1/.test(await page.evaluate(() => Slides.buildSlides(App.season, App.master, App.nextNight(), { calendar: App.calendar }).slides.map(s => JSON.stringify(s.entries)).join())), 'released: on the slides again');
   });
-  await test('Mark all announced stamps only the unheld awards on the chosen night; the held one stays; announced awards leave the slides but stay on To hand out until Given', async () => {
+  await test('Mark all announced stamps only the unheld awards on the current club night; the held one stays; announced awards leave the slides but stay on To hand out until Given', async () => {
     await sub('awSecAnnounce'); await page.locator('#awSecAnnounce tbody tr', { hasText: 'Blue Emblem 1' }).locator('input[data-hold]').check(); await page.waitForTimeout(300);
     await page.click('#btnAnnounce'); await page.waitForTimeout(400);
     assert.strictEqual(await page.locator('#awSecAnnounce tbody tr[data-award]').count(), 1, 'only the held one is left'); assert(/Blue Emblem 1/.test(await T('awSecAnnounce')) && !/Green Jewel 1/.test(await T('awSecAnnounce')), 'the others were announced');
     assert(/Green Jewel 1/.test(await T('awSecHand')) && /Blue Emblem 1/.test(await T('awSecHand')), 'announced or held, both still wait to be given');
-    const night = await page.inputValue('#awDate'); assert(await page.evaluate(n => Object.keys(App.season.awards[n] || {}).length > 0, night), 'stamped on the chosen night');
-    assert(!/Green Jewel 1/.test(await page.evaluate(() => Slides.buildSlides(App.season, App.master, document.querySelector('#awDate').value, { calendar: App.calendar }).slides.map(s => JSON.stringify(s.entries)).join())), 'announced: off the slides for good');
+    const night = await page.evaluate(() => App.nextNight()); assert(await page.evaluate(n => Object.keys(App.season.awards[n] || {}).length > 0, night), 'stamped on the current club night');
+    assert(!/Green Jewel 1/.test(await page.evaluate(() => Slides.buildSlides(App.season, App.master, App.nextNight(), { calendar: App.calendar }).slides.map(s => JSON.stringify(s.entries)).join())), 'announced: off the slides for good');
   });
   await test('the award lists are fixed: no "Award lists" button on the Awards tab or on Options', async () => {
     assert((await page.locator('#btnAwLists').count()) === 0, 'no button on the Awards tab'); assert(!/Award lists/.test(await page.textContent('#tab-awards')), 'no mention on the Awards tab');
   });
   await test('the ceremony report lists each end-of-year award with its children and a box to tick', async () => {
     await page.click('#btnAwCeremony').catch(() => {}); await page.waitForTimeout(500); if (!(await page.isVisible('#tab-reports'))) await tab('reports');
-    await page.selectOption('#rSel', 'ceremony'); await page.selectOption('#oGroupSel', 'Sparks'); await page.waitForTimeout(400); const t = await page.textContent('#report'); assert(/End-of-year awards/.test(t) && /Sparky Award Sculpture/.test(t) && /to have ready/.test(t), t.slice(0, 300));
+    await page.selectOption('#rSel', 'ceremony'); await page.click('#btnReportOptions'); await page.selectOption('#oGroupSel', 'Sparks'); await page.click('#pgDone'); await page.waitForTimeout(400); const t = await page.textContent('#report'); assert(/End-of-year awards/.test(t) && /Sparky Award Sculpture/.test(t) && /to have ready/.test(t), t.slice(0, 300));
   });
   await test('no script errors', () => assert.deepStrictEqual(errs, []));
   await browser.close(); server.close(); console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

@@ -90,6 +90,13 @@ table.grid { border-collapse:collapse; width:100%; }
 table.grid th, table.grid td { border:1px solid #888; padding:2px 6px; text-align:left; vertical-align:top; }
 table.grid th { background:#f0f0f0; }
 table.grid.wrap td { white-space:normal; }
+#report table.uniform-tracking { table-layout:fixed; overflow-wrap:anywhere; }
+@media print { #report table.uniform-tracking td { height:.28in; } }
+#report .sheet.incident { font-size:11pt; }
+.incident-fields { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.15in; }
+.incident-fields > div, .incident-writing { break-inside:avoid; }
+.incident-line { height:0.28in; border-bottom:1px solid #777; }
+.incident-writing { margin:0.16in 0; }
 .none { color:var(--offtxt); font-style:italic; }      /* UX-30: #999 on white was 2.85:1; --offtxt is now 5.3:1 light and about 4.6:1 dark */
 .empty { color:var(--mute); }
 .team { display:inline-block; padding:0 8px; border-radius:3px; color:#1b1f24; }
@@ -419,7 +426,9 @@ button.attn { padding:6px 12px; }
 .colsbar { background:var(--warnbg); color:var(--warntxt); padding:6px 16px; font-size:13px; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:center; flex-wrap:wrap; } .colsbar[hidden] { display:none; } .updatebar { background:var(--chipbg); color:var(--ink); } .colsbar button { font-size:12px; padding:2px 8px; }
 .colsitems { list-style:none; margin:8px 0; padding:0; } .colsitems li { margin:6px 0; padding:6px 8px; border-left:3px solid var(--line); background:var(--soft); font-size:13px; } .colsitems li.warn { border-left-color:var(--warn); } .colsitems li.error { border-left-color:#b00020; }
 .roster.att tr.here > td { background:rgba(46,160,67,.12); }      /* plan item 5: a row that is marked Present is tinted, so a tap is seen at a glance */
-#btnSeasonSave.unsaved::after { content:''; display:inline-block; width:.5em; height:.5em; border-radius:50%; background:#f0a500; margin-left:.45em; vertical-align:middle; }      /* plan item 3: a dot while there are unsaved changes */
+#btnUnsavedEdits { border-radius:0; border-left:1px solid rgba(255,255,255,.45); padding-inline:6px; white-space:nowrap; }
+#btnUnsavedEdits > :first-child { color:#ffc04a; }
+#unsavedDetails { overflow-wrap:anywhere; }
 .splitbtn { display:inline-flex; } /* a successful save to Drive: green, fading back to blue (app-drive.js adds .saved; --savedms is how long) */
 :root { --savegreen:#1f8f4a; } @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --savegreen:#2a9d57; } }
 @keyframes savedfade { 0%, 12% { background:var(--savegreen); border-color:var(--savegreen); } 100% { background:var(--accent); border-color:var(--accent); } }
@@ -693,9 +702,11 @@ table.tg select.tgsel.tgproj { background-color:var(--panel); color:var(--ink); 
   .overflowbtn { display:inline-block; min-width:44px; min-height:44px; font-size:20px; line-height:1; order:4; }
   .actions { overflow:visible; -webkit-mask-image:none; mask-image:none; padding-right:0; }
   .filetxt { display:none; } .top { padding-top:7px; padding-bottom:7px; }      /* keeps the bar at one slim row (60px) with the 44px "..." button */
-  /* the unsaved count rides on the Download button (a dot and the number), so the separate words are not needed; the button's accessible name says "N unsaved edits" */
+  /* The unsaved count next to Download replaces the status words on phones. */
   #seasonStatus, #seasonStatus.dirty { display:none; }
-  #btnSeasonSave.unsaved::after { content:" \25CF " attr(data-n); font-weight:700; }
+  #btnUnsavedEdits { min-width:44px; }
+  .actions:has(#btnUnsavedEdits:not([hidden])) { flex-wrap:wrap; gap:4px; }
+  #saveSplit:has(#btnUnsavedEdits:not([hidden])) #btnSeasonSave { padding-inline:6px; }
 }
 /* UX-06: the Tonight group is always open in the phone menu (any Tonight tab is two taps from anywhere); UX-07: Recent places are the last group of that menu, not a bar */
 .recentgrp { display:none; }
@@ -763,6 +774,8 @@ fieldset.bindopt { background:color-mix(in srgb, var(--accent) 8%, transparent);
 @media print { #report table.grid.tight td, #report table.grid.tight th { padding:1px 6px; font-size:12px; line-height:1.2; } }
 /* Uniforms (1.51.15c): the text columns wrap so the tab fits at 1280px without a sideways scroll; on a phone each child is a card (CSS only: the same table, so every handler and the bulk buttons work unchanged). */
 table.uni th { white-space:normal; vertical-align:bottom; } table.uni td.wr { white-space:normal; overflow-wrap:break-word; }
+.uni-date-line { display:flex; flex-wrap:wrap; align-items:center; gap:3px 8px; }
+.uni-date-line .uov { margin:0; }
 @media (max-width:760px) {
   #uniWrap.scroll { overflow:visible; }
   table.uni, table.uni tbody { display:block; width:100%; } table.uni thead { display:none; }
@@ -770,7 +783,7 @@ table.uni th { white-space:normal; vertical-align:bottom; } table.uni td.wr { wh
   table.uni td { display:block; padding:0; border:0; white-space:normal; min-width:0; }
   table.uni td[data-label]::before { content:attr(data-label); display:block; font-size:12px; color:var(--mute); line-height:1.3; }
   table.uni td.uname { font-weight:700; font-size:17px; } table.uni td.uclass { text-align:right; color:var(--mute); }
-  table.uni td.uitem, table.uni td.udate, table.uni td.unotes { grid-column:1 / -1; }
+  table.uni td.udate, table.uni td.unotes { grid-column:1 / -1; }
   table.uni input[type=text], table.uni input[type=date] { width:100%; box-sizing:border-box; }
 }
 /* Year grid: a color set by hand is SOLID (the pin icon is gone), a suggested one keeps the dashed outline; a legend line says so. Dark text on the pastel fills reads in both schemes. */
@@ -791,8 +804,18 @@ table.tg select.tgsel.tgset.team-Red { background-color:#ea9999; border-color:#c
 .stcap { display:flex; justify-content:flex-end; gap:8px; font-size:8pt; line-height:1.1; color:#444; } .stcap .cd { width:0.8in; text-align:center; } .stcap .ci { width:0.5in; text-align:center; }
 /* Reports (1.51.15d): one bar in the order what > when > who > how many > go; Print is last. The old second bar and the separate "Quarter to print" select are gone (bundles use the Quarter pills). On a phone the bar scrolls away with the page instead of taking a third of the screen. */
 .barset { display:contents; } #dateBar[hidden] { display:none !important; } #rBar { align-items:center; row-gap:6px; } #rBar #btnPrint { margin-left:auto; }
+#reportOptionsTitle { margin-top:0; }
+.report-option-fields label { min-width:0; }
+.report-option-fields select, .report-option-fields input { max-width:100%; }
+#reportPageOptions fieldset { min-width:0; margin:0; border:1px solid var(--line); border-radius:6px; }
+#reportPageOptions .pglist label { overflow-wrap:anywhere; }
 #pagePick { display:inline-flex; flex-wrap:wrap; gap:6px 12px; align-items:center; padding:0; }
-@media (max-width:760px) { #tab-reports > .rhead { position:static; } #rBar #btnPrint { margin-left:0; } }
+@media (max-width:760px) {
+  #tab-reports > .rhead { position:static; }
+  #rBar #btnPrint { margin-left:0; }
+  #btnReportOptions, #reportOptions button, #reportOptions select, #reportOptions input:not([type=checkbox]) { min-height:44px; }
+  #reportPageOptions .pglist label { display:flex; gap:8px; align-items:center; min-height:44px; }
+}
 /* Award strips on a narrow screen (1.51.15e): two 4.5in strips need about 1000px, so below that the screen shows one strip per row, as wide as the screen up to 4.5in (print is unchanged: two across). The class may drop below a long name. */
 @media screen and (max-width: 1000px) {
   .sheet.strips .striprow { flex-direction:column; align-items:center; width:auto; gap:8px; margin-bottom:8px; }
@@ -814,6 +837,13 @@ table.tg select.tgsel.tgset.team-Red { background-color:#ea9999; border-color:#c
 .sheet.notes .nsheet th.nhead .nh { overflow:hidden; }      /* N16: a long theme is clipped to the block's own height; it never makes the block taller */
 @media screen and (max-width: 760px) { .sheet.notes .nsheet th, .sheet.notes .nsheet td { font-size:8px; padding:0 1px; } .sheet.notes .nsheet thead th { font-size:8px; } .sheet.notes .nsheet th.nhead b, .sheet.notes .nsheet th.nhead i { font-size:8px; } .sheet.notes .nsheet col.d { width:16%; } }
 .pextra { margin:14px 0 6px; padding:6px 10px; border-top:2px solid var(--line); border-bottom:1px dashed var(--line); font-weight:700; background:var(--soft); }      /* N32: the Silver and Gold extra-credit heading on a T&T progress page */
+/* N59: T&T progress sheet: emblem section with Silver and Gold rows directly underneath */
+.tnt-section { margin:8px 0; border:1px solid var(--line); border-radius:6px; padding:4px 8px; }
+.tnt-section .tnt-row { margin:2px 0; border:none; }
+.tnt-section .tnt-row:not(:last-child) { border-bottom:1px dashed var(--line); border-radius:0; }
+.tnt-section .tnt-row.done { background:var(--donebg); }
+.tnt-section .plabel { min-width:140px; }
+@media (max-width: 760px) { .tnt-section .pcell-ghost { display:none; } }
 
 /* N36 (moved 2026-11-19): while a Drive save runs, the Save button's label fades out and a floppy icon fades in where the label was; the header does not move. The text stays in the button for screen readers. */
 #btnSeasonSave { position: relative; transition: color .3s ease; }

@@ -52,7 +52,11 @@ const DATA_LAYER = { 'season.js': 'defines the pairs, the helpers and the write 
 const ALLOWED = [   // [file, enclosing function or const, why it is safe]
   ['app-options.js', 'n', 'counts people and keys, shows no date'],
   ['app-person.js', 'U', 'the "given, no date" checkbox on the Person tab (reads and writes the flag)'],
-  ['app.js', 'list', 'the "given, no date" checkbox on the uniform list'],
+  ['app-person.js', 'slot', 'writes the uniform field and updates its no-date checkbox after a date edit'],
+  ['app-tools.js', 'fixedIds', 'copies the Debug correction to the no-date flag in the live roster'],
+  ['app.js', 'y', 'synchronizes the uniform no-date checkbox from the saved flag'],
+  ['app.js', 'noDate', 'renders the uniform no-date checkbox'],
+  ['app.js', 'p', 'updates the uniform no-date checkbox after a date edit'],
   ['app-season.js', 'id', 'presence tests, and the sheet text routed through isSignNoDate / signsShown'],
   ['app-season.js', 'latest', 'ORDERING ONLY: picks the book worked on most recently by date; skips no-date sign-offs through Season.isSignNoDate, so a hidden tick day cannot make a no-date book look recent (R21 follow-up, fixed 2026-11-14)'],
   ['app-season.js', 'started', 'presence test: a book with any sign-off, even a no-date one, counts as started (currentBook)'],

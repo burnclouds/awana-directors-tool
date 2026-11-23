@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.74.0';
+(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.74.2';
 // Season store: everything recorded during one club year, kept in one JSON file keyed by person ID
 // (attendance, games, awards, handbooks, section-by-section progress, the roster) plus the lists and templates they use.
 //
@@ -51,7 +51,7 @@
   // ---------- file ----------
   function blank(year) {
     return { format: FORMAT, version: VERSION, year: year || '', config: Catalog.defaultConfig(),
-      handbooks: {}, attendance: {}, awards: {}, given: {}, givenNoDate: {}, held: {}, flags: {}, doneBooks: {}, received: {}, adults: {}, teamMoves: {}, games: {}, progress: {}, roster: { cols: [], people: {} }, calendar: [], rotation: [], history: [] };
+      handbooks: {}, attendance: {}, awards: {}, given: {}, givenNoDate: {}, held: {}, flags: {}, doneBooks: {}, doneReviews: {}, received: {}, adults: {}, teamMoves: {}, games: {}, progress: {}, roster: { cols: [], people: {} }, calendar: [], rotation: [], history: [] };
   }
   function sortKeys(v) {
     if (Array.isArray(v)) return v.map(sortKeys);
@@ -84,7 +84,7 @@
     out.people = people; return out;
   }
   // givenNoDate (awards marked given with no date, see setGiven) is left out of the file while it is empty, so most files stay exactly as they were.
-  const toJson = s => { const o = Object.assign({}, s, { roster: packRoster(s.roster) }); const extra = o.unknownKeys; delete o.unknownKeys; if (extra) Object.keys(extra).forEach(k => { if (!(k in o)) o[k] = extra[k]; });      /* keys this app does not know are written back at the top level; a known key always wins (R17) */ if (!Object.keys(s.givenNoDate || {}).length) delete o.givenNoDate; if (!Object.keys(s.held || {}).length) delete o.held; if (!Object.keys(s.flags || {}).length) delete o.flags; if (!Object.keys(s.doneBooks || {}).length) delete o.doneBooks; if (!Object.keys(s.received || {}).length) delete o.received; if (!Object.keys(s.progressNoDate || {}).length) delete o.progressNoDate; if (!Object.keys(s.extraSheets || {}).length) delete o.extraSheets; if (!Object.keys(s.announcedNoDate || {}).length) delete o.announcedNoDate; if (!Object.keys(s.blueWings || {}).length) delete o.blueWings; if (!Object.keys(s.blueOverrides || {}).length) delete o.blueOverrides; if (!Object.keys(s.blueDrops || {}).length) delete o.blueDrops; if (!Object.keys(s.pastTurnout || {}).length) delete o.pastTurnout; if (!Object.keys(s.absences || {}).length) delete o.absences; return JSON.stringify(sortKeys(o)) + '\n'; };
+  const toJson = s => { const o = Object.assign({}, s, { roster: packRoster(s.roster) }); const extra = o.unknownKeys; delete o.unknownKeys; if (extra) Object.keys(extra).forEach(k => { if (!(k in o)) o[k] = extra[k]; });      /* keys this app does not know are written back at the top level; a known key always wins (R17) */ if (!Object.keys(s.givenNoDate || {}).length) delete o.givenNoDate; if (!Object.keys(s.held || {}).length) delete o.held; if (!Object.keys(s.flags || {}).length) delete o.flags; if (!Object.keys(s.doneBooks || {}).length) delete o.doneBooks; if (!Object.keys(s.doneReviews || {}).length) delete o.doneReviews; if (!Object.keys(s.received || {}).length) delete o.received; if (!Object.keys(s.progressNoDate || {}).length) delete o.progressNoDate; if (!Object.keys(s.extraSheets || {}).length) delete o.extraSheets; if (!Object.keys(s.announcedNoDate || {}).length) delete o.announcedNoDate; if (!Object.keys(s.blueWings || {}).length) delete o.blueWings; if (!Object.keys(s.blueOverrides || {}).length) delete o.blueOverrides; if (!Object.keys(s.blueDrops || {}).length) delete o.blueDrops; if (!Object.keys(s.pastTurnout || {}).length) delete o.pastTurnout; if (!Object.keys(s.absences || {}).length) delete o.absences; return JSON.stringify(sortKeys(o)) + '\n'; };
   // Older files keyed a book by two letters and wrote it differently in records (AO written AoG, kept as the book's "spell"). The key is now the code itself, so the book moves to its written form;
   // the year's book, and any progress kept under the old key, follow. A file from before "spell" existed had AO for Agents of Grace.
   function renameBooks(s, o) {
@@ -97,6 +97,7 @@
       books[to] = b; delete books[k]; moved[k] = to;
       Object.keys(s.config.yearBook || {}).forEach(g => { if (s.config.yearBook[g] === k) s.config.yearBook[g] = to; });
       Object.keys(o.progress || {}).forEach(id => { const kid = o.progress[id]; if (isObj(kid) && kid[k] && !kid[to]) { kid[to] = kid[k]; delete kid[k]; } });
+      ['doneBooks', 'doneReviews'].forEach(section => Object.keys(o[section] || {}).forEach(id => { if (Array.isArray(o[section][id])) o[section][id] = o[section][id].map(c => c === k ? to : c); }));
     });
     again();
     return moved;
@@ -109,6 +110,7 @@
       if (p[0] === 'config' && p[1] === 'books') { n.p = p.map((x, i) => i === 2 ? to(x) : x); if (p.length === 2) { if ('o' in c) n.o = keys(c.o); if ('n' in c) n.n = keys(c.n); } }
       else if (p[0] === 'config' && p[1] === 'yearBook' && p.length === 3) { if ('o' in c) n.o = to(c.o); if ('n' in c) n.n = to(c.n); }
       else if (p[0] === 'progress') { n.p = p.map((x, i) => i === 2 ? to(x) : x); if (p.length === 2) { if ('o' in c) n.o = keys(c.o); if ('n' in c) n.n = keys(c.n); } }
+      else if ((p[0] === 'doneBooks' || p[0] === 'doneReviews') && p.length === 2) { if ('o' in c && Array.isArray(c.o)) n.o = c.o.map(to); if ('n' in c && Array.isArray(c.n)) n.n = c.n.map(to); }
       return n;
     }) }));
   }
@@ -128,7 +130,7 @@
     if (s.config.tntBook) { if (!s.config.yearBook['T&T']) s.config.yearBook['T&T'] = s.config.tntBook; }      // 1.32 kept only the T&T book, as tntBook
     delete s.config.tntBook;
     const moved = renameBooks(s, o);
-    ['handbooks', 'attendance', 'awards', 'given', 'givenNoDate', 'held', 'flags', 'doneBooks', 'received', 'adults', 'teamMoves', 'games', 'progress', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout', 'absences'].forEach(k => { if (isObj(o[k])) s[k] = o[k]; });
+    ['handbooks', 'attendance', 'awards', 'given', 'givenNoDate', 'held', 'flags', 'doneBooks', 'doneReviews', 'received', 'adults', 'teamMoves', 'games', 'progress', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout', 'absences'].forEach(k => { if (isObj(o[k])) s[k] = o[k]; });
     // Given is only ever entered by a person. A file from before the Given check opens with nothing given (an older version of the app assumed every announced award was given on its announce night; that is gone, and assumedGiven finds what it left behind).
     // Version 4: a Sparks jewel is earned by sections 1-4 alone and 5-8 are its reviews (they count toward the book's Review Emblem); SkyStormer's Review Emblem is red.
     // A file with the old template (a single "rev" box per jewel) gets the new one; dates already entered, including any old "rev", stay where they are.
@@ -422,11 +424,16 @@
     return Object.keys(s.handbooks || {}).filter(id => {
       const p = parseHandbook(s.handbooks[id]); if (!p.code || p.date) return false;
       const kid = (s.progress || {})[id] || {};
-      const dated = Object.keys(kid).some(c => c !== 'common' && kid[c] && Object.values(kid[c]).some(v => v)) || Object.keys(((s.received || {})[id]) || {}).length > 0 || (((s.doneBooks || {})[id]) || []).length > 0 || (((s.extraSheets || {})[id]) || []).length > 0;
+      const dated = Object.keys(kid).some(c => c !== 'common' && kid[c] && Object.values(kid[c]).some(v => v)) || Object.keys(((s.received || {})[id]) || {}).length > 0 || (((s.doneBooks || {})[id]) || []).length > 0 || (((s.doneReviews || {})[id]) || []).length > 0 || (((s.extraSheets || {})[id]) || []).length > 0;
       return !dated;
     });
   }
   function resetNoDateBooks(s) { const ids = noDateBookKids(s); ids.forEach(id => { delete s.handbooks[id]; }); return ids.length; }
+  const uniformGivenConflict = v => v && v[Model.UNI.GIVEN_FLAG] && Model.uniHasGivenDate(v);
+  function receivedCubbiesBooks(s, id) {
+    const finished = new Set(finishedBooks(s, id).map(b => b.book));
+    return bookOrder(s, 'Cubbies').filter(b => receivedOf(s, id, b) && !finished.has(b));
+  }
   // N39 (Debug, "Records that look wrong"): a list of records that look wrong, and a fix only where the fix loses nothing. Nothing is stored; the list is worked out each time and never changes the data.
   // groupOf(id) is the child's group from the roster ('' when unknown: such a child is not judged on class). A row is { check, id, text, fix [, date] }; fix '' means "shown, left alone": a date, a note or a choice a person made is never removed for you.
   // The text never holds a name: the screen adds the child's name from id.
@@ -443,8 +450,19 @@
       if (!books[b]) add('received-book', id, 'Received date for "' + b + '", which is not in the book list.');
       else if (grp(id) && bookGroup(s, b) !== grp(id)) add('received-book', id, 'Received date for "' + b + '", a ' + bookGroup(s, b) + ' book, but the child is in ' + grp(id) + '.');
     }));
+    Object.keys(s.received || {}).forEach(id => {
+      if (grp(id) !== 'Cubbies') return;
+      const received = receivedCubbiesBooks(s, id), current = childBook(s, id);
+      if (!received.length || received.includes(current)) return;
+      const names = received.map(b => books[b].name || b).join(', ');
+      const fix = received.length === 1 && !s.handbooks[id] ? 'assignCubbiesHandbook' : '';
+      add('cubbies-handbook', id, names + ' received. ' + (current ? 'Current book: ' + ((books[current] || {}).name || current) + '.' : 'No current book identified.'), fix);
+    });
     Object.keys(s.progress || {}).forEach(id => Object.keys(s.progress[id] || {}).forEach(b => { if (b !== 'common' && !books[b]) add('progress-book', id, 'Sign-offs under "' + b + '", which is not in the book list.'); }));
     const people = (s.roster && s.roster.people) || {};
+    Object.entries(people).forEach(([id, person]) => {
+      if (uniformGivenConflict(person.v)) add('uniform-given-conflict', id, 'Given out is dated ' + person.v[Model.UNI.GIVEN] + ' and still has the no-date flag.', 'clearUniformGivenFlag');
+    });
     Object.keys(s.flags || {}).forEach(fid => {
       const f = s.flags[fid]; if (!f || f.level === 'bug') return;
       if (f.kid && !people[f.kid]) add('flag-target', f.kid, 'A note about a child who is no longer on the roster.');
@@ -487,8 +505,21 @@
     return Object.assign(out, c, { roster, handbooks, attendance }, Object.keys(blueDrops).length ? { blueDrops } : {}, { history });
   }
   // Apply one row's fix. Re-checks the record first (a row can be stale), so a handbook with a date or a note is never cleared. Returns true when something changed.
-  function fixOddball(s, row) {
+  function fixOddball(s, row, groupOf) {
     if (!row || !row.fix) return false;
+    if (row.fix === 'clearUniformGivenFlag') {
+      const v = (s.roster.people[row.id] || {}).v;
+      if (!uniformGivenConflict(v)) return false;
+      delete v[Model.UNI.GIVEN_FLAG];
+      return true;
+    }
+    if (row.fix === 'assignCubbiesHandbook') {
+      if (!groupOf || groupOf(row.id) !== 'Cubbies' || s.handbooks[row.id]) return false;
+      const received = receivedCubbiesBooks(s, row.id);
+      if (received.length !== 1) return false;
+      setHandbook(s, row.id, { code: received[0] });
+      return true;
+    }
     if (row.fix === 'clearHandbook') { const p = parseHandbook((s.handbooks || {})[row.id]); if (!p.code || p.date || p.note) return false; delete s.handbooks[row.id]; return true; }
     if (row.fix === 'dedupeAwards') { const list = ((s.awards || {})[row.date] || {})[row.id]; if (!list) return false; const u = [...new Set(list)]; if (u.length === list.length) return false; s.awards[row.date][row.id] = u; return true; }
     return false;
@@ -507,6 +538,7 @@
     const order = sparksOrder(s), fin = new Set(finishedBooks(s, id).map(b => b.book)), open = order.filter(c => !fin.has(c)), kid = s.progress[id] || {};
     const recv = open.filter(c => receivedOf(s, id, c)).sort((a, b) => { const k = c => receivedShown(s, id, c) || '0'; return k(a) < k(b) ? 1 : -1; })[0]; if (recv) return recv;      // newest received first; a no-date book is the oldest
     const legacy = bookKey(s, parseHandbook(s.handbooks[id]).code); if (legacy && open.includes(legacy)) return legacy;
+    const priorReview = open.filter(c => reviewsDoneBefore(s, id, c)).pop(); if (priorReview) return priorReview;
     const last = Math.max(-1, ...order.map((c, i) => fin.has(c) ? i : -1)); if (last >= 0) return order[last + 1] || '';
     const latest = c => Object.values(kid[c] || {}).filter(Boolean).sort().pop() || '';      // the book with the most recent sign-off
     return open.filter(latest).sort((a, b) => latest(a) < latest(b) ? 1 : -1)[0] || '';
@@ -540,18 +572,20 @@
     if (Object.keys(kid).some(c => c !== 'common' && kid[c] && Object.keys(kid[c]).length)) return true;
     if (Object.keys((s.received || {})[id] || {}).length) return true;
     if (((s.doneBooks || {})[id] || []).length) return true;
+    if (((s.doneReviews || {})[id] || []).length) return true;
     return !!s.handbooks[id];
   }
   // N57: the books of `group` this child has started: the handbook's book first, then every book with a sign-off (the "every book" choice of Progress sheets; the records files). Empty when none.
   function booksStarted(s, id, group) {
     const prog = s.progress[id] || {}, hb = parseHandbook(s.handbooks[id]), inG = c => ((s.config.books[c] || {}).group || group) === group;
-    return [...new Set([bookKey(s, hb.code)].concat(Object.keys(s.config.books).filter(c => prog[c])).filter(c => c && inG(c)))];
+    return [...new Set([bookKey(s, hb.code)].concat(Object.keys(s.config.books).filter(c => prog[c]), (s.doneBooks || {})[id] || [], (s.doneReviews || {})[id] || []).filter(c => c && inG(c)))];
   }
   function sheetsOf(s, id, group) {
     const set = new Set(), kid = s.progress[id] || {}, hb = bookKey(s, parseHandbook(s.handbooks[id]).code);
     if (hb) set.add(hb);
     Object.keys(kid).forEach(c => { if (c !== 'common' && (s.config.books || {})[c]) set.add(c); });
     ((s.doneBooks || {})[id] || []).forEach(c => { if ((s.config.books || {})[c]) set.add(c); });
+    ((s.doneReviews || {})[id] || []).forEach(c => { if ((s.config.books || {})[c]) set.add(c); });
     ((s.extraSheets || {})[id] || []).forEach(c => { if ((s.config.books || {})[c]) set.add(c); });      // sheets added by hand (addExtraSheet)
     if (GROUP_ORDER.includes(group)) {
       const own = group === 'Sparks' ? childBook(s, id) : hb && bookGroup(s, hb) === group ? hb : yearBook(s, group);
@@ -585,7 +619,7 @@
   }
   // The club year a file made today belongs to: from August on it is this year to next (2026-27), before that last year to this (2025-26).
   const defaultYear = today => { const m = /^(\d{4})-(\d{2})/.exec(today || ''); if (!m) return ''; const y = +m[1], start = +m[2] >= 8 ? y : y - 1; return start + '-' + String((start + 1) % 100).padStart(2, '0'); };
-  const CARRIED = ['handbooks', 'progress', 'doneBooks', 'received', 'awards', 'given', 'givenNoDate', 'held', 'progressNoDate', 'extraSheets', 'announcedNoDate'];      // the sections newSeason brings forward (DATA-FORMAT 11.3)
+  const CARRIED = ['handbooks', 'progress', 'doneBooks', 'doneReviews', 'received', 'awards', 'given', 'givenNoDate', 'held', 'progressNoDate', 'extraSheets', 'announcedNoDate'];      // the sections newSeason brings forward (DATA-FORMAT 11.3)
   // ---------- attendance counts from earlier years (team balance) ----------
   // A child's turnout is the share of club nights they came to, counted from their first attended night (a late start is not held against them).
   // turnoutCounts gives { id: { nights, came } } for every child who came at least once, over the held nights up to `today` (all of them when today is empty).
@@ -1269,10 +1303,13 @@
       // The book's Review Emblem: every section and every review of the blocks that have reviews (the jewels), then it is earned on the latest of those dates.
       const br = t.bookReview, rb = (t.perBook || []).filter(b => (b.review || []).length);
       if (!br || !rb.length) return;
-      const dates = [].concat(...rb.map(b => b.items.concat(b.review).map(i => (kid[c] || {})[b.key + '.' + i])));
-      if (dates.some(d => !d)) return;
+      const core = [].concat(...rb.map(b => b.items.map(i => (kid[c] || {})[b.key + '.' + i])));
+      const reviews = [].concat(...rb.map(b => b.review.map(i => (kid[c] || {})[b.key + '.' + i])));
+      const reviewsBefore = ((s.doneReviews || {})[id] || []).includes(c);
+      if (core.some(d => !d) || (!reviewsBefore && reviews.some(d => !d))) return;
+      const dates = core.concat(reviews.filter(Boolean));
       const bk = s.config.books[c] || {};
-      out.push({ key: 'BOOKREVIEW', book: c, label: br.label || 'Book Review', date: dates.slice().sort().pop(), noDate: rb.some(b => b.items.concat(b.review).some(i => isSignNoDate(s, id, c, b.key + '.' + i))), awards: br.awards.map(a => a.replace('{book}', c).replace('{emblem}', bk.emblem || '')) });
+      out.push({ key: 'BOOKREVIEW', book: c, label: br.label || 'Book Review', date: dates.slice().sort().pop(), noDate: reviewsBefore || rb.some(b => b.items.concat(b.review).some(i => isSignNoDate(s, id, c, b.key + '.' + i))), awards: br.awards.map(a => a.replace('{book}', c).replace('{emblem}', bk.emblem || '')) });
     });
     return out;
   }
@@ -1281,6 +1318,14 @@
     const list = ((s.doneBooks || {})[id] || []).filter(c => c !== code).concat(on ? [code] : []).sort();
     if (!s.doneBooks) s.doneBooks = {};
     if (list.length) s.doneBooks[id] = list; else delete s.doneBooks[id];
+  }
+  const reviewsDoneBefore = (s, id, code) => ((s.doneReviews || {})[id] || []).includes(code);
+  function setReviewsDone(s, id, code, on) {
+    const group = bookGroup(s, code), template = (s.config.progress || {})[group];
+    if (!((s.config.books || {})[code]) || group !== 'Sparks' || !template || !(template.perBook || []).some(b => (b.review || []).length)) throw new Error('"' + code + '" does not have Sparks reviews.');
+    const list = ((s.doneReviews || {})[id] || []).filter(c => c !== code).concat(on ? [code] : []).sort();
+    if (!s.doneReviews) s.doneReviews = {};
+    if (list.length) s.doneReviews[id] = list; else delete s.doneReviews[id];
   }
   // ---------- finished books ----------
   // A book is finished when every section of its core blocks is dated (Sparks: Rank and the eight jewels, reviews not included; T&T: the emblem blocks, not Silver / Gold),
@@ -1299,7 +1344,7 @@
     return out;
   }
   // How far a child is in one book, for the colored book tabs (Mike, 2026-11-12):
-  //   'review'  finished, and its Book Review is earned too (every section and every review of the jewels dated; Sparks only: T&T books have no review)
+  //   'review'  finished, and its Book Review is earned too (every section dated and every review dated or marked finished before; Sparks only)
   //   'done'    finished (every core section dated, or ticked "finished before")
   //   'started' some date entered or a date received, not finished
   //   ''        not started
@@ -1307,10 +1352,11 @@
     const fin = finishedBooks(s, id).find(b => b.book === code), kid = (s.progress[id] || {})[code] || {};
     if (fin) {
       const t = (s.config.progress || {})[fin.group], rb = t ? (t.perBook || []).filter(b => (b.review || []).length) : [];
-      if (!fin.before && t && t.bookReview && rb.length && [].concat(...rb.map(b => b.items.concat(b.review).map(i => kid[b.key + '.' + i]))).every(Boolean)) return 'review';
+      const reviewsBefore = reviewsDoneBefore(s, id, code);
+      if (!fin.before && t && t.bookReview && rb.length && (reviewsBefore || [].concat(...rb.map(b => b.review.map(i => kid[b.key + '.' + i]))).every(Boolean))) return 'review';
       return 'done';
     }
-    return Object.keys(kid).some(k => kid[k]) || !!((s.received || {})[id] || {})[code] ? 'started' : '';
+    return Object.keys(kid).some(k => kid[k]) || !!((s.received || {})[id] || {})[code] || reviewsDoneBefore(s, id, code) ? 'started' : '';
   }
   // The awards for how many books the child has finished (config.completion[group], in order). Books ticked as finished before count, but the awards they stand for are presumed received:
   // only an award reached by a book finished here is earned here (dated by that book's last section).
@@ -1376,7 +1422,7 @@
   // newest back, and any two versions compared. Edits to the same night/area within MERGE_MINUTES share one entry.
   // SECTIONS is the one list of everything in a file that holds records. History, undo, restore, Discard, compare and the Drive merge (datamerge.js uses this same list) only see these;
   // a section added to the file (see toJson / fromJson) and left off this list would be saved but never logged, undone or merged. test/season-sections.test.js fails if a written section is missing here.
-  const SECTIONS = ['config', 'handbooks', 'attendance', 'awards', 'given', 'givenNoDate', 'held', 'flags', 'doneBooks', 'received', 'adults', 'teamMoves', 'games', 'progress', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout', 'absences', 'roster', 'calendar', 'rotation'], MERGE_MINUTES = 5;
+  const SECTIONS = ['config', 'handbooks', 'attendance', 'awards', 'given', 'givenNoDate', 'held', 'flags', 'doneBooks', 'doneReviews', 'received', 'adults', 'teamMoves', 'games', 'progress', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout', 'absences', 'roster', 'calendar', 'rotation'], MERGE_MINUTES = 5;
   const KNOWN_TOP = ['format', 'version', 'year', 'fake', 'history'].concat(SECTIONS);      // every other top-level key is kept in s.unknownKeys (R17)
   // (a section the season does not hold yet, like the ones that are left out of the file while empty, snapshots as empty)
   const snapshot = s => { const o = {}; SECTIONS.forEach(k => { o[k] = clone(s[k] === undefined ? {} : s[k]); }); return o; };
@@ -1399,7 +1445,7 @@
     (reverse ? changes.slice().reverse() : changes).forEach(c => reverse ? setPath(state, c.p, c.o !== undefined, c.o) : setPath(state, c.p, c.n !== undefined, c.n));
   }
   const MDATE = d => { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(d || ''); return m ? (+m[1]) + '/' + (+m[2]) : (typeof d === 'string' ? d.replace(/[<>&"']/g, '') : d); };      // the same formatter as Model.md (kept local: this file also runs without the browser's Model)
-  const AREA = { attendance: 'Attendance', awards: 'Awards', given: 'Awards given', givenNoDate: 'Awards given', held: 'Awards', flags: 'Notes and flags', absences: 'Volunteer absences', doneBooks: 'Progress', received: 'Progress', adults: 'Adult awards', teamMoves: 'Team moves', games: 'Games', progress: 'Progress', progressNoDate: 'Progress', extraSheets: 'Progress', announcedNoDate: 'Awards', blueWings: 'Awards', blueOverrides: 'Awards', blueDrops: 'Awards', pastTurnout: 'Team balance history', handbooks: 'Handbook', config: 'Award lists & settings', roster: 'Roster', calendar: 'Calendar', rotation: 'Rotation' };
+  const AREA = { attendance: 'Attendance', awards: 'Awards', given: 'Awards given', givenNoDate: 'Awards given', held: 'Awards', flags: 'Notes and flags', absences: 'Volunteer absences', doneBooks: 'Progress', doneReviews: 'Progress', received: 'Progress', adults: 'Adult awards', teamMoves: 'Team moves', games: 'Games', progress: 'Progress', progressNoDate: 'Progress', extraSheets: 'Progress', announcedNoDate: 'Awards', blueWings: 'Awards', blueOverrides: 'Awards', blueDrops: 'Awards', pastTurnout: 'Team balance history', handbooks: 'Handbook', config: 'Award lists & settings', roster: 'Roster', calendar: 'Calendar', rotation: 'Rotation' };
   const WHOLE = ['config', 'roster', 'calendar', 'rotation'];      // one history entry per area; the others are one per night or child
   const changeKey = c => { const k = c.p[0]; return WHOLE.includes(k) ? k : k + ':' + c.p[1]; };
   const keyOf = changes => [...new Set(changes.map(changeKey))].sort().join('|');
@@ -1506,6 +1552,8 @@
         return nm(p[1]) + ' · ' + (p[2] ? p[2] + ' received: ' + (has(c.n) ? MDATE(c.n) : 'cleared') : 'received: ' + (has(c.n) ? Object.keys(c.n || {}).map(b => b + ' ' + MDATE(c.n[b])).join(', ') : 'cleared'));
       case 'doneBooks':
         return nm(p[1]) + ' · books finished before: ' + (has(c.n) ? (c.n || []).join(', ') : 'none');
+      case 'doneReviews':
+        return nm(p[1]) + ' · reviews finished before: ' + (has(c.n) ? (c.n || []).join(', ') : 'none');
       case 'absences': {
         const who = nm(p[1]);
         if (p.length === 2) return 'Volunteer absence ' + (has(c.n) ? 'changed' : 'cleared') + ': ' + who;
@@ -1615,7 +1663,7 @@
   }
   const api = { SECTIONS, KNOWN_TOP, nightStatus, volunteerNights, volunteerExpected, addAbsence, clearAbsenceNights, clearAbsence, absenceList, FLAG_LEVELS, FLAG_NO_KID, shiftDates, freshenFake, FORMAT, VERSION, fileName, MARKS, QUARTERS, TEAMS, blank, toJson, fromJson, isRealDate, badDates, guessDate, dateClashes, fixDates, newSeason, turnoutCounts, addPastYear, addEarlierYear, seasonStart, sectionsThisSeason, defaultYear, setMark, hasNight, heldNights, newest, totals, blueJewels,
     booksStarted, toHandOut, jewelWaitsForWing, addFlagReply, orphanHandbook, setHandbook, noDateBookKids, resetNoDateBooks, oddballs, fixOddball, readableCopy, setFlagReply, removeFlagReply, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
-    setProgress, addExtraSheet, blueWingPlan, sparkJewels, heldGems, grantBlue, dropBlue, isAnnNoDate, setAnnNoDate, noDateSigns, isSignNoDate, signShown, signsShown, unsignedIn, markSignsNoDate, baseAward, jewelName, awardLabel, childBook, sparksCurrent, receivedOf, receivedShown, isReceivedNoDate, setReceived, completedBlocks, finishedBooks, bookStatus, completionAwards, setBookDone, suggestedAwards, firstNight, pastYearAwards, markPastYearsGiven, counted,
+    setProgress, addExtraSheet, blueWingPlan, sparkJewels, heldGems, grantBlue, dropBlue, isAnnNoDate, setAnnNoDate, noDateSigns, isSignNoDate, signShown, signsShown, unsignedIn, markSignsNoDate, baseAward, jewelName, awardLabel, childBook, sparksCurrent, receivedOf, receivedShown, isReceivedNoDate, setReceived, completedBlocks, finishedBooks, bookStatus, completionAwards, setBookDone, reviewsDoneBefore, setReviewsDone, suggestedAwards, firstNight, pastYearAwards, markPastYearsGiven, counted,
     normDriveDirs, isGivenNoDate, givenShown, isHeld, setHold, addFlag, setFlagNote, clearFlag, setFlagHidden, isFlagHidden, todoNotes, notAnAward, NOT_AWARDS, upgradeNotAwards, setBugStatus, addBugReply, removeBugReply, bugThread, bugStatusOf, BUG_STATUS, BUG_BY, noteList, bugList, flagList, flagsOf, flagsAt, flagsAtPlace, renameAward, snapshot, diff, merge3, applyChanges, record, labelOf, at, replayDiff, reconcile, tag, restoreTo, compare, kindOf, describe, MERGE_MINUTES };
   if (typeof module !== 'undefined') module.exports = api; else root.Season = api;
 })(this);

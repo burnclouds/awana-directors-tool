@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports-season.js'] = '1.37.0';
+(this.AwanaVersions = this.AwanaVersions || {})['reports-season.js'] = '1.37.2';
 // Print reports built from the season file. Added to Reports.LIST; ctx = { master, settings, calendar, season, opts }.
 // opts: group ('Sparks' | 'T&T' | 'Cubbies' | 'Puggles'), kid (Unique ID or ''), room.
 (function (root) {
@@ -199,7 +199,7 @@
       inGroup(master, g).filter(p => !opts.room || M.room(p) === opts.room).sort(M.byRoomThenName).forEach(p => {
         Season.pendingAwards(season, idOf(p), g, calendar).filter(r => !r.held).forEach(r => lines.push([esc(M.fullName(p)), esc(M.room(p)), esc(Season.awardLabel(season, idOf(p), r.award)), esc(earnedText(r, paper))]));
       });
-      return lines.length ? sheet(g + ' awards to announce', R.table(['Name', 'Class', 'Award', 'Earned'], lines, 'wrap'), 'portrait', '') : '';
+      return lines.length ? sheet(g + ' awards to announce', R.table(['Name', 'Class', 'Award', 'Earned'], lines, 'wrap'), 'portrait', opts.packNight ? 'Club night ' + esc(opts.packNight) : '') : '';
     }).join('');
     return out || '<p class="empty">Nothing earned is waiting to be announced' + (opts.room ? ' in ' + esc(opts.room) : opts.group ? ' in ' + esc(opts.group) : '') + '.</p>';
   }
@@ -262,9 +262,14 @@
       // Clubbers moved to another team part way through the quarter: their points follow the team they were on each night they attended, so their totals will not match one team's.
       const moved = (ctx.master ? inGroup(ctx.master, g) : []).map(p => ({ p, s: Season.teamStory(season, idOf(p), q, M.teamOf(p, q)) })).filter(x => x.s);
       const movedHtml = moved.length ? '<h3>Changed team this quarter (' + moved.length + ')</h3>' + R.table(['Name', 'Class', 'Teams'], moved.map(x => [esc(M.fullName(x.p)), esc(M.room(x.p)), esc(x.s)])) + '<p class="status">Each clubber\'s points follow the team they were on each night they attended. A team\'s own results above do not change when someone moves.</p>' : '';
-      return sheet(g + ' Game Standings — ' + q, R.table(['Rank', 'Team', 'Nights', 'Avg place', 'Spirit', 'Points'],
-        st.map(r => [r.rank || '', teamCell(r.team), r.nights, r.avgPlace === null ? '' : r.avgPlace, r.spirit, r.points])) +
-        (nights ? '<h3>Night by night (place / spirit)</h3>' + nights : '') + movedHtml, 'portrait', '<span class="noprint">Rank 1 = best average place</span>');      // N51
+      const ranked = st.some(r => r.rank !== null);
+      const headers = ranked ? ['Rank', 'Team', 'Nights', 'Avg place', 'Spirit', 'Points'] : ['Team', 'Nights', 'Spirit', 'Points'];
+      const rows = st.map(r => ranked
+        ? [r.rank ?? '', teamCell(r.team), r.nights, r.avgPlace ?? '', r.spirit, r.points]
+        : [teamCell(r.team), r.nights, r.spirit, r.points]);
+      return sheet(g + ' Game Standings — ' + q, R.table(headers, rows) +
+        (nights ? '<h3>Night by night (place / spirit)</h3>' + nights : '') + movedHtml,
+        'portrait', ranked ? '<span class="noprint">Rank 1 = best average place</span>' : '');      // N51
     }).join('');
   }
 

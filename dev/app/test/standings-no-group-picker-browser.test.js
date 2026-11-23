@@ -8,10 +8,11 @@ const { open } = require('./lib/app-page'), assert = require('assert');
     await t.test('with ' + group + ' chosen on another report, Game standings shows no Group picker and still has a page for Sparks and one for T&T', async () => {
       await t.report('attendance'); await pickGroup(group); await page.waitForTimeout(250);
       await t.report('standings'); await page.waitForTimeout(300);
+      await page.click('#btnReportOptions');
       assert.strictEqual(await page.isVisible('#oGroupSel'), false, 'the Group picker is showing on Game standings');
       const titles = await page.evaluate(() => [...document.querySelectorAll('#report .sheet h2')].map(h => h.textContent));
       assert.strictEqual(titles.length, 2, 'pages: ' + titles.join(' | ')); assert(/^Sparks/.test(titles[0]) && /^T&T/.test(titles[1]), titles.join(' | '));
-      assert(/all 2/.test(await page.evaluate(() => document.getElementById('pagePick').textContent)), 'Pages to print is not offered');
+      assert(/all 2/.test(await page.evaluate(() => document.getElementById('pageSum').textContent)), 'Pages to print is offered'); await page.click('#pgDone');
     });
   }
   await t.done();

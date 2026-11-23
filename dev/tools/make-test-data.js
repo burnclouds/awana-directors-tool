@@ -275,7 +275,7 @@ out.fake = true;      // marks the invented club: Try it out moves its dates for
 if (out.roster.pcSource) out.roster.pcSource = csvName0();
 ['handbooks', 'progress', 'teamMoves'].forEach(k => { if (out[k]) out[k] = remap(data[k]); });
 // Sections keyed by person ID (Given, held awards, books received, books finished before): the keys are real registration IDs, so they are renamed like the rest.
-['given', 'givenNoDate', 'held', 'received', 'doneBooks', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueDrops', 'pastTurnout'].forEach(k => { if (data[k] && Object.keys(data[k]).length) out[k] = remap(data[k]); });      // pastTurnout holds only a year label and two counts per child: kept under the new ID
+['given', 'givenNoDate', 'held', 'received', 'doneBooks', 'doneReviews', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueDrops', 'pastTurnout'].forEach(k => { if (data[k] && Object.keys(data[k]).length) out[k] = remap(data[k]); });      // pastTurnout holds only a year label and two counts per child: kept under the new ID
 // Blue Jewels given by hand carry a leader's free-text note about the child. Free text about a real child cannot be reliably scrubbed (like Notes and flags, below), so the grant is kept under the new ID and the note is left empty.
 const noNote = list => (Array.isArray(list) ? list : []).map(x => (x && typeof x === 'object' ? Object.assign({}, x, { note: '' }) : x));
 if (data.blueOverrides && Object.keys(data.blueOverrides).length) { out.blueOverrides = remap(data.blueOverrides); Object.keys(out.blueOverrides).forEach(k => { out.blueOverrides[k] = noNote(out.blueOverrides[k]); }); }

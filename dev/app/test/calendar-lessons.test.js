@@ -19,6 +19,27 @@ test('a CSV with the new column round-trips; an older CSV with Puggles # and Pug
   const old = 'Date,Type,Quarter,Theme,Notes,No Club,Cubbies Lesson,Puggles #,Puggles Title,Sparks Lesson,T&T Lesson\n2026-09-09,Club night,Q1,,,,Bear Hug 1,1.1,God Made the Light,,\n2026-09-16,Club night,Q1,,,,,1.2,,,\n';
   const r = Calendar.load(old); assert.strictEqual(r[0]['Puggles Lesson'], '1.1 God Made the Light'); assert.strictEqual(r[1]['Puggles Lesson'], '1.2'); assert.strictEqual(r[0]['Cubbies Lesson'], 'Bear Hug 1'); assert(!('Puggles #' in r[0]));
 });
+test('coloring PDF links follow a calendar date and survive CSV and season JSON round trips', () => {
+  const pdf = Calendar.coloringCol('Puggles'), url = 'https://example.test/sheets/light.pdf';
+  const first = row('2026-09-09', { 'Puggles Lesson': '1.1 Light', [pdf]: url });
+  const next = row('2026-09-16', { 'Puggles Lesson': '1.1 Light' });
+  const rows = Calendar.load(Calendar.toCsv([first, next]));
+  assert.deepStrictEqual(Calendar.coloringSheets({}, rows, first.Date), [{ group: 'Puggles', lesson: '1.1 Light', url }]);
+  assert.deepStrictEqual(Calendar.coloringSheets({}, rows, next.Date), []);
+  assert(!Calendar.toCsv([next]).includes(pdf));
+  const s = Season.blank('2026-27'); s.calendar = rows;
+  assert.deepStrictEqual(Season.fromJson(Season.toJson(s)).calendar, rows);
+});
+test('coloring links open only for active nights and enabled lessons with a shared HTTPS URL', () => {
+  const date = '2026-09-09', pdf = Calendar.coloringCol('Puggles'), url = 'https://drive.google.com/file/d/example/view';
+  const sheets = (extra, config = {}) => Calendar.coloringSheets(config, [row(date, { [pdf]: url, ...extra })], date);
+  assert.deepStrictEqual(sheets({}), [{ group: 'Puggles', lesson: '', url }]);
+  assert.deepStrictEqual(sheets({ 'No Club': '1' }), []);
+  assert.deepStrictEqual(sheets({ Type: 'Event' }), []);
+  assert.deepStrictEqual(sheets({}, { lessons: { on: false } }), []);
+  assert.deepStrictEqual(sheets({}, { lessons: { groups: { Puggles: { on: false } } } }), []);
+  for (const unusable of ['file:///tmp/sheet.pdf', 'javascript:alert(1)', 'https://', 'https://user:password@example.test/sheet.pdf']) assert.deepStrictEqual(sheets({ [pdf]: unusable }), []);
+});
 test('tidy: an old row joins the two Puggles keys and drops them; a current row is the same object; Puggles Lesson already typed wins and the old pair goes to Notes', () => {
   const cur = row('2026-09-09'); assert.strictEqual(Calendar.tidy(cur), cur, 'the same object, untouched');
   const o = Calendar.tidy(OLD('2026-09-09', { 'Puggles #': '2.3', 'Puggles Title': 'Noah', 'Sparks Lesson': '9.9' })); assert.strictEqual(o['Puggles Lesson'], '2.3 Noah'); assert(!('Puggles #' in o) && !('Puggles Title' in o)); assert.strictEqual(o['Sparks Lesson'], '9.9', 'other old lesson values stay in their own columns');
@@ -45,6 +66,21 @@ test('the report: Date, Theme, then the groups that are on; NO CLUB across the r
   assert(/<td colspan="3"><span class="none">NO CLUB<\/span>/.test(on), 'NO CLUB spans the row'); assert(!/Outing/.test(on), 'events are left out');
   assert(/not turned on/.test(render(cal, { lessons: { on: false } }))); assert(/Every group is switched off/.test(render(cal, { lessons: { on: true, groups: Object.fromEntries(Calendar.GROUPS.map(g => [g, { on: false }])) } })));
   assert(/Load a calendar/.test(render([], {})));
+});
+test('F14: the report omits empty lesson columns and keeps the schedule when all columns are empty', () => {
+  const config = { lessons: { on: true } };
+  const cal = [
+    row('2026-09-09', { Theme: 'Kickoff', 'Puggles Lesson': '  ', 'Cubbies Lesson': 'Bear Hug 1' }),
+    row('2026-09-16', { 'No Club': '1', 'Sparks Lesson': 'Canceled lesson' }),
+    row('2026-09-23', { Type: 'Event', 'T&T Lesson': 'Event-only lesson' })
+  ];
+  const populated = render(cal, config);
+  assert(populated.includes('<th>Date</th><th>Theme</th><th>Cubbies</th>'));
+  assert(populated.includes('Bear Hug 1') && populated.includes('colspan="2"'));
+  assert(!/Puggles|Sparks|T&amp;T|Canceled lesson|Event-only lesson/.test(populated));
+  const empty = render([{ ...cal[0], 'Cubbies Lesson': '' }, ...cal.slice(1)], config);
+  assert(empty.includes('<th>Date</th><th>Theme</th></tr>'));
+  assert(empty.includes('Kickoff') && empty.includes('colspan="1"'));
 });
 test('validator: config.lessons is checked (a bad shape is an error, an unknown group a warning); a good one is clean', () => {
   const run = mut => { const s = Season.blank('2026-27'); s.calendar = []; mut(s); return Validate.validate(Season.toJson(s), 'awana-2026-27-20261116-000000.json').findings; };

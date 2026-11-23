@@ -1,13 +1,14 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.99.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.99.4';
 // Season tabs: Attendance, Games, Awards, Progress, History. Talks to app.js through window.App.
 // The data JSON is the only file we write: season records, roster extras, calendar and rotation. Every edit goes through touchSeason().
 (function () {
   const { C, X } = Model;
   const App = window.App, esc = App.esc, $ = id => document.getElementById(id);
   let season = null, dirty = false, snap = null;
-  let seq = 0;      // counts every edit (logged, held, or a different file opened); never reset. A save remembers it when it takes the text and marks the file saved only if it has not moved (R11)
+  let pendingEdits = [], draftStarted = null;
+  let seq = 0;      // counts every edit and file open. A save remembers which edits its snapshot included.
   let lastEntered = '';      // "Same date" is like paste: the last date entered in any sign-off, given, announced or received box. Kept only until the page is closed (nothing here is saved outside the data file).
-  const ui = { hFrom: null, hTo: 0, hLatest: true, attDate: '', attRoom: '', gameDate: '',awDate: '', awGroup: 'All', awSort: 'class', awType: '', awSub: 'announce', awRoom: '', awFix: false, awFixAll: false, awFixFrom: '', awAllNights: false, awHold: new Set(), prGroup: 'Sparks', prClass: 'All', prKid: '', prBook: 'HG', attHold: false };
+  const ui = { hFrom: null, hTo: 0, hLatest: true, attDate: '', attRoom: '', gameDate: '',awGroup: 'All', awSort: 'class', awType: '', awSub: 'announce', awRoom: '', awFix: false, awFixAll: false, awFixFrom: '', awAllNights: false, awHold: new Set(), prGroup: 'Sparks', prClass: 'All', prKid: '', prBook: 'HG', attHold: false };
   const MARK_COLS = { Puggles: [['a', 'Present']], Cubbies: [['a', 'Present'], ['x', 'Extra']],
     Sparks: [['a', 'Present'], ['h', 'Handbook'], ['p', 'Participation'], ['x', 'Extra']], 'T&T': [['a', 'Present'], ['h', 'Handbook'], ['p', 'Participation'], ['x', 'Extra']] };
   const MARK_SHORT = { a: 'Present', h: 'Hdbk', p: 'Part.', x: 'Extra' };      // column heads on a phone, where the full words do not fit
@@ -24,12 +25,12 @@
   }
   // Take the current state as the starting point without logging it or marking anything unsaved (opening a file, refreshing from the export).
   function rebase() { syncData(); snap = season ? Season.snapshot(season) : null; }
-  function setSeason(s, opts) { seq++; season = s; App.season = s; draftTab = ''; dirty = false; edits = 0; unsavedSince = null; savedAt = null; undo.length = redo.length = 0; App.loadData(s, opts); rebase();
+  function setSeason(s, opts) { seq++; season = s; App.season = s; draftTab = ''; draftStarted = null; pendingEdits = []; dirty = false; edits = 0; unsavedSince = null; savedAt = null; undo.length = redo.length = 0; App.loadData(s, opts); rebase();
     // An export opened earlier this session is applied AFTER the opened file is the starting point, so the import is its own History entry against that file (R17), never absorbed or logged against the previous file.
     if (App.pendingReapply) { const re = App.pendingReapply; App.pendingReapply = null; App.reapplyExport(re.text, re.name); }
     status(); App.refresh(); }
   // The merge screen (app-merge.js): the open file brought up to date with what is on screen, and the merged file put in its place as an unsaved change (the roster is reloaded from it, no Planning Center review).
-  App.mergeIn = { current: () => { syncData(); return season; }, apply: s => { setSeason(s, { noImport: true }); markEdit(); status(); App.updateStatus(); App.refresh(); } };
+  App.mergeIn = { current: () => { syncData(); return season; }, apply: s => { setSeason(s, { noImport: true }); markEdit('Merged data files'); status(); App.updateStatus(); App.refresh(); } };
   function adopt(s) { season = s; App.season = s; draftTab = ''; undo.length = redo.length = 0; rebase(); status(); App.refresh(); }     // a new data file around what is already open
   // ---------- drafts ----------
   // On the record-editing tabs (and on Attendance when "Hold changes" is ticked) an edit changes the data in memory at once, so every screen shows it, but it is not logged or undoable until
@@ -49,17 +50,18 @@
   function applyDraft() {
     if (!season || !draftTab) return;
     const changes = draftChanges(), name = DRAFT_TABS[draftTab] || 'Edit';
-    draftTab = '';
+    const started = draftStarted; draftTab = ''; draftStarted = null;
     if (changes.length) {
-      Season.record(season, snap, { prefix: name, separate: true }); snap = Season.snapshot(season);
-      undo.push(changes); if (undo.length > UNDO_MAX) undo.shift(); redo.length = 0; edits++;
+      const entry = Season.record(season, snap, { prefix: name, separate: true }); snap = Season.snapshot(season);
+      undo.push(changes); if (undo.length > UNDO_MAX) undo.shift(); redo.length = 0;
+      markEdit(entry.label, changes, 1, started);
     } else if (!draftBaseDirty) { dirty = false; edits = 0; unsavedSince = null; }
     status(); App.updateStatus(); updateUndo();
     if (App.updateTodoBadge) App.updateTodoBadge();      // what the To do page lists (unrecognized books, awards earned) follows the applied change
   }
   function discardDraft() {
     if (!season || !draftTab) return;
-    const changes = draftChanges(); draftTab = '';
+    const changes = draftChanges(); draftTab = ''; draftStarted = null;
     if (changes.length) { Season.applyChanges(season, changes, true); App.loadData(season, { noImport: true }); }
     rebase(); dirty = draftBaseDirty; if (!dirty) { edits = 0; unsavedSince = null; }
     status(); App.updateStatus(); updateUndo(); App.refresh(); if (App.updateTodoBadge) App.updateTodoBadge();
@@ -109,20 +111,21 @@
   });
 
   // Every edit lands in the history, and its changes go on the undo stack (this session only; up to UNDO_MAX edits).
-  function touchSeason() {
+  function touchSeason(label) {
     if (season && staging()) {                                          // a draft: the data is edited in memory, but nothing is logged or put on the undo stack until Apply
       syncData();
-      if (!draftTab) { draftTab = App.view(); draftBaseDirty = dirty; }
+      if (!draftTab) { draftTab = App.view(); draftStarted = Date.now(); draftBaseDirty = dirty; }
       if (!dirty) { unsavedSince = Date.now(); edits = 0; }
       seq++; dirty = true; status(); App.updateStatus(); updateUndo(); if (App.updateTodoBadge) App.updateTodoBadge(); return;
     }
+    let changes, entry;
     if (season) {
       syncData();
-      const changes = Season.diff(snap, season);
-      Season.record(season, snap); snap = Season.snapshot(season);
+      changes = Season.diff(snap, season);
+      entry = Season.record(season, snap, { separate: !pendingEdits.length }); snap = Season.snapshot(season);
       if (changes.length) { undo.push(changes); if (undo.length > UNDO_MAX) undo.shift(); redo.length = 0; }
     }
-    markEdit(); status(); App.updateStatus(); updateUndo();
+    markEdit(entry?.label || (typeof label === 'string' ? label : 'Data file changed'), changes?.length ? changes : null); status(); App.updateStatus(); updateUndo();
     if (App.updateTodoBadge) App.updateTodoBadge();      // an edit may have earned an award (a block finished on Progress, a Blue Jewel from attendance)
   }
   const undo = [], redo = [], UNDO_MAX = 100;
@@ -144,8 +147,9 @@
     const before = Season.snapshot(season);
     Season.applyChanges(season, changes, reverse);
     App.loadData(season, { noImport: true });
-    syncData(); Season.record(season, before, { prefix: reverse ? 'Undo' : 'Redo', separate: true }); snap = Season.snapshot(season);
-    to.push(changes); markEdit(); status(); App.updateStatus(); updateUndo(); App.refresh();
+    syncData();
+    const entry = Season.record(season, before, { prefix: reverse ? 'Undo' : 'Redo', separate: true }); snap = Season.snapshot(season);
+    to.push(changes); markEdit(entry?.label || (reverse ? 'Undo' : 'Redo'), changes, reverse ? -1 : 1); status(); App.updateStatus(); updateUndo(); App.refresh();
   }
   $('btnUndo').addEventListener('click', () => undoStep(undo, redo, true));
   $('btnRedo').addEventListener('click', () => undoStep(redo, undo, false));
@@ -168,14 +172,55 @@
   const onPhone = () => window.matchMedia && window.matchMedia('(max-width: 760px), (pointer: coarse) and (max-height: 600px)').matches;
   window.addEventListener('resize', () => { if (typeof status === 'function') status(); });
   const modalOpen = () => !!document.querySelector('dialog[open], .modal-wrap:not([hidden]), .savemenu:not([hidden]), #splash:not([hidden])');
+  function unsavedSummary() {
+    const shown = new Set(), byChange = new Map();
+    for (const edit of pendingEdits) {
+      const previous = edit.changes && byChange.get(edit.changes);
+      if (previous && previous.direction !== edit.direction) {
+        shown.delete(previous);
+        byChange.delete(edit.changes);
+      } else {
+        shown.add(edit);
+        if (edit.changes) byChange.set(edit.changes, edit);
+      }
+    }
+    const list = [...shown];
+    const held = draftTab ? draftChanges().length : 0;
+    if (held) list.push({ label: DRAFT_TABS[draftTab] + ' · ' + held + (held === 1 ? ' change held' : ' changes held') + ' (apply or discard)', time: draftStarted });
+    return list.reverse();
+  }
+  function renderUnsavedSummary(summary) {
+    const el = $('unsavedDetails');
+    const first = summary.reduce((time, edit) => Math.min(time, edit.time), Infinity);
+    el.innerHTML = Number.isFinite(first) ? '<p>First unsaved edit at ' + esc(hhmm(new Date(first))) + '.</p><ol>' +
+      summary.map(e => {
+        const changes = e.changes || [];
+        const handbooks = changes.length && changes.every(c => c.p[0] === 'handbooks') ? new Set(changes.map(c => c.p[1])).size : 0;
+        return '<li>' + esc(e.label) + (handbooks > 1 ? ', ' + handbooks + ' children' : '') + '</li>';
+      }).join('') + '</ol>' : '<p>No pending data edits to list. Save to keep the updated History.</p>';
+  }
+  $('btnUnsavedEdits').addEventListener('click', () => {
+    renderUnsavedSummary(unsavedSummary());
+    $('unsavedDialog').showModal();
+    status();
+  });
+  $('unsavedDialog').addEventListener('close', () => status());
   function status() {
     const el = $('seasonStatus');
     const base = season ? 'Data file ' + (season.year || '?') : 'No data file';
-    const tail = dirty ? ' · ' + (edits ? edits + ' unsaved edit' + (edits === 1 ? '' : 's') : 'unsaved changes') + (savedAt ? ', download started ' + hhmm(savedAt) : ', not downloaded yet') : (savedAt ? ' · download started ' + hhmm(savedAt) : '');
+    const summary = unsavedSummary();
+    const n = summary.length;
+    const words = n ? n + ' unsaved edit' + (n === 1 ? '' : 's') : 'unsaved changes';
+    const indicator = $('btnUnsavedEdits');
+    indicator.hidden = !dirty;
+    indicator.setAttribute('aria-label', 'Show ' + words);
+    $('unsavedCount').textContent = n || '';
+    if ($('unsavedDialog').open) renderUnsavedSummary(summary);
+    const tail = dirty ? ' · ' + words + (savedAt ? ', download started ' + hhmm(savedAt) : ', not downloaded yet') : (savedAt ? ' · download started ' + hhmm(savedAt) : '');
     // Short in the bar ("18 unsaved edits"); the whole line, with the file and the last download, is the tooltip. A clean file just says "saved".
-    el.textContent = !season ? base + (dirty ? ' \u00b7 not saved' : '') : dirty ? (edits ? edits + ' unsaved edit' + (edits === 1 ? '' : 's') : 'unsaved changes') : (savedAt ? 'saved ' + hhmm(savedAt) : base);      // with no data file the bar says so (and that what was loaded is not saved), not "1 unsaved edit"
+    el.textContent = !season ? base + (dirty ? ' \u00b7 not saved' : '') : dirty ? words : (savedAt ? 'saved ' + hhmm(savedAt) : base);      // with no data file the bar says so (and that what was loaded is not saved), not "1 unsaved edit"
     el.className = 'status' + (dirty ? ' dirty' : '') + (overdue() ? ' nudge' : ''); el.title = base + tail + (overdue() ? ' (press Download data file)' : '');
-    const dl = $('btnSeasonSave'); if (dl) { dl.classList.toggle('unsaved', !!dirty); dl.dataset.n = dirty && edits ? String(edits) : ''; dl.title = dirty ? 'Unsaved changes: press to save' : ''; if (dirty) dl.setAttribute('aria-label', dl.textContent.trim() + ', ' + (edits ? edits + ' unsaved edit' + (edits === 1 ? '' : 's') : 'unsaved changes')); else dl.removeAttribute('aria-label'); }      // the name a screen reader reads says the file is unsaved (R12)      // the dot on Download data file (plan item 3)
+    const dl = $('btnSeasonSave'); if (dl) { dl.classList.toggle('unsaved', !!dirty); dl.title = dirty ? 'Unsaved changes: press to save' : ''; if (dirty) dl.setAttribute('aria-label', dl.textContent.trim() + ', ' + words); else dl.removeAttribute('aria-label'); }
     const nb = $('saveNudge');      // on a phone, unsaved work that has waited too long gets a Save bar with big buttons at the bottom (R12; stands in for a crash-recovery draft)
     if (nb) {
       const show = overdue() && onPhone() && !modalOpen(); nb.hidden = !show; document.body.classList.toggle('nudging', show);
@@ -183,9 +228,24 @@
     }
     drawDraftBar();
   }
-  const markEdit = () => { if (!dirty) { unsavedSince = Date.now(); edits = 0; nudgeFrom = { edits: 0, at: null }; } edits++; seq++; dirty = true; };
-  const markSaved = () => { if (pcHidden) { pcHidden = false; drawDraftBar(); } if (ui.givenWarn && Object.keys(ui.givenWarn).length) { ui.givenWarn = {}; if (typeof redrawSheet === 'function') redrawSheet(); }      // the "given before its section was finished" notes last until the file is saved
-    dirty = false; edits = 0; unsavedSince = null; nudgeFrom = { edits: 0, at: null }; savedAt = new Date(); };
+  function markEdit(label, changes = null, direction = 1, time = Date.now()) {
+    if (!dirty) { unsavedSince = time; edits = 0; nudgeFrom = { edits: 0, at: null }; }
+    edits++; seq++; dirty = true;
+    pendingEdits.push({ seq, label, changes, direction, time });
+  }
+  function markSaved(savedSeq) {
+    pendingEdits = pendingEdits.filter(edit => edit.seq > savedSeq);
+    const held = !!(draftTab && draftChanges().length);
+    draftBaseDirty = !!pendingEdits.length;
+    dirty = draftBaseDirty || held;
+    edits = pendingEdits.length;
+    unsavedSince = pendingEdits[0]?.time ?? (held ? draftStarted : null);
+    nudgeFrom = { edits: 0, at: null };
+    savedAt = new Date();
+    if (dirty) return;
+    if (pcHidden) { pcHidden = false; drawDraftBar(); }
+    if (ui.givenWarn && Object.keys(ui.givenWarn).length) { ui.givenWarn = {}; redrawSheet(); }
+  }
   $('saveNudgeLater').addEventListener('click', () => { nudgeFrom = { edits, at: Date.now() }; status(); });
   $('saveNudgeBtn').addEventListener('click', () => $('btnSeasonSave').click());      // exactly what the top button does (Drive, the TEST two-press gate)
   setInterval(() => { if (dirty) status(); }, 30000);
@@ -200,7 +260,7 @@
     if (!changes.length) { rebase(); status(); App.updateStatus(); return false; }
     Season.record(season, snap, { label, separate: true }); snap = Season.snapshot(season);
     undo.push(changes); if (undo.length > UNDO_MAX) undo.shift(); redo.length = 0;
-    markEdit(); status(); App.updateStatus(); updateUndo(); if (App.updateTodoBadge) App.updateTodoBadge();
+    markEdit(label, changes); status(); App.updateStatus(); updateUndo(); if (App.updateTodoBadge) App.updateTodoBadge();
     return true;
   };
   App.rebase = () => { rebase(); status(); };
@@ -258,7 +318,7 @@
   };
   function openParsed(s, fixed) {
     setSeason(s); App.seasonSource = { season: s, text: openingText }; if (App.applyStartTab) App.applyStartTab();
-    if (fixed) { markEdit(); status(); App.updateStatus(); }                // the repaired copy is not on disk yet
+    if (fixed) { markEdit('Corrected file dates'); status(); App.updateStatus(); }                // the repaired copy is not on disk yet
     // An older season-only file has no roster, colors or calendar of its own; say so instead of leaving empty tabs unexplained.
     if (!Object.keys(season.roster.people).length && !(App.master && App.master.people.length)) App.ask.alert('This is an older season-only data file: it holds attendance, games and awards, but no roster, color teams, calendar or rotation.\n\nOpen your newest awana-…-yyyymmdd-hhmmss.json instead (it has everything), or add a Planning Center export now to supply the roster.');
   }
@@ -276,17 +336,18 @@
     const localName = single ? (App.openedName || 'awana-' + season.year + '.json') : Season.fileName(season.year);
     const go = async () => {
       syncData();
+      const savingSeason = season, s0 = seq;
       if (!single) {
-        // The file counts as saved only after Drive has confirmed it, and only if nothing was edited meanwhile (seq has not moved since the text was taken). A refused or failed Drive save leaves it unsaved. (R11)
-        const s0 = seq, text = Season.toJson(season); let sent, failed = false;
+        // Clear only the edits included in the confirmed save. A refused or failed Drive save leaves them unsaved. (R11)
+        const text = Season.toJson(season); let sent, failed = false;
         try { sent = await App.download(driveOn ? Season.fileName(season.year) : localName, text, 'application/json', driveOn ? { auto, seq: s0 } : { local: true }); } catch (err) { failed = true; }
-        if (failed || sent === 'copy') { status(); App.updateStatus(); return resolve(false); }      // Drive does not have it (a copy was downloaded, or an automatic save is waiting)
-        if (seq === s0) markSaved(); else savedAt = new Date();
+        if (failed || sent === false || sent === 'copy') { status(); App.updateStatus(); return resolve(false); }      // Drive does not have it (a copy was downloaded, or an automatic save is waiting)
+        if (season === savingSeason) markSaved(s0);
         status(); App.updateStatus(); return resolve(true);
       }
-      let sent; try { sent = await App.download(localName, Season.toJson(season), 'application/json', { single: true }); } catch (err) { sent = undefined; }
+      let sent; try { sent = await App.download(localName, Season.toJson(season), 'application/json', { single: true }); } catch (err) { sent = false; }
       if (sent === false) return resolve(false);      // cancelled at Save as: nothing was saved, so the file stays unsaved
-      markSaved(); status(); App.updateStatus(); resolve(true);
+      if (season === savingSeason) markSaved(s0); status(); App.updateStatus(); resolve(true);
     };
     if (auto) go(); else App.guardedSave(go, () => resolve(false));
   });
@@ -415,8 +476,8 @@
     set: s => { ui.attDate = s.date; ui.attRoom = s.room; } };
   App.places.games = { get: () => ui.gameDate ? { key: ui.gameDate, label: 'Games \u00b7 ' + MD(ui.gameDate), state: { date: ui.gameDate } } : null,
     set: s => { ui.gameDate = s.date; } };      // both groups show together now; an older saved place that names a group still restores the night
-  App.places.awards = { get: () => ui.awDate ? { key: ui.awDate + '|' + ui.awGroup, label: 'Awards \u00b7 ' + MD(ui.awDate) + ' \u00b7 ' + ui.awGroup, state: { date: ui.awDate, group: ui.awGroup, room: ui.awRoom } } : null,
-    set: s => { ui.awDate = s.date; ui.awGroup = s.group; ui.awRoom = s.room; } };
+  App.places.awards = { get: () => ({ key: ui.awGroup + '|' + ui.awRoom, label: 'Awards · ' + (ui.awRoom || ui.awGroup), state: { group: ui.awGroup, room: ui.awRoom } }),
+    set: s => { ui.awGroup = s.group; ui.awRoom = s.room; } };
   App.places.progress = { get: () => App.places.person ? App.places.person.get() : null, set: s => { if (s && s.kid) App.showPerson(s.kid, { sub: 'progress' }); } };      // the Progress tab is gone: an old recent place opens that child's Progress sub-tab
   // The name opens the Person tab for that child; its Back to Attendance button returns to this same night and class, scrolled where it was.
   let attendReturn = null;
@@ -504,7 +565,7 @@
     setSeason(fresh, { noImport: true });
     let said = '';
     try { const r = oldYear && App.archiveColors ? App.archiveColors(oldYear) : null; if (r && r.archived.length) said = 'Last year\'s colors were archived as ' + oldYear + ' and Q1 to Q4 are blank. The calendar is still last year\'s: replace it on the Calendar tab, then assign colors on Color teams.'; } catch (err) { said = 'Last year\'s colors were left in place (' + err.message + '). Use Start new year on Color teams to archive them.'; }
-    markEdit(); status(); if (said && App.flash) App.flash(said, 'info');
+    markEdit('Started a new season'); status(); if (said && App.flash) App.flash(said, 'info');
   }
 
   // ---------- games ----------
@@ -579,15 +640,16 @@
   const nameLink = p => '<a href="#" data-awprog="' + esc(p[Model.X.ID]) + '" title="Open this child’s progress sheet, where Given is entered">' + esc(Model.fullName(p)) + '</a>', roomCell = p => esc(Model.room(p).replace(/^(Sparks|T&T) /, '$1 '));
   const roomNote = () => ui.awRoom ? ' in ' + esc(ui.awRoom) : '';
 
-  // 1. Announce: everything earned and not announced, for the children shown. The slides draw from this list (not the held ones); Mark all announced stamps the unheld ones on the night chosen.
-  function announceSection(kids) {
+  // 1. Announce: everything earned and not announced, for the children shown. The slides draw from this list (not the held ones); Mark all announced stamps the unheld ones on the current club night.
+  function announceSection(kids, night) {
     const items = []; kids.forEach(p => Season.pendingAwards(season, idOf(p), grpOf(p), App.calendar).forEach(r => items.push({ id: idOf(p), p, award: r.award, date: r.earned, noDate: r.earnedNoDate, held: r.held })));
     const rows = sortRows(items), ready = rows.filter(r => !r.held).length, held = rows.length - ready;
-    return '<section class="pcard announce" id="awSecAnnounce"><h3>Announce on ' + esc(MD(ui.awDate)) + ' (' + ready + (held ? ', ' + held + ' held' : '') + ')</h3>' +
-      (rows.length ? '<p class="status">Earned, and not yet announced. The slides show these awards every time you draw them. <b>Mark all announced</b> records them as told to the group on ' + esc(MD(ui.awDate)) + ' and takes them off the slides. Tick <b>Hold</b> to keep an award off the slides until you untick it (a child who will be away); a held award is never marked announced. End-of-year awards are told to the group now and given at the end-of-year awards.</p>' +
+    return '<section class="pcard announce" id="awSecAnnounce"><h3>' + (night ? 'Announce on ' + esc(MD(night)) : 'To announce') + ' (' + ready + (held ? ', ' + held + ' held' : '') + ')</h3>' +
+      (rows.length ? '<p class="status">Earned awards waiting to be announced. Tick <b>Hold</b> to leave an award off the slides and skip it when marking the group announced. ' +
+        (night ? '<b>Mark all announced</b> records the ready awards on ' + esc(MD(night)) + '.' : 'Add a club night on the Calendar to record a group announcement.') + '</p>' +
         '<table class="roster"><thead><tr><th>Name</th><th>Class</th><th>Award</th><th>Earned</th><th>Hold</th><th>No date</th></tr></thead><tbody>' + rows.map(i => '<tr data-id="' + esc(i.id) + '" data-award="' + esc(i.award) + '"' + (i.held ? ' class="held"' : '') + '><td>' + nameCell(i.p) + '</td><td>' + roomCell(i.p) + '</td><td>' + esc(Season.awardLabel(season, i.id, i.award)) + (eoy(i.p, i.award) ? ' <span class="status">(end of year)</span>' : '') + '</td><td class="status">' + esc(i.noDate ? 'no date' : i.date ? MD(i.date) : '') + '</td>' +
           '<td><label title="' + (i.held ? 'Held off the slides (untick to release it)' : 'Tick to keep this award off the slides until you release it') + '"><input type="checkbox" data-hold="' + esc(i.award) + '"' + (i.held ? ' checked' : '') + ' aria-label="Hold: ' + esc(Season.awardLabel(season, i.id, i.award)) + ' for ' + esc(Model.fullName(i.p)) + '"> ' + (i.held ? 'held' : '') + '</label></td><td><button type="button" data-annnodate="' + esc(i.award) + '" data-aid="' + esc(i.id) + '" title="Count this award as told to the group, with no date, so it leaves this list and the slides">Told, no date</button></td></tr>').join('') + '</tbody></table>' +
-        '<p><button type="button" id="btnAnnounce" class="primary"' + (ready ? '' : ' disabled') + '>Mark all announced (' + ready + ')</button> <button type="button" id="btnAwAnnPrint">Print the list to read from</button></p>' : '<p class="status">Nothing earned is waiting to be announced' + roomNote() + '.</p>') + '</section>';
+        '<p><button type="button" id="btnAnnounce" class="primary"' + (ready && night ? '' : ' disabled') + '>Mark all announced (' + ready + ')</button> <button type="button" id="btnAwAnnPrint">Print the list to read from</button></p>' : '<p class="status">Nothing earned is waiting to be announced' + roomNote() + '.</p>') + '</section>';
   }
   // 2. To hand out: everything earned and not given (told to the group or not), except the end-of-year awards. The count of each is what to have ready. Given is ticked on the child's Progress sheet.
   // The Given controls on a Hand out or Ceremony row: hand it over today, or hand it over with no date. Same record as Progress's Given box.
@@ -619,8 +681,7 @@
   function renderAwards() {
     const el = $('awardsWrap'); $('awardsBar').hidden = !(App.master && season);
     if (!ready(el)) return;
-    if (!ui.awDate) ui.awDate = nextNight();
-    $('awDateWrap').innerHTML = 'Announce on ' + nightSelect('awDate', ui.awDate);
+    const night = nextNight();
     $('awGroup').value = ui.awGroup; $('awSort').value = ui.awSort;
     const rooms = [...new Set(awKidsAll().filter(p => ui.awGroup === 'All' || grpOf(p) === ui.awGroup).map(Model.room))]; if (ui.awRoom && !rooms.includes(ui.awRoom)) ui.awRoom = '';
     const seen = new Set(), tc = {}, add = (id, a) => { const k = id + '|' + a; if (seen.has(k)) return; seen.add(k); const t = typeOf(a); tc[t] = (tc[t] || 0) + 1; };
@@ -633,14 +694,15 @@
     // End-of-year awards have their own sub-tab (N-new, 2026-11-18): tagged awards earned and not given, kept off Hand out and off the Type list.
     const nCer = kids.reduce((n, p) => n + Season.awardLedger(season, idOf(p), grpOf(p), App.calendar).filter(r => eoy(p, r.award) && !r.given).length, 0);
     document.querySelectorAll('#awSubs button').forEach(b => { const on = b.dataset.awsub === ui.awSub; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); b.querySelector('.badge').textContent = (b.dataset.awsub === 'announce' ? nAnn : b.dataset.awsub === 'ceremony' ? nCer : nHand) || ''; });
-    ['awDateWrap', 'btnAwImages'].forEach(i => { $(i).hidden = ui.awSub !== 'announce'; });
-    el.innerHTML = ui.awSub === 'announce' ? announceSection(kids) : ui.awSub === 'ceremony' ? ceremonySection(kids) : handOutSection(kids);
+    $('btnAwImages').hidden = ui.awSub !== 'announce';
+    $('btnAwImages').disabled = !night;
+    el.innerHTML = ui.awSub === 'announce' ? announceSection(kids, night) : ui.awSub === 'ceremony' ? ceremonySection(kids) : handOutSection(kids);
   }
   // ---- the Awards tab's controls ----
   $('awardsBar').addEventListener('change', e => {
     const id = e.target.id;
-    if (id === 'awDate') ui.awDate = e.target.value; if (id === 'awGroup') { ui.awGroup = e.target.value; ui.awRoom = ''; } if (id === 'awRoom') ui.awRoom = e.target.value; if (id === 'awSort') ui.awSort = e.target.value; if (id === 'awType') ui.awType = e.target.value;
-    if (['awDate', 'awGroup', 'awRoom', 'awSort', 'awType'].includes(id)) renderAwards();
+    if (id === 'awGroup') { ui.awGroup = e.target.value; ui.awRoom = ''; } if (id === 'awRoom') ui.awRoom = e.target.value; if (id === 'awSort') ui.awSort = e.target.value; if (id === 'awType') ui.awType = e.target.value;
+    if (['awGroup', 'awRoom', 'awSort', 'awType'].includes(id)) renderAwards();
   });
   $('awardsWrap').addEventListener('change', e => {
     const t = e.target;
@@ -659,17 +721,20 @@
     const ig = e.target.closest && e.target.closest('button[data-annnodate]');
     if (ig) { try { Season.setAnnNoDate(season, ig.dataset.aid, ig.dataset.annnodate, true); } catch (err) { App.ask.alert(err.message); } touchSeason(); renderAwards(); return; }      // Ignore: told to the group, with no date
     const id = e.target.id;
-    if (id === 'btnAnnounce') {      // Mark all announced: every unheld award listed (under the group, class and type shown) is told-to-the-group on the night chosen
+    if (id === 'btnAnnounce') {      // Mark all announced: every unheld award listed (under the group, class and type shown) is told-to-the-group on the current club night
+      const night = nextNight(); if (!night) return;
       const picks = [...$('awSecAnnounce').querySelectorAll('tbody tr[data-award]:not(.held)')].map(r => [r.dataset.id, r.dataset.award]);
-      const n = Season.announce(season, ui.awDate, picks); if (n) { touchSeason(); App.flash('Marked ' + n + ' award' + (n === 1 ? '' : 's') + ' announced on ' + MD(ui.awDate) + '.', 'info'); } renderAwards(); return;
+      const n = Season.announce(season, night, picks); if (n) { touchSeason(); App.flash('Marked ' + n + ' award' + (n === 1 ? '' : 's') + ' announced on ' + MD(night) + '.', 'info'); } renderAwards(); return;
     }
     if (id === 'btnAwAnnPrint') { App.showReport('announceList'); App.reportOptions({ group: ui.awGroup === 'All' ? '' : ui.awGroup, room: ui.awRoom }); return; }      // N29: the club-night list, for the group and class picked here
     if (id === 'btnAwHandPrint') { App.showReport('handOut'); App.reportOptions({ group: ui.awGroup === 'All' ? '' : ui.awGroup, room: ui.awRoom }); return; }      // All groups prints every group (the report has an All groups choice)
     if (id === 'btnAwCeremony') { App.reportOptions({ group: ui.awGroup === 'All' ? 'Sparks' : ui.awGroup, room: ui.awRoom }); App.showReport('ceremony'); if (ui.awGroup === 'All') App.flash('This list prints one group at a time: Sparks is showing. Change the Group above the report for the others.', 'info'); }
   });
   // Slide images: the awards earned and not yet announced (and not held) drawn as the 1920x1080 "Awards Earned" slides (slides.js), one PNG per group or all in a ZIP. The night is only the title and the Adult Memorization night.
-  $('btnAwImages').addEventListener('click', () => {
-    const dlg = $('dlg'), date = ui.awDate, year = season.year || '';
+  function openAwardSlides() {
+    const date = nextNight();
+    if (!season || !date) return;
+    const dlg = $('dlg'), year = season.year || '';
     let cur = 'sparks', built = null;
     dlg.innerHTML = '<h3 style="margin-top:0">Awards slides &mdash; ' + esc(MD(date)) + '</h3><div id="slWarn"></div><div class="bar" id="slTabs"></div>' +
       '<canvas id="slCanvas" style="width:100%;aspect-ratio:16/9;border:1px solid var(--line);background:#000"></canvas>' +
@@ -713,7 +778,9 @@
         .then(files => { App.download('Awards Earned Slides ' + date + '.zip', Slides.makeZip(files), 'application/zip'); $('slMsg').textContent = (App.driveSave && App.driveSave.active() ? 'Sent to Google Drive: ' : 'Downloaded ') + files.length + (files.length === 1 ? ' slide' : ' slides') + '. Empty slides were skipped.'; }).catch(fail);
     });
     dlg.showModal(); draw();
-  });
+  }
+  $('btnAwImages').addEventListener('click', openAwardSlides);
+  App.openAwardSlides = openAwardSlides;
   // Handbook, date received and note as three boxes (shared with the Person tab). The stored value stays one string, "HG 260916".
   const HB_FIELDS = [['code', 'Handbook', 'text', 'e.g. HG'], ['date', 'Date received', 'date', ''], ['note', 'Note', 'text', '']];
   function handbookBox(id) {
@@ -845,16 +912,20 @@
     // The Sparks reviews come after all the jewels, one row per jewel, numbered 1 to 4 like the jewels. They are stored as items 5 to 8 of that jewel (the number shown is the position in the review row).
     const reviews = scope => {
       const rb = t.perBook.filter(b => (b.review || []).length), dates = prog[scope] || {};
-      return !rb.length ? '' : '<div class="previews"><span class="plabel status">Reviews</span>' + rb.map(b => { const done = b.review.every(i => dates[b.key + '.' + i]), n = b.review.filter(i => dates[b.key + '.' + i]).length;
+      if (!rb.length) return '';
+      const before = Season.reviewsDoneBefore(season, id, scope);
+      const control = '<p class="status bdone"><label><input type="checkbox" data-reviewsdone="' + esc(scope) + '"' + (before ? ' checked' : '') + ' aria-label="' + esc(bname(scope)) + ' reviews finished before"> Finished before (another club, no review records)</label></p>';
+      const rows = rb.map(b => { const done = b.review.every(i => dates[b.key + '.' + i]), n = b.review.filter(i => dates[b.key + '.' + i]).length;
         return '<div class="pblock' + (done ? ' done' : '') + '"><span class="plabel">' + esc(b.label) + ' review' + (done ? ' ✓' : '') + '</span>' + b.review.map((i, k) => cell(b, scope, i, dates, k + 1, b.label + ' review ' + (k + 1))).join('') +
-          '<span class="pawards status">' + n + ' of ' + b.review.length + ' (counts toward the book&rsquo;s Review Emblem)</span></div>'; }).join('') + '</div>';
+          '<span class="pawards status">' + n + ' of ' + b.review.length + ' (counts toward the book&rsquo;s Review Emblem)</span></div>'; }).join('');
+      return '<div class="previews"><span class="plabel status">Reviews</span>' + control + (before ? '<p class="status">Reviews marked finished before this club. Existing dates are kept; uncheck to view or edit them.</p>' : rows) + '</div>';
     };
     // The book's Review Emblem: all the jewels' sections and reviews.
     const bookReview = scope => {
       const br = t.bookReview, rb = t.perBook.filter(b => (b.review || []).length), dates = prog[scope] || {};
       if (!br || !rb.length) return '';
       const all = [].concat(...rb.map(b => b.items.concat(b.review).map(i => b.key + '.' + i))), n = all.filter(k => dates[k]).length, er = earnedOf('BOOKREVIEW', scope), names = br.awards.map(a => fillName(a, scope));
-      return '<div class="pblock' + (er ? ' done' : '') + '"><span class="plabel">' + esc(br.label || 'Book Review') + (er ? ' ✓' : '') + '</span><span class="status">' + n + ' of ' + all.length + ' section and review dates entered in the jewels</span>' +
+      return '<div class="pblock' + (er ? ' done' : '') + '"><span class="plabel">' + esc(br.label || 'Book Review') + (er ? ' ✓' : '') + '</span><span class="status">' + n + ' of ' + all.length + ' section and review dates entered in the jewels' + (Season.reviewsDoneBefore(season, id, scope) ? '; Reviews finished before this club' : '') + '</span>' +
         '<span class="pawards">' + esc(names.map(a => Season.awardLabel(season, id, a)).join(' + ')) + (er ? ' · earned ' + (er.noDate ? '(no date)' : esc(MD(er.date))) : '') + '</span>' + (er || names.some(a => (season.given[id] || {})[a]) ? '<span class="prow">' + givenBox(names, !!er) + '</span>' : '') + '</div>';
     };
     const bname = c => (season.config.books[c] || {}).name || c, rv = Season.receivedShown(season, id, book), rvNoDate = Season.isReceivedNoDate(season, id, book), rvAny = rv || rvNoDate;
@@ -1095,6 +1166,7 @@
     if (t.dataset && t.dataset.hb) { if (saveHandbook(t.closest('.hbbox'), ui.prKid)) { ui._lastKid = ''; redrawSheet(); } return; }      // only a new book changes what is on screen, so tabbing between the boxes keeps focus
     if (t.dataset && t.dataset.key && t.type !== 'date') commitProgress(t, true);
     if (t.dataset && t.dataset.bookdone) { try { Season.setBookDone(season, ui.prKid, t.dataset.bookdone, t.checked); } catch (err) { App.ask.alert(err.message); } touchSeason(); redrawSheet(); return; }
+    if (t.dataset && t.dataset.reviewsdone) { try { Season.setReviewsDone(season, ui.prKid, t.dataset.reviewsdone, t.checked); } catch (err) { App.ask.alert(err.message); } touchSeason(); redrawSheet(); return; }
     if (t.dataset && t.dataset.recvnd !== undefined) { try { Season.setReceived(season, ui.prKid, t.dataset.recvnd, '', { noDate: t.checked }); } catch (err) { App.ask.alert(err.message); } if (!t.checked) offerHandbookClear(t.dataset.recvnd); touchSeason(); redrawSheet(); return; }      // book received, date unknown
     if (t.dataset && t.dataset.hold !== undefined) { Season.setHold(season, ui.prKid, t.dataset.hold, t.checked); touchSeason(); redrawSheet(); return; }      // the same flag as the Hold box on the Awards tab
     if (t.dataset && t.dataset.annnodateTick !== undefined) {      // announced, date unknown: counts as told to the group; untick to take it back (a real date replaces it)
@@ -1298,7 +1370,7 @@
   $('hReconcile').addEventListener('click', () => {
     if (!App.resolveDraft(() => $('hReconcile').click())) return;
     if (!Season.reconcile(season, new Date().toISOString())) return renderHistory();
-    snap = Season.snapshot(season); markEdit(); status(); App.updateStatus(); App.refresh();      // Restore to the previous version is the way back
+    snap = Season.snapshot(season); markEdit('Reconciled History'); status(); App.updateStatus(); App.refresh();      // Restore to the previous version is the way back
   });
   $('historyBar').addEventListener('change', e => {
     const lastOn = day => { for (let i = season.history.length; i >= 0; i--) if (dayOf(i) === day) return i; return 0; };
@@ -1309,7 +1381,7 @@
   const hTag = key => () => {
     const i = ui[key]; if (i < 1) return;
     App.ask.form({ title: 'Name version ' + i, ok: 'Save name', fields: [{ name: 'name', label: 'Name for version ' + i, type: 'text', value: season.history[i - 1].tag || '', maxlength: 80, hint: 'Leave empty to remove the name.' }] })
-      .then(v => { if (!v) return; Season.tag(season, i, v.name); touchSeason(); renderHistory(); });
+      .then(v => { if (!v) return; Season.tag(season, i, v.name); touchSeason('Named History version ' + i); renderHistory(); });
   };
   $('hTagFrom').addEventListener('click', hTag('hFrom')); $('hTagTo').addEventListener('click', hTag('hTo'));
   // A restore deletes history, so it asks three times, and each time the person types the phrase exactly. Any other answer (or Cancel) stops it.
@@ -1329,7 +1401,7 @@
       App.download(Season.fileName(season.year, new Date(), 'before-restore'), Season.toJson(season), 'application/json');
       if (!(await App.ask.confirm('The backup was downloaded. Check that it saved, then go back to version ' + v + '.', { title: 'Backup downloaded', ok: 'It saved: go back', danger: true }))) return;
       ui.hFrom = null; ui.hLatest = true;
-      setSeason(Season.restoreTo(season, v).season, { noImport: true }); markEdit(); status();
+      setSeason(Season.restoreTo(season, v).season, { noImport: true }); markEdit('Restored History version ' + v); status();
     });
   });
   const hStep = (key, d) => () => { ui[key] += d; renderHistory(); };
@@ -1351,8 +1423,8 @@
     awardsToGive: () => App.master && season ? toGive(giveKids(), App.today()) : [],
     awardsToAnnounce: () => App.master && season ? giveKids().reduce((n, p) => n + announceDue(p, Model.groupOf(Model.room(p)), App.today()).length, 0) : 0,      // earned and not announced yet: the number on the Awards tab
     nextNight, nightLabel,
-    // From a child's Awards tab: open the Awards tab on the Announce page for that night and child's class (and the slide pictures if asked).
-    awardsFor: (id, date, slide) => { const p = personOf(id); if (!p || !date) return; ui.awSub = 'announce'; ui.awDate = date; ui.awGroup = grpOf(p); ui.awRoom = Model.room(p); ui.awType = ''; App.showTab('awards'); if (slide) $('btnAwImages').click(); },
+    // From a child's Awards tab: open the Awards tab on the Announce page for the child's class (and the slide pictures if asked).
+    awardsFor: (id, slide) => { const p = personOf(id); if (!p) return; ui.awSub = 'announce'; ui.awGroup = grpOf(p); ui.awRoom = Model.room(p); ui.awType = ''; App.showTab('awards'); if (slide) $('btnAwImages').click(); },
     // Open a child's Progress sub-tab on the Person tab (the Progress tab no longer exists).
     goProgress: id => { const p = App.master.people.find(x => idOf(x) === id); if (!p) return; App.showPerson(id, { sub: 'progress' }); } });
   App.tabs.attend = renderAttend; App.tabs.games = renderGames; App.tabs.awards = renderAwards; App.tabs.history = renderHistory;

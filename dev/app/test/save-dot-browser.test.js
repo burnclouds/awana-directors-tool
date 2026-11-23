@@ -41,9 +41,69 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
   });
   await test('on a phone one edit says "1 unsaved edit" in readable words, inside the screen', async () => {
     const { p, ctx } = await openPhone(); await p.evaluate(() => { const id = Object.keys(App.season.roster.people)[0]; Season.setMark(App.season, '2026-10-28', id, 'h', 1); App.commitScope(() => App.changed()); }); await p.waitForTimeout(150);
-    /* UX-10: the count rides on the Download button (a dot and the number); its name says it in words; the separate chip is hidden on a phone */
-    const c = await p.evaluate(() => { const b = document.getElementById('btnSeasonSave'), r = b.getBoundingClientRect(); return { after: getComputedStyle(b, '::after').content, label: b.getAttribute('aria-label') || '', left: r.left, right: r.right, chip: getComputedStyle(document.getElementById('seasonStatus')).display }; });
-    assert(/●/.test(c.after) && /1/.test(c.after), 'dot and number on the button: ' + c.after); assert(/1 unsaved edit/.test(c.label), 'the name says it in words: ' + c.label); assert.strictEqual(c.chip, 'none', 'no separate chip'); assert(c.left >= 0 && c.right <= 390, JSON.stringify(c)); await ctx.close();
+    const c = await p.evaluate(() => { const b = document.getElementById('btnUnsavedEdits'), r = b.getBoundingClientRect(); return { text: b.textContent, label: b.getAttribute('aria-label') || '', left: r.left, right: r.right, chip: getComputedStyle(document.getElementById('seasonStatus')).display }; });
+    assert(/●\s*1/.test(c.text), 'dot and number on the summary button: ' + c.text); assert(/1 unsaved edit/.test(c.label), 'the name says it in words: ' + c.label); assert.strictEqual(c.chip, 'none', 'no separate chip'); assert(c.left >= 0 && c.right <= 390, JSON.stringify(c));
+    await p.click('#btnUnsavedEdits');
+    assert(await p.locator('#unsavedDialog').isVisible());
+    await ctx.close();
+  });
+  await test('the unsaved summary uses History labels, shows a held roster draft, and drops an undone edit', async () => {
+    const { p, ctx } = await open();
+    const labels = await p.evaluate(() => {
+      App.showTab('todo');
+      const id = Object.keys(App.season.roster.people)[0];
+      Season.setHandbook(App.season, id, { code: 'HC', note: 'Test edit' }); App.touch();
+      Season.addAward(App.season, '2026-10-07', id, 'Test award'); App.touch();
+      return App.season.history.slice(-2).reverse().map(e => e.label);
+    });
+    const rows = () => p.locator('#unsavedDetails li').allTextContents();
+    const openSummary = () => p.click('#btnUnsavedEdits');
+    const closeSummary = () => p.locator('#unsavedDialog').getByRole('button', { name: 'Close' }).click();
+    await openSummary();
+    assert.deepStrictEqual(await rows(), labels);
+    assert.match(await p.textContent('#unsavedDetails'), /First unsaved edit at \d\d:\d\d/);
+    await closeSummary();
+    await p.click('#btnUndo');
+    await openSummary();
+    assert.deepStrictEqual(await rows(), [labels[1]]);
+    await closeSummary();
+    await p.evaluate(() => {
+      App.showTab('roster');
+      App.master.people[0][Model.X.NOTES] = 'Held roster note';
+      App.touch();
+    });
+    await openSummary();
+    const held = await rows();
+    assert.match(held[0], /^Roster · \d+ change[s]? held \(apply or discard\)$/);
+    assert.strictEqual(held[1], labels[1]);
+    await closeSummary();
+    await p.click('#btnDraftApply');
+    await openSummary();
+    assert.match((await rows())[0], /^Roster:/);
+    await closeSummary();
+    await p.evaluate(async () => { App.download = async () => true; await App.saveNow({ auto: true }); });
+    assert(!(await p.locator('#btnUnsavedEdits').isVisible()));
+    await ctx.close();
+  });
+  await test('edits and Undo during a save remain in the summary after the save finishes', async () => {
+    const { p, ctx } = await open();
+    const labels = await p.evaluate(async () => {
+      App.showTab('todo');
+      const id = Object.keys(App.season.roster.people)[0];
+      Season.setHandbook(App.season, id, { code: 'HC', note: 'Included in save' }); App.touch();
+      let finish;
+      App.download = () => new Promise(resolve => { finish = resolve; });
+      const save = App.saveNow({ auto: true });
+      document.getElementById('btnUndo').click();
+      Season.addAward(App.season, '2026-10-07', id, 'After save started'); App.touch();
+      finish(true);
+      await save;
+      return App.season.history.slice(-2).reverse().map(e => e.label);
+    });
+    await p.click('#btnUnsavedEdits');
+    assert.deepStrictEqual(await p.locator('#unsavedDetails li').allTextContents(), labels);
+    assert.match(labels[1], /^Undo:/);
+    await ctx.close();
   });
   await test('Download stays fully on screen with the words showing, and nothing scrolls sideways', async () => {
     const { p, ctx } = await openPhone(); await edit(p, 12); await p.waitForTimeout(150);

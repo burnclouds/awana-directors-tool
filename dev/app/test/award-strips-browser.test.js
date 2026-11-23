@@ -15,7 +15,7 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
     const pick = (g, n) => App.master.people.filter(p => M.isActive(p) && M.isClubber(p) && M.groupOf(M.room(p)) === g).slice(0, n);
     [['Cubbies', 2], ['Sparks', 3], ['T&T', 3]].forEach(([g, n]) => pick(g, n).forEach((p, i) => { const id = p[M.X.ID]; out.ids.push(id); for (let k = 0; k <= i; k++) Season.addAward(s, '2026-10-21', id, 'Test Award ' + (k + 1)); }));
     const big = pick('T&T', 4)[3]; if (big) { out.long = big[M.X.ID]; for (let k = 1; k <= 30; k++) Season.addAward(s, '2026-10-21', out.long, 'Big Award ' + String(k).padStart(2, '0')); }
-    App.touch(); return out; });
+    App.commitScope(() => App.touch()); return out; });
   const toReport = async (group = '') => { await page.evaluate(() => App.showTab('reports')); await page.evaluate(g => { App.showReport('handOut'); App.reportOptions({ group: g, room: '' }); }, group); await page.waitForTimeout(500); };
   await test('one strip per child with something to give, none for the others, ordered by class then name, all groups in one run', async () => {
     await toReport(''); assert.strictEqual(await page.inputValue('#oGroupSel'), '', 'Group is All groups'); assert((await page.$$eval('#oGroupSel option', o => o.map(x => x.textContent)))[0] === 'All groups');
@@ -43,7 +43,7 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
   await test('print: the PDF has one page per sheet, and Choose pages names every page by class (no child names)', async () => {
     await toReport(''); const sheets = await page.locator('#report .sheet').count(); await page.emulateMedia({ media: 'print' }); const buf = await page.pdf({ format: 'Letter', preferCSSPageSize: true }); await page.emulateMedia({ media: 'screen' });
     const pages = (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length; assert.strictEqual(pages, sheets, pages + ' pages for ' + sheets + ' sheets');
-    if (sheets > 1) { await page.click('#btnChoosePages'); const names = await page.$$eval('#dlg .pglist label', l => l.map(x => x.textContent.trim())); assert.strictEqual(names.length, sheets); assert(names.every(n => /^Awards to hand out, page \d+ of \d+: /.test(n)), names[0]); await page.click('#pgDone'); }
+    if (sheets > 1) { await page.click('#btnReportOptions'); const names = await page.$$eval('#reportOptions .pglist label', l => l.map(x => x.textContent.trim())); assert.strictEqual(names.length, sheets); assert(names.every(n => /^Awards to hand out, page \d+ of \d+: /.test(n)), names[0]); await page.click('#pgDone'); }
   });
   await test('Group and Class pickers narrow it; a group with nothing says so; a different report has no All groups choice', async () => {
     await toReport('Cubbies'); const only = await page.$$eval('#report .stripname span', s => [...new Set(s.map(x => x.textContent))]); assert(only.every(c => /Cubbies/i.test(c)), only.join(','));

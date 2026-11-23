@@ -19,7 +19,7 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
   const showReport = async id => { await page.evaluate(r => App.showReport(r), id); await page.waitForFunction(() => document.querySelectorAll('#report .sheet').length > 0); };
   const openBinders = async (quick, classes = []) => {      // quick: the quick pick's name; classes: indexes of the class boxes to tick (none = the whole club)
     await page.evaluate(() => document.querySelector('.tabs button[data-tab="reports"]').click()); await page.waitForTimeout(200);
-    await page.click('#rSubs button[data-rsub="binders"]'); await page.click('#btnBinders'); await page.waitForTimeout(200);
+    await page.click('#rSubs button[data-rsub="binders"]'); await page.click('#btnReportOptions'); await page.click('#btnBinders'); await page.waitForTimeout(200);
     await page.selectOption('#bindQuick', { label: quick }); await page.click('#bindNone');
     for (const t of classes) await page.check('#dlg input[data-bind="' + t + '"]');
     await page.click('#bindGo'); await page.waitForTimeout(400);
@@ -32,8 +32,8 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
     const first = await firstOrient(); assert(first, 'no sheets in #report');
     assert(new RegExp('@page \\{ size: ' + first + ';').test(await pageCss()), 'first sheet is ' + first + ' but #pageStyle says: ' + (await pageCss()).slice(0, 60));
     const sheets = await page.locator('#report .sheet').count(); assert(sheets >= 2, 'coaches binder should be several sheets');
-    assert(await page.locator('#pagePick').isVisible(), 'the page-pick row is hidden');
-    assert.strictEqual(await page.locator('#btnChoosePages').count(), 0, 'a binder has no Choose pages button (Print class binders chooses the pages and classes)'); assert.strictEqual((await page.textContent('#pageSum')).trim(), 'Pages to print: all ' + sheets, 'the count stays');
+    assert(await page.locator('#pageSum').isVisible(), 'the page-pick row is hidden');
+    await page.click('#btnReportOptions'); assert(await page.locator('#reportPageOptions input[data-pg]').count() > 1); await page.click('#pgDone'); assert.strictEqual((await page.textContent('#pageSum')).trim(), 'Pages to print: all ' + sheets, 'the count stays');
   });
   await test('coming from a portrait report, a class binder (landscape attendance first) says landscape', async () => {
     await showReport('teams');
@@ -41,7 +41,7 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
     await openBinders('Class binder', ['2']);      // Sparks A: attendance is its first sheet
     assert.strictEqual(await firstOrient(), 'landscape', 'the first sheet should be the landscape attendance sheet');
     assert(/@page \{ size: landscape/.test(await pageCss()), '#pageStyle did not follow: ' + (await pageCss()).slice(0, 60));
-    assert(await page.locator('#pagePick').isVisible(), 'the page-pick row is hidden');
+    assert(await page.locator('#pageSum').isVisible(), 'the page-pick row is hidden');
   });
   await test('no script errors', () => assert.deepStrictEqual(errs, []));
   await browser.close(); server.close(); console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

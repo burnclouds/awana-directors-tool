@@ -2,6 +2,7 @@
 // Usage: node test/pace.test.js
 const assert = require('assert'), fs = require('fs'), path = require('path');
 const Season = require('../season.js'), M = require('../model.js'), Pace = require('../pace.js'), RS = require('../reports-season.js');
+const { reviewPace } = require('../../tools/review-pace.js');
 let passed = 0, failed = 0;
 function test(name, fn) { try { fn(); passed++; console.log('  ok   ' + name); } catch (e) { failed++; console.log('  FAIL ' + name + '\n       ' + String(e.message).split('\n')[0]); } }
 const dir = path.join(__dirname, '..', '..', 'test-data'), file = fs.readdirSync(dir).find(f => /TEST.*\.json$/.test(f));
@@ -68,6 +69,27 @@ test('the room table and the watch list report render without error', () => {
   const rooms = Pace.room(Pace.rows(ctx)); assert(rooms.length > 0 && rooms.every(r => typeof r.entered === 'boolean'));
   const html = RS.paceWatch(Object.assign({ settings: {} }, ctx)); assert(/Pace Watch List/.test(html));
   assert(/Capable, slowed|Steadily slow|Needs encouragement|Nobody to watch|No sign-off dates/.test(html));
+});
+test('threshold review reports aggregate coverage and excludes classes without sign-offs from the medians', () => {
+  const { season } = load();
+  const before = reviewPace(season);
+  assert(before.heldNights > 0);
+  assert.deepStrictEqual(before.thresholds, Pace.CFG);
+  before.groups.forEach(group => {
+    assert(group.clubbers > 0 && group.classesWithoutSignoffs > 0);
+    assert.strictEqual(group.eligibleForWatch, 0);
+    assert.strictEqual(group.eligibleForTrend, 0);
+    assert.strictEqual(group.medianOverall, null);
+  });
+  const ctx = { season, calendar: season.calendar, master: M.fromRoster(season.roster) };
+  const child = pick(ctx, 'Sparks', 4), id = child[M.X.ID];
+  Season.setProgress(season, id, 'HG', 'R.1', nightsOf(ctx, child)[0]);
+  const snapshot = JSON.stringify(season), after = reviewPace(season), sparks = after.groups[0];
+  assert.strictEqual(sparks.withDatedCoreSignoffs, 1);
+  assert(sparks.eligibleForWatch > 0 && sparks.medianOverall !== null);
+  assert.strictEqual(sparks.classesWithoutSignoffs, before.groups[0].classesWithoutSignoffs - 1);
+  assert(!JSON.stringify(after).includes(id) && !JSON.stringify(after).includes(M.fullName(child)));
+  assert.strictEqual(JSON.stringify(season), snapshot);
 });
 console.log(passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

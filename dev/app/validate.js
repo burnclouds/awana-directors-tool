@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['validate.js'] = '1.18.0';
+(this.AwanaVersions = this.AwanaVersions || {})['validate.js'] = '1.18.1';
 // File checks for the Validate and Debug tabs. Pure functions: text in, findings out (nothing is read from or written to disk).
 //   validate(text, name) -> { kind, findings: [{ level: 'error' | 'warn' | 'info', msg, check }] }   (check: the part of the file the finding is about: a section name, 'config', 'roster', 'ghosts', 'calendar', 'history', 'replay' or 'file')
 //   inspect(text, name, lastModifiedMs) -> { kind, nameStamp, modified, facts }   (the dates and counts shown on the Debug tab)
@@ -29,7 +29,7 @@
 
   // What the data-file check covers. test/validate.test.js fails when a section (Season.SECTIONS) or a config key the code uses is missing here, so a new
   // one cannot be added without a check; each entry is exercised by a mutation test there.
-  const CHECKED_SECTIONS = ['config', 'handbooks', 'attendance', 'awards', 'given', 'givenNoDate', 'held', 'flags', 'doneBooks', 'received', 'adults', 'teamMoves', 'games', 'progress', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout', 'absences', 'roster', 'calendar', 'rotation'];      // (history is checked too, but is not one of Season.SECTIONS: it is the record of changes to them)
+  const CHECKED_SECTIONS = ['config', 'handbooks', 'attendance', 'awards', 'given', 'givenNoDate', 'held', 'flags', 'doneBooks', 'doneReviews', 'received', 'adults', 'teamMoves', 'games', 'progress', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout', 'absences', 'roster', 'calendar', 'rotation'];      // (history is checked too, but is not one of Season.SECTIONS: it is the record of changes to them)
   const CHECKED_CONFIG = ['clubDay', 'blueJewelWeeks', 'teamOrder', 'saveStyleDrive', 'saveStyleLocal', 'autoUpdate', 'autoSave', 'drivePinDays', 'sparksBooks', 'yearBook', 'placePoints', 'books', 'progress', 'awardLists', 'exclude', 'completion', 'endOfYear', 'store', 'teamPlan', 'teamsOk', 'todoIgnored', 'driveDirs', 'bundles', 'bookOrder', 'slideNames', 'medRead', 'medPrinted', 'clubTitle', 'driveKeepName', 'cubbiesDetail', 'tntBook', 'carriedThrough', 'bugButton', 'startTab', 'lessons', 'showHiddenNotes'];
 
   // ---------- the data file ----------
@@ -106,7 +106,7 @@
 
     // A section that is not an object is emptied when the file opens, so its records would be lost at the next save: say so (never lose data silently).
     const typeName = v => Array.isArray(v) ? 'a list' : v === null ? 'empty (null)' : typeof v === 'string' ? 'text' : typeof v === 'number' ? 'a number' : typeof v === 'boolean' ? 'true or false' : typeof v;
-    const WORDS = { handbooks: 'Handbook', attendance: 'Attendance', awards: 'Awards', given: 'Awards given', givenNoDate: 'Given, no date', held: 'Held awards', flags: 'Flag', doneBooks: 'Books finished before', received: 'Date received', adults: 'Adult awards', teamMoves: 'Team moves', games: 'Games', progress: 'Progress', progressNoDate: 'No-date sign-offs', extraSheets: 'Added sheets', announcedNoDate: 'Told, no date', blueWings: 'Blue Jewel placement', blueOverrides: 'Blue Jewel given by hand', blueDrops: 'Dropped Blue Jewel', pastTurnout: 'Attendance counts from earlier years', absences: 'Volunteer absence' };
+    const WORDS = { handbooks: 'Handbook', attendance: 'Attendance', awards: 'Awards', given: 'Awards given', givenNoDate: 'Given, no date', held: 'Held awards', flags: 'Flag', doneBooks: 'Books finished before', doneReviews: 'Reviews finished before', received: 'Date received', adults: 'Adult awards', teamMoves: 'Team moves', games: 'Games', progress: 'Progress', progressNoDate: 'No-date sign-offs', extraSheets: 'Added sheets', announcedNoDate: 'Told, no date', blueWings: 'Blue Jewel placement', blueOverrides: 'Blue Jewel given by hand', blueDrops: 'Dropped Blue Jewel', pastTurnout: 'Attendance counts from earlier years', absences: 'Volunteer absence' };
     Object.keys(WORDS).forEach(k => { if (o[k] !== undefined && !isObj(o[k])) { cur = k; err('The ' + WORDS[k] + ' section is ' + typeName(o[k]) + ' (it must be an object); opening the file empties it, so its records are lost at the next save.'); } });
 
     // roster
@@ -306,6 +306,10 @@
       cur = 'doneBooks'; const unk = [];
       Object.keys(sect('doneBooks')).forEach(id => { known(id); const l = o.doneBooks[id]; if (!textList(l)) return err('Books finished before for "' + id + '" is not a list of book codes.'); l.forEach(c => { if (!bookCodes.has(c)) unk.push(c); }); });
       agg('doneBooks', unk, 'finished book is not in the list of books', 'finished books are not in the list of books');
+      cur = 'doneReviews'; const unkReviews = [], wrongGroup = [], sparkTpl = (s.config.progress || {}).Sparks || {}, hasReviews = (sparkTpl.perBook || []).some(b => (b.review || []).length);
+      Object.keys(sect('doneReviews')).forEach(id => { known(id); const l = o.doneReviews[id]; if (!textList(l)) return err('Reviews finished before for "' + id + '" is not a list of book codes.'); l.forEach(c => { if (!bookCodes.has(c)) unkReviews.push(c); else if (Season.bookGroup(s, c) !== 'Sparks' || !hasReviews) wrongGroup.push(c); }); });
+      agg('doneReviews', unkReviews, 'book for prior reviews is not in the list of books', 'books for prior reviews are not in the list of books');
+      agg('doneReviews', wrongGroup, 'prior review marker is for a book without Sparks reviews', 'prior review markers are for books without Sparks reviews');
       cur = 'received'; const unk2 = [];
       Object.keys(sect('received')).forEach(id => { known(id); const r = o.received[id]; if (!isObj(r)) return err('Date received for "' + id + '" is not an object of book to date.'); Object.keys(r).forEach(b => { const v = r[b]; if (!(v === '' || v === 'no date' || isDate(v))) err('Date received for "' + id + '" · ' + b + ' is ' + JSON.stringify(v) + ' (a real date, "no date" or empty).'); if (!bookCodes.has(b)) unk2.push(b); }); });
       agg('received', unk2, 'received date is for a book that is not in the list of books', 'received dates are for books that are not in the list of books');

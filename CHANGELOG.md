@@ -4,6 +4,25 @@ What changed in each app version (the `app-version` in `dev/app/index.html`, sho
 
 **Published:** 1.51.12q (live on GitHub Pages, Nov 16). 1.51.13 (below, combining all work since 1.51.12q) is live on GitHub Pages as of Nov 16 (pushed Nov 17 UTC). The public repo was reset to ONE commit for it, because the 1.51.12q commit had real children's names and a phone number in BACKLOG.md; the old commit is no longer on any branch but GitHub still serves it by its hash until it is purged (ask GitHub Support). Earlier: 1.51.12b (Nov 15), 1.51.12 (Nov 14), 1.51.11 (Nov 14), 1.51.10 (Nov 14), 1.51.08 (Nov 13), 1.51.07 (Nov 13), 1.51.05 (Nov 12), 1.51.04 (Nov 12), 1.51.03c (Nov 12), 1.51.01 (Nov 12), 1.51.00 (Nov 12), 1.50.45d (Nov 10), 1.50.38 (Nov 10), 1.50.36 (Nov 6). The version number is set only when a release is deployed; work in between is identified by commit. A change to the data-file format always gets its own mention here and an upgrade path; older files always open.
 
+## 1.51.20 (built 2026-11-22; live on GitHub Pages once pushed)
+Every leader should press Update now.
+
+- **Uniform tracking printout (N37 F16).** The Notes column is wider and rows have more room for handwriting. Size and date columns have reserved widths, including on files with older size fields.
+- **Report options (N52).** Open Options to set the filters for the selected report and decide which pages to print. The toolbar shows the current selection and page count. Closing Options applies filter changes in one redraw.
+
+- **Binder dialog (N55).** Coaches pages have their own section, roster names describe what prints, and the Quarterly and Coaches quick picks set appropriate class selections.
+- **T&T sign-offs (N59).** Silver and Gold sign-off rows appear directly under each emblem section, with aligned cells and their own Given boxes.
+- **Unsaved-edits summary (N60).** Click the count beside Save to see edits and unapplied drafts. The list follows Undo and successful saves.
+- **Club night pack (N61).** Print the announcement list and hand-out slips together. Open slide images for the current club night from the same report.
+- **Coloring sheets (N62).** Link a group’s lesson PDF to a club night in Calendar; the Club night pack lists it with a suggested copy count and opens it for separate printing.
+- **Announcement dates (N66).** The Announce page and slides use the current club night automatically. The list shows ready and held awards. Individual dates can be entered or corrected later on the child’s record.
+- **Uniforms (N64, N65).** The Uniforms screen omits the Item column and places the no-date checkbox beside the picker when there is space. Entering a Given out date or using Today clears the checkbox and its saved flag.
+- **Debug corrections (N65, N67).** Review existing uniform date conflicts and Cubbies handbook mismatches. Correct conflicting uniform flags and fill an empty handbook when one unfinished received book qualifies. Both actions support Undo.
+- **Blank incident report (N46).** Print a one-page, punch-margin form without opening a roster file.
+- **Reviews completed before joining (N69).** Mark the Sparks Reviews requirement complete without entering review dates or finishing book sections.
+- **Print review (N37).** Complete the tested print review; the remaining paper and real-data checks were waived at Mike’s direction.
+- **Public backlog.** Version history links to the backlog and its scope estimates.
+
 ## 1.51.19b (built 2026-11-20; live on GitHub Pages once pushed)
 Every leader should press Update now.
 - **Notes and replies on To do (BACKLOG N49).** Edit now opens only the note's own text, in a large box, with its line breaks; before, it opened the note and all its replies as one text and saving wrote them back into the note. A reply is a message of its own: each has its own Edit and Remove (Remove can be undone), and Save reply and Cancel sit below the reply box. Debug, *Records that look wrong*, lists any note that already holds the text of its reply, so notes damaged by the old Edit can be found and tidied by hand.

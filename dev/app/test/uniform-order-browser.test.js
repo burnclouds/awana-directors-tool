@@ -35,11 +35,13 @@ const server = http.createServer((req, res) => {
   const asNext = (name) => { const rows = Csv.parse(raw), h = rows[0].map(x => x.replace(/^\uFEFF/, '')), drop = new Set(['Cubbies Vest', 'Sparks Vest', 'T&T shirt', 'If you are purchasing a Awana shirt, please provide size.']), keep = h.map((c, i) => drop.has(c) ? -1 : i).filter(i => i >= 0);
     const f = path.join(TMP, name); fs.writeFileSync(f, Csv.serialize([keep.map(i => h[i]).concat(['Uniform'])].concat(rows.slice(1).filter(r => r.some(v => v !== '')).map((r, n) => keep.map(i => r[i] || '').concat([n % 4 === 0 ? 'Yes' : n % 4 === 1 ? 'No' : '']))), true)); return f; };
 
-  await test('next year\'s form: the Uniforms tab lists who Planning Center says ordered and paid, the kind comes from the class, and there is no parent-size or older size column', async () => {
+  await test('next year\'s form: Uniforms lists who ordered and paid without an Item or older size column', async () => {
     const { page, ctx, msgs } = await fresh(asNext('20261028 -- demo-club-2027-28 TEST uniform.csv')); assert(!(await page.isVisible('#pcColsBar')), 'a Uniform column is all the app needs: no warning bar');
-    await tab(page, 'uniforms'); await page.waitForTimeout(300); assert.deepStrictEqual(await cols(page), ['Name', 'Class', 'Item', 'Size', 'Ordered', 'Received', 'Given out', 'Notes']);
-    const rows = await page.$$eval('#uniWrap tbody tr', r => r.map(x => [x.cells[1].textContent, x.cells[2].textContent])); assert(rows.length > 10, rows.length + ' rows');
-    rows.forEach(([room, item]) => assert.strictEqual(item, /^Cubbies/.test(room) ? 'Cubbies vest' : /^Sparks/.test(room) ? 'Sparks vest' : /^T&T/.test(room) ? 'T&T shirt' : 'Uniform', room + ' -> ' + item));
+    await tab(page, 'uniforms'); await page.waitForTimeout(300); assert.deepStrictEqual(await cols(page), ['Name', 'Class', 'Size', 'Ordered', 'Received', 'Given out', 'Notes']);
+    const rows = await page.locator('#uniWrap tbody tr').evaluateAll(r => r.map(x => x.dataset.id).sort());
+    const ordered = await page.evaluate(() => App.master.people.filter(p => Model.isActive(p) && Model.isClubber(p) && Model.wantsUniform(p[Model.C.UNIFORM])).map(p => String(p[Model.X.ID])).sort());
+    assert(rows.length > 10, rows.length + ' rows');
+    assert.deepStrictEqual(rows, ordered);
     assert(!msgs.some(m => /PAGE ERROR/.test(m)), msgs.join(' | ')); await ctx.close();
   });
   await test('recording the size and dates here: Size, Ordered, Received, Given out (and the no-date box) all stay with the child, and the filter and To do follow', async () => {
@@ -61,7 +63,7 @@ const server = http.createServer((req, res) => {
     assert(/Nobody has a uniform to track/.test(await b.page.textContent('#uniWrap'))); await b.ctx.close();
   });
   await test('this year\'s form (per-program columns) shows its columns without a parent size, and the data in the older boxes keeps showing', async () => {
-    const { page, ctx } = await fresh(EXPORT); await tab(page, 'uniforms'); await page.waitForTimeout(300); const c = await cols(page); assert(!c.some(x => /parent/i.test(x)) && c.includes('Size') && !c.includes('Size ordered'), c.join('|'));
+    const { page, ctx } = await fresh(EXPORT); await tab(page, 'uniforms'); await page.waitForTimeout(300); const c = await cols(page); assert(!c.some(x => /parent/i.test(x)) && c.includes('Size') && !c.includes('Size ordered') && !c.includes('Item'), c.join('|'));
     await page.evaluate(() => { Model.uniformItems; const p = App.master.people.find(x => Model.uniformItems(x).length); p.x_Uni_SizeOrdered = 'M'; App.touch(); App.refresh(); }); await tab(page, 'roster'); await tab(page, 'uniforms'); await page.waitForTimeout(250);
     assert((await cols(page)).includes('Size ordered') && (await cols(page)).includes('Size given'), 'data in the older boxes brings them back'); await ctx.close();
   });

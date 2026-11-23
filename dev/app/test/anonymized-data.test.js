@@ -127,14 +127,14 @@ test('notes and flags, holds, received dates and Given entries (all keyed by rea
   real.flags = { f1: { kid: id, level: 'box', book: 'HG', block: 'RJ1', key: 'RJ1.2', note: secret, at: '2026-11-05' } };
   real.progressNoDate = { [id]: { AoG: ['1.1'] } }; real.extraSheets = { [id]: ['WR'] }; real.announcedNoDate = { [id]: ['HG Red Jewel 1'] }; real.blueDrops = { [id]: ['1|2026-10-07'] }; real.blueWings = { [id]: [{ book: 'HG', slot: 1, n: 1 }] };
   real.blueOverrides = { [id]: [{ book: 'HG', n: 2, date: '2026-10-07', note: secret }] };      // a leader's note about the child
-  real.held = { [id]: { 'HG Red Jewel 1': 1 } }; real.received = { [id]: { HG: '2026-09-16' } }; real.doneBooks = { [id]: ['HG'] }; real.givenNoDate = { [id]: ['HG Red Jewel 1'] }; real.given = Object.assign({}, real.given, { [id]: { 'HG Red Jewel 1': '2026-10-21' } });
+  real.held = { [id]: { 'HG Red Jewel 1': 1 } }; real.received = { [id]: { HG: '2026-09-16' } }; real.doneBooks = { [id]: ['HG'] }; real.doneReviews = { [id]: ['HG'] }; real.givenNoDate = { [id]: ['HG Red Jewel 1'] }; real.given = Object.assign({}, real.given, { [id]: { 'HG Red Jewel 1': '2026-10-21' } });
   real.history = (real.history || []).concat([{ t: '2026-11-05T12:00:00', label: 'flagged: ' + secret, changes: [{ p: ['flags', 'f1'], n: real.flags.f1 }] }]);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'awana-anon-')), src = path.join(tmp, path.basename(dataPath)); fs.writeFileSync(src, JSON.stringify(real));
   const out = path.join(tmp, 'out'); cp.execFileSync('node', [tool, src, exportPath, out]);
   const text = fs.readFileSync(path.join(out, fs.readdirSync(out).find(f => f.endsWith('.json'))), 'utf8'), a = JSON.parse(text), anonIds = new Set(Object.keys(a.roster.people));
   assert(!('flags' in a), 'no flags section'); assert(!/SECRETNOTE/.test(text), 'no flag note anywhere, history included'); assert(!text.includes(id), 'the real ID does not appear');
-  ['given', 'givenNoDate', 'held', 'received', 'doneBooks', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops'].forEach(k => assert(Object.keys(a[k] || {}).every(x => anonIds.has(x)), k + ' is keyed by invented IDs only'));
-  ['progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops'].forEach(k => assert(Object.keys(a[k] || {}).length === 1, k + ' is kept, renamed'));
+  ['given', 'givenNoDate', 'held', 'received', 'doneBooks', 'doneReviews', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops'].forEach(k => assert(Object.keys(a[k] || {}).every(x => anonIds.has(x)), k + ' is keyed by invented IDs only'));
+  ['progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'doneReviews'].forEach(k => assert(Object.keys(a[k] || {}).length === 1, k + ' is kept, renamed'));
   assert(Object.keys(a.held || {}).length === 1 && Object.keys(a.received || {}).length === 1, 'the holds and received dates are kept, renamed');
   const bad = path.join(tmp, 'bad.json'); fs.writeFileSync(bad, JSON.stringify(Object.assign({}, real, { surprise: { [id]: 'x' } })));
   assert.throws(() => cp.execFileSync('node', [tool, bad, exportPath, path.join(tmp, 'out2')], { stdio: 'pipe' }), /does not know the data key/, 'an unknown section stops the run');

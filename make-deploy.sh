@@ -12,6 +12,7 @@ build=$(mktemp -d); trap 'rm -rf "$build"' EXIT
 mkdir -p "$build/app"
 rsync -a --exclude test/ --exclude '*.js' dev/app/ "$build/app/"
 [ -f version-history.html ] && cp version-history.html "$build/app/version-history.html"      # the version history page lives in the project root (one copy); it is published with the app
+node dev/tools/backlog-html.js "$build/app/backlog.html"
 for f in dev/app/*.js; do [ "$(basename "$f")" = sw.js ] && continue; node dev/tools/minify.js "$f" "$build/app/$(basename "$f")"; done      # sw.js is a template, written below
 stale=""; changed=n
 for f in dev/app/*.js dev/app/*.html; do
@@ -41,6 +42,7 @@ rel="$(sed -n 's/.*name="app-version" content="\([^"]*\)".*/\1/p' dev/app/index.
 other=$(cd "$build/app" && find . -type f ! -name '*.js' ! -name '*.html' | while IFS= read -r f; do cmp -s "$f" "$OLDPWD/deploy/app/$f" || echo "$f"; done)      # styles, fonts, manifest, icons: new or different
 gone=$(cd deploy/app 2>/dev/null && find . -type f ! -path './try/*' ! -name sw.js ! -name drive-config.js | while IFS= read -r f; do [ -f "$build/app/$f" ] || echo "$f"; done || true)      # deployed files that dev no longer has (none on a first deploy)
 [ -n "$other$gone" ] && changed=y
+cmp -s "$build/app/backlog.html" deploy/app/backlog.html || changed=y
 [ -f deploy-config/drive-config.js ] && [ -f deploy/app/drive-config.js ] && ! cmp -s deploy-config/drive-config.js deploy/app/drive-config.js && changed=y
 old=$(sed -n "s/.*const RELEASE = '\([^']*\)'.*/\1/p" deploy/app/sw.js 2>/dev/null | head -1)
 if [ "$changed" = y ] && [ -n "$old" ] && [ "$old" = "$rel" ]; then echo "STOP: files changed but app-version and app-build are unchanged (release $rel). Bump app-version in dev/app/index.html."; exit 1; fi

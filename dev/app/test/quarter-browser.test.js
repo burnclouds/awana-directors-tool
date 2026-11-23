@@ -31,7 +31,7 @@ const server = http.createServer((req, res) => {
   });
   await test('a quarter typed by hand holds for a week (this page session), then the calendar takes over again', async () => {
     const { page, ctx } = await open('2027-01-15');
-    await page.click('button[data-tab="reports"]'); await page.click('#qWrap button[data-q="Q1"]'); await page.waitForTimeout(200);
+    await page.click('button[data-tab="reports"]'); await page.click('#btnReportOptions'); await page.click('#qWrap button[data-q="Q1"]'); await page.click('#pgDone'); await page.waitForTimeout(200);
     assert.strictEqual(await page.evaluate(() => App.settings.quarter), 'Q1');
     await page.clock.setFixedTime(new Date('2027-01-18T12:00:00')); await page.click('button[data-tab="roster"]'); await page.waitForTimeout(150);
     assert.strictEqual(await page.evaluate(() => App.settings.quarter), 'Q1', 'three days old: still the override');
@@ -41,7 +41,7 @@ const server = http.createServer((req, res) => {
   });
   await test('choosing a quarter on the Reports tab becomes an override kept in memory with today\'s date, and nothing is written to the browser', async () => {
     const { page, ctx } = await open('2027-01-15');
-    await page.click('button[data-tab="reports"]'); await page.click('#qWrap button[data-q="Q4"]'); await page.waitForTimeout(200);
+    await page.click('button[data-tab="reports"]'); await page.click('#btnReportOptions'); await page.click('#qWrap button[data-q="Q4"]'); await page.click('#pgDone'); await page.waitForTimeout(200);
     const s = await page.evaluate(() => ({ q: App.settings.quarter, o: App.settings.quarterOverride, keys: Object.keys(localStorage).filter(k => /^awana/.test(k)) }));
     assert.strictEqual(s.q, 'Q4'); assert.deepStrictEqual(s.o, { q: 'Q4', on: '2027-01-15' });
     assert(!s.keys.includes('awana.settings'), 'no settings key in the browser');
@@ -53,9 +53,10 @@ const server = http.createServer((req, res) => {
     const shown = async id => page.evaluate(i => { const e = document.getElementById(i); return !!e && !e.hidden && e.offsetParent !== null; }, id);
     for (const [report, want] of [['attendance', true], ['teams', true],      // binderClass shows each child's color team for the quarter (N30), so it depends on the quarter
        ['binderClass', true], ['uniforms', false], ['binderAll', true], ['handbooks', false]]) {
-      await page.selectOption('#rSel', report); await page.waitForTimeout(150);
+      await page.selectOption('#rSel', report); await page.click('#btnReportOptions');
       for (const id of ['qWrap']) assert.strictEqual(await shown(id), want, report + ': ' + id + ' should be ' + (want ? 'shown' : 'hidden'));
       if (!want) assert.strictEqual(await shown('calNote'), false, report + ': the nights note should be hidden');
+      await page.click('#pgDone');
     }
     await ctx.close();
   });

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['model.js'] = '1.10.4';
+(this.AwanaVersions = this.AwanaVersions || {})['model.js'] = '1.10.6';
 // Roster data model: Planning Center import/merge, plus the roster section of the data JSON.
 //
 // The Planning Center export is the only CSV and is read-only input. Everything you own (colors, uniforms, notes, pending
@@ -28,6 +28,17 @@
   const UNI = { SIZE_VERIFIED: 'x_Uni_SizeVerified', ORDERED: 'x_Uni_OrderedDate', SIZE_ORDERED: 'x_Uni_SizeOrdered',
     RECEIVED: 'x_Uni_ReceivedDate', GIVEN: 'x_Uni_GivenDate', GIVEN_FLAG: 'x_Uni_GivenFlag', SIZE_GIVEN: 'x_Uni_SizeGiven', NOTES: 'x_Uni_Notes' };
   // Given out: a date, or the box ticked when it was handed over but nobody wrote down when (either one counts).
+  function uniHasGivenDate(p) {
+    const value = p[UNI.GIVEN];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const date = new Date(value + 'T00:00:00Z');
+    return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }
+  function setUniformField(p, col, value) {
+    const hadDate = col === UNI.GIVEN && uniHasGivenDate(p);
+    p[col] = value;
+    if (hadDate || ((col === UNI.GIVEN || col === UNI.GIVEN_FLAG) && uniHasGivenDate(p))) p[UNI.GIVEN_FLAG] = '';
+  }
   const uniGiven = p => !!(p[UNI.GIVEN] || p[UNI.GIVEN_FLAG]);
   // Later steps settle earlier ones: a uniform given out (a date, or the no-date box) needs no order and no receive date; one received needs no order date.
   const uniToOrder = p => !p[UNI.ORDERED] && !p[UNI.RECEIVED] && !uniGiven(p);
@@ -561,7 +572,7 @@
   }
 
   const api = {
-    hasPhoneDigits, parentPhone, regContactPhone, C, X, UNI, uniGiven, uniToOrder, uniToReceive, canon, normalizePc, readExport, columnReport, PC_ROLES, PC_KNOWN, uniformItems, uniformKind, wantsUniform, uniformLegacy, BASE_USER_COLS, ROOM_ORDER, IMPORTANT_COLS, isUserCol, norm, eff, setField, clubPhone, emergencyPhone,
+    hasPhoneDigits, parentPhone, regContactPhone, C, X, UNI, uniHasGivenDate, setUniformField, uniGiven, uniToOrder, uniToReceive, canon, normalizePc, readExport, columnReport, PC_ROLES, PC_KNOWN, uniformItems, uniformKind, wantsUniform, uniformLegacy, BASE_USER_COLS, ROOM_ORDER, IMPORTANT_COLS, isUserCol, norm, eff, setField, clubPhone, emergencyPhone,
     HIDDEN_COLS, ROSTER_KEYS, isGuest, unlinkedRecords, linkToPc, emptyMaster, loadMaster, pendingChanges, pendingText, toRows, toCsv, toRoster, fromRoster, hashText, captureExport, exportBack, CAPTURE_KEYS, exportDate, olderExport, needsReview, setActive, TRACKED, addUserCol, planImport, applyPlan, addManualPerson,
     isActive, isVolunteer, isClubber, childTestOf, room, fullName, groupOf, hasColorTeams, roomRank,
     md, esc, byRoomThenName, byFirstName, medicalText, noPhotos, teamOf, NO_TEAM, noTeam, setTeamChoice, photoRequest, matchKey, similarity,

@@ -595,8 +595,8 @@ const server = http.createServer((req, res) => {
     await page.selectOption('#awGroup', 'T&T'); await page.waitForTimeout(200); assert.strictEqual(await page.inputValue('#awRoom'), '', 'changing group clears the class');
     await page.selectOption('#awGroup', 'Sparks'); await page.waitForTimeout(150); await page.selectOption('#awRoom', rooms[1]); await page.waitForTimeout(150); await page.click('#btnAwHandPrint'); await page.waitForTimeout(300);
     assert.strictEqual(await page.evaluate(() => App.tab), 'reports'); assert.strictEqual(await page.inputValue('#oRoomSel'), rooms[1]); assert(new RegExp(rooms[1]).test(await page.textContent('#report')), 'the report is for that class');
-    for (const id of ['awardsByChild', 'progressSheets']) { await page.selectOption('#rSel', id); await page.waitForTimeout(200); assert(await page.isVisible('#oRoom'), id + ' has a Class picker'); }
-    await page.selectOption('#rSel', 'awardsByChild'); await page.selectOption('#oRoomSel', rooms[1]); await page.waitForTimeout(250);
+    for (const id of ['awardsByChild', 'progressSheets']) { await page.selectOption('#rSel', id); await page.click('#btnReportOptions'); assert(await page.isVisible('#oRoom'), id + ' has a Class picker'); await page.click('#pgDone'); }
+    await page.selectOption('#rSel', 'awardsByChild'); await page.click('#btnReportOptions'); await page.selectOption('#oRoomSel', rooms[1]); await page.click('#pgDone'); await page.waitForTimeout(250);
     const kidsOnPage = await page.$$eval('#report section.sheet .achild', h => h.length), inRoom = await page.evaluate(r => App.master.people.filter(p => Model.isClubber(p) && Model.isActive(p) && Model.room(p) === r).length, rooms[1]); assert.strictEqual(kidsOnPage, inRoom, 'one block per child in that class (B9: children share pages)');
     await page.close();
   });
@@ -628,7 +628,7 @@ const server = http.createServer((req, res) => {
     const { page } = await open();
     const ids = await page.evaluate(() => { const ids = App.master.people.filter(p => Model.isClubber(p) && Model.isActive(p) && Model.groupOf(Model.room(p)) === 'Sparks').slice(0, 3).map(p => p.x_ClubberID); App.commitScope(() => { ids.forEach(id => ['1', '2', '3', '4', 'rev'].forEach(i => Season.setProgress(App.season, id, 'HG', 'GJ1.' + i, '2026-10-21'))); App.changed(); }); return ids; });
     await tab(page, 'awards'); await page.waitForTimeout(250); await page.selectOption('#awGroup', 'Sparks'); await page.waitForTimeout(250);
-    const date = await page.inputValue('#awDateWrap select'), onSlide = async () => page.evaluate(d => Slides.buildSlides(App.season, App.master, d).slides.reduce((n, s) => n + s.count, 0), date);
+    const date = await page.evaluate(() => App.nextNight()), onSlide = async () => page.evaluate(d => Slides.buildSlides(App.season, App.master, d).slides.reduce((n, s) => n + s.count, 0), date);
     assert(/Announce on/.test(await page.textContent('#awSecAnnounce h3')), 'the announce list shows'); const waiting = await page.locator('#awSecAnnounce tbody tr[data-award]').count(); assert(waiting >= 3, 'three earned: ' + waiting);
     const s0 = await onSlide(); assert.strictEqual(await page.evaluate(([i, d]) => ((App.season.awards[d] || {})[i] || []).includes('HG Green Jewel 1'), [ids[0], date]), false, 'not announced yet');
     assert(s0 >= waiting, 'the slides already show what is waiting, before anything is announced: ' + s0 + ' vs ' + waiting); assert.strictEqual(await onSlide(), s0, 'drawing the slides again changes nothing');
@@ -712,7 +712,7 @@ const server = http.createServer((req, res) => {
   });
   await test('Slide images: with nothing waiting to be announced the download buttons are greyed out with a big note; once an award is earned they work', async () => {
     const { page } = await open(); await tab(page, 'awards'); await page.waitForTimeout(250);
-    await page.evaluate(() => App.commitScope(() => { const S = Season, s = App.season; App.master.people.filter(p => Model.isClubber(p) && Model.isActive(p)).forEach(p => { const id = p.x_ClubberID, g = Model.groupOf(Model.room(p)); if (['Cubbies', 'Sparks', 'T&T'].includes(g)) S.announce(s, document.querySelector('#awDateWrap select').value, S.pendingAwards(s, id, g, App.calendar).map(r => [id, r.award])); }); App.changed(); }));
+    await page.evaluate(() => App.commitScope(() => { const S = Season, s = App.season; App.master.people.filter(p => Model.isClubber(p) && Model.isActive(p)).forEach(p => { const id = p.x_ClubberID, g = Model.groupOf(Model.room(p)); if (['Cubbies', 'Sparks', 'T&T'].includes(g)) S.announce(s, App.nextNight(), S.pendingAwards(s, id, g, App.calendar).map(r => [id, r.award])); }); App.changed(); }));
     await page.waitForTimeout(250); await page.click('#btnAwImages'); await page.waitForTimeout(500);
     assert(await page.isVisible('#slEmpty') && /waiting to be announced/.test(await page.textContent('#slEmpty')), 'a visible note');
     assert.strictEqual(await page.isDisabled('#slAll'), true, 'Download all is greyed out'); assert.strictEqual(await page.isDisabled('#slOne'), true, 'and so is Download this slide');

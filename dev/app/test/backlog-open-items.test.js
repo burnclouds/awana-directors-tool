@@ -60,7 +60,7 @@ check('B6', 'hand-out, end-of-year and awards-per-child lists print no tick day 
 // ---- B3: the Binders button must set the paper like every other report path (source-level; B3 is confirmed by a PDF in the review) ----
 check('B3-source', 'the Binders button draws #report through renderReport(), which sets the paper (setPageStyle)', () => {
   const go = app.slice(app.indexOf("$('bindGo').onclick")), end = go.indexOf('};\n  });'), body = go.slice(0, end > 0 ? end : 1500);
-  assert(/renderReport\(\)/.test(body), 'bindGo never calls renderReport()'); const rr = app.slice(app.indexOf('function renderReport()'), app.indexOf('function renderReport()') + 1200); assert(/pagePick\(\)/.test(rr), 'renderReport does not refresh the page choice'); assert(/setPageStyle\(\)/.test(app.slice(app.indexOf('function renderBundle'), app.indexOf('function renderBundle') + 3000)), 'renderBundle does not set the paper');
+  assert(/renderReport\(\)/.test(body), 'bindGo never calls renderReport()'); const rr = app.slice(app.indexOf('function renderReport()'), app.indexOf('function renderReport()') + 1200); assert(/pagePick\(\)/.test(rr), 'renderReport does not refresh the page choice'); assert(/setPageStyle\(\)/.test(app.slice(app.indexOf('function renderBundle'), app.indexOf('function setPageStyle'))), 'renderBundle does not set the paper');
 });
 check('B3-source-pagepick', 'the Binders button also refreshes the page choice (renderReport calls pagePick)', () => {
   const go = app.slice(app.indexOf("$('bindGo').onclick")), body = go.slice(0, 1500);

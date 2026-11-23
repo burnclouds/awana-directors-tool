@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.10.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-tools.js'] = '1.10.1';
 // Debug and Validate tabs. Debug: which version of every file is running, what is open, and the dates of the CSV/JSON files.
 // Validate: check a data file, Planning Center export or older CSV for problems without opening it into the app.
 (function () {
@@ -67,6 +67,8 @@
   // A bare handbook code is the "Books with no dates" section above, so it is not listed twice here.
   let odd = null;
   const ODD = {
+    'uniform-given-conflict': ['Uniform Given out date with a no-date flag', 'Clear the no-date flag and keep the recorded Given out date.'],
+    'cubbies-handbook': ['Received Cubbies book differs from current handbook', 'The received date alone does not mark a Cubbies book current. Assign a handbook where exactly one unfinished book was received and the handbook field is empty. Review the other records on the Person tab.'],
     'handbook-group': ['Handbook for another class\'s book', 'The handbook names a book that belongs to a different group from the child\'s class. A bare code can be cleared; one with a date or a note is left for you to look at.'],
     'received-book': ['Received date with no matching book', 'A received date for a book that is not in the book list, or belongs to another group. These hold a date, so they are only shown: fix the book list or the date on the child\'s Person page.'],
     'progress-book': ['Sign-offs under an unknown book', 'Sign-off dates kept under a book that is no longer in the book list. They are only shown: add the book back in Options, or move the dates by hand.'],
@@ -76,12 +78,24 @@
     'note-with-reply-text': ['Note that contains its own reply', 'An older Edit copied a note\'s replies into the note\'s text. Only shown: open the note on To do, press Edit, and remove the copied reply text (the replies themselves are kept as separate messages).'],
     'award-twice': ['Same award announced on more than one night', 'The same award announced on two nights. It may be right (a repeat announcement), so it is only shown.']
   };
-  const FIXWORD = { clearHandbook: n => 'Clear these ' + n + ' handbook code' + (n === 1 ? '' : 's'), dedupeAwards: n => 'Keep one copy in these ' + n };
+  const plural = n => n === 1 ? '' : 's';
+  const FIXWORD = {
+    clearHandbook: n => 'Clear these ' + n + ' handbook code' + plural(n),
+    dedupeAwards: n => 'Keep one copy in these ' + n,
+    clearUniformGivenFlag: n => 'Clear ' + n + ' uniform no-date flag' + plural(n),
+    assignCubbiesHandbook: n => 'Assign ' + n + ' received Cubbies handbook' + plural(n)
+  };
+  const FIXLOG = {
+    clearHandbook: n => 'cleared ' + n + ' handbook code' + plural(n),
+    dedupeAwards: n => 'kept one copy of ' + n + ' award list' + plural(n),
+    clearUniformGivenFlag: n => 'cleared ' + n + ' uniform no-date flag' + plural(n),
+    assignCubbiesHandbook: n => 'assigned ' + n + ' received Cubbies handbook' + plural(n)
+  };
   const oddGroup = id => { const p = App.master && App.master.people.find(x => x[Model.X.ID] === id); return p && Model.isClubber(p) ? Model.groupOf(Model.room(p)) : ''; };
   const oddList = s => Season.oddballs(s, oddGroup).filter(r => r.check !== 'bare-handbook');
   function oddHtml() {
     const s = App.season; if (!s) return '';
-    let h = '<h3>Records that look wrong</h3><p class="status">Finds records that do not add up: a handbook for another class\'s book, a date for a book that is not in the list, a note about someone who left, a color that is not one of the four, an award listed twice. <b>Check</b> only looks. A fix button appears only where the fix loses nothing; every other row is shown for you to decide. Undo takes a fix back.</p>';
+    let h = '<h3>Records that look wrong</h3><p class="status">Checks uniform dates, handbook assignments, book dates, notes, team colors and awards. <b>Check</b> only looks. A fix button appears where the correction preserves recorded information. Undo takes a fix back.</p>';
     if (!odd) return h + '<p><button type="button" id="dbgOddCheck">Check the file</button></p>';
     if (!odd.length) return h + '<p class="ok">None found.</p><p><button type="button" id="dbgOddCheck">Check again</button></p>';
     const name = id => { const p = App.master && App.master.people.find(x => x[Model.X.ID] === id); return p ? Model.fullName(p) + (Model.room(p) ? ' (' + Model.room(p) + ')' : '') : id ? '(not on the roster)' : '(no child)'; };
@@ -145,7 +159,10 @@
         ['Saved settings in this browser', esc(storage)], ['Browser', esc(navigator.userAgent)]]);
   }
   App.renderDebug = renderDebug;
-  if (App.onRefresh) App.onRefresh.push(() => { if ($('debugWrap').offsetParent) renderDebug(); });      // another leader's report or reply arrives with a merge
+  if (App.onRefresh) App.onRefresh.push(() => {
+    if (odd && App.season) odd = oddList(App.season);
+    if ($('debugWrap').offsetParent) renderDebug();
+  });
   $('debugWrap').addEventListener('click', e => {
     const t = e.target.closest('[data-bugfilter],[data-bugreply],[data-bugadd],[data-bugcancel],[data-bugdel],[data-buggo],[data-bugrm]'); if (!t || !App.season) return;
     if (t.dataset.bugfilter) { bugFilter = t.dataset.bugfilter; renderDebug(); return; }
@@ -168,8 +185,15 @@
     if (s && id === 'dbgReadable') { App.testGate(e.target, () => App.download('awana-' + s.year + '-READABLE-' + App.today().replace(/-/g, '') + '.json', JSON.stringify(Season.readableCopy(s), null, 1), 'application/json', { local: true })); return; }
     const fixCheck = e.target.dataset && e.target.dataset.oddfix;
     if (s && fixCheck) {      // one click is one History entry of its own (labelled, never folded into an earlier edit) and one Undo step
-      const rows = oddList(s).filter(r => r.check === fixCheck && r.fix); let n = 0; rows.forEach(r => { if (Season.fixOddball(s, r)) n++; });
-      const kind = rows.length && rows[0].fix, logged = n && App.importChanged('Debug: ' + (kind === 'clearHandbook' ? 'cleared ' + n + ' handbook code' : 'kept one copy of ' + n + ' award list') + (n === 1 ? '' : 's'));
+      const rows = oddList(s).filter(r => r.check === fixCheck && r.fix);
+      const fixed = rows.filter(r => Season.fixOddball(s, r, oddGroup));
+      const n = fixed.length;
+      if (n && fixed[0].fix === 'clearUniformGivenFlag') {
+        // History syncs from the live roster, so apply the correction there as well.
+        const fixedIds = new Set(fixed.map(r => r.id));
+        App.master.people.forEach(p => { if (fixedIds.has(p[Model.X.ID])) p[Model.UNI.GIVEN_FLAG] = ''; });
+      }
+      const logged = n && App.importChanged('Debug: ' + FIXLOG[fixed[0].fix](n));
       odd = oddList(s); renderDebug(); if (logged) App.done(n + ' record' + (n === 1 ? '' : 's') + ' fixed. Undo takes it back.'); return;
     }
     if (!s || !['dbgAssumedCount', 'dbgAssumedClear'].includes(id)) return;

@@ -42,7 +42,41 @@ const server = http.createServer((req, res) => {
     await page.evaluate(() => { App.season.roster = Model.toRoster(App.master); });      // what Download data file writes
     assert.strictEqual(await page.evaluate(i => App.season.roster.people[i].v.x_Uni_GivenFlag, id), '1', 'it is in the data file');
     await page.fill('#personWrap input[data-u="x_Uni_GivenDate"]', '2026-10-21'); await page.press('#personWrap input[data-u="x_Uni_GivenDate"]', 'Tab'); await page.waitForTimeout(200);
-    assert.strictEqual(await page.evaluate(i => App.master.people.find(x => x[Model.X.ID] === i)[Model.UNI.GIVEN], id), '2026-10-21'); await page.close();
+    assert.strictEqual(await page.evaluate(i => App.master.people.find(x => x[Model.X.ID] === i)[Model.UNI.GIVEN], id), '2026-10-21');
+    assert(!(await box.isChecked()) && await box.isDisabled());
+    assert.strictEqual(await page.evaluate(i => Model.toRoster(App.master).people[i].v[Model.UNI.GIVEN_FLAG], id), undefined);
+    await page.close();
+  });
+  await test('entering a date or using Today clears the flag in Uniforms; Today also clears it on Person', async () => {
+    const { page } = await open();
+    const id = await noOrder(page);
+    const verify = async (box, date) => {
+      assert(!(await box.isChecked()) && await box.isDisabled());
+      assert.deepStrictEqual(await page.evaluate(i => {
+        const v = Model.toRoster(App.master).people[i].v;
+        return [v[Model.UNI.GIVEN], v[Model.UNI.GIVEN_FLAG] || ''];
+      }, id), [date, '']);
+    };
+    await tab(page, 'uniforms');
+    const row = page.locator('#uniWrap tr[data-id="' + id + '"]');
+    const box = row.locator('input[data-uflag]'), date = row.locator('input[data-u="x_Uni_GivenDate"]');
+    await box.check();
+    await date.fill('2026-10-21');
+    await verify(box, '2026-10-21');
+    await date.fill('');
+    assert(await box.isEnabled());
+    await box.check();
+    const today = await page.evaluate(() => App.today());
+    await row.locator('button[data-utoday="x_Uni_GivenDate"]').click();
+    await verify(box, today);
+    await date.fill('');
+    await page.evaluate(i => App.showPerson(i), id);
+    await page.click('#peSub button[data-sub="registration"]');
+    const personBox = page.locator('#personWrap input[data-flag="x_Uni_GivenFlag"]');
+    await personBox.check();
+    await page.click('#personWrap button[data-utoday="x_Uni_GivenDate"]');
+    await verify(personBox, today);
+    await page.close();
   });
   await test('on a phone the no-date box is still there (only the (i) notes are hidden)', async () => {
     const { page } = await open(); await page.setViewportSize({ width: 390, height: 844 }); await tab(page, 'uniforms'); await page.waitForTimeout(250);

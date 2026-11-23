@@ -10,19 +10,20 @@ const { open } = require('./lib/app-page');
   const show = async () => { await page.evaluate(() => { App.showReport('progressSheets'); }); await page.waitForTimeout(500); };
   await show();
   await t.test('the Books picker is on Progress sheets: current book, every book started, blank sheets; and it opens on the current book (one page per child)', async () => {
+    await page.click('#btnReportOptions');
     assert(await page.isVisible('#oBooks'), 'the picker shows'); assert.deepStrictEqual(await page.$$eval('#oBooksSel option', o => o.map(x => x.value)), ['current', 'all', 'blank']); assert.strictEqual(await page.inputValue('#oBooksSel'), 'current');
-    await page.selectOption('#oRoomSel', 'Sparks A'); await page.waitForTimeout(400); assert.strictEqual(await pages(), await kids('Sparks A')); assert(!(await page.isVisible('#oBlanks')), 'the blank count is hidden until Blank is picked');
+    await page.selectOption('#oRoomSel', 'Sparks A'); await page.click('#pgDone'); await page.waitForTimeout(400); assert.strictEqual(await pages(), await kids('Sparks A')); assert(!(await page.isVisible('#oBlanks')), 'the blank count is hidden until Blank is picked');
   });
   await t.test('Every book started: the child with two books gets two pages', async () => {
-    await page.selectOption('#oBooksSel', 'all'); await page.waitForTimeout(400); assert.strictEqual(await pages(), (await kids('Sparks A')) + 1);
+    await page.click('#btnReportOptions'); await page.selectOption('#oBooksSel', 'all'); await page.click('#pgDone'); await page.waitForTimeout(400); assert.strictEqual(await pages(), (await kids('Sparks A')) + 1);
   });
   await t.test('Blank sheets: the count box appears (3), and the class prints that many blanks with the class and year, no child names', async () => {
-    await page.selectOption('#oBooksSel', 'blank'); await page.waitForTimeout(400); assert(await page.isVisible('#oBlanks')); assert.strictEqual(await page.inputValue('#oBlanksNum'), '3'); assert.strictEqual(await pages(), 3);
+    await page.click('#btnReportOptions'); await page.selectOption('#oBooksSel', 'blank'); await page.click('#pgDone'); await page.waitForTimeout(400); await page.click('#btnReportOptions'); assert(await page.isVisible('#oBlanks')); assert.strictEqual(await page.inputValue('#oBlanksNum'), '3'); assert.strictEqual(await pages(), 3);
     const h = await page.textContent('#report'); assert(h.includes('Sparks A') && h.includes('2026-27') && !h.includes(await page.evaluate(() => window.__kidName)), 'class and year, no name');
-    await page.fill('#oBlanksNum', '5'); await page.dispatchEvent('#oBlanksNum', 'change'); await page.waitForTimeout(400); assert.strictEqual(await pages(), 5);
+    await page.fill('#oBlanksNum', '5'); await page.dispatchEvent('#oBlanksNum', 'change'); await page.click('#pgDone'); await page.waitForTimeout(400); assert.strictEqual(await pages(), 5);
   });
   await t.test('Blank sheets for All classes: the count for every class that has a progress sheet (never Puggles)', async () => {
-    await page.fill('#oBlanksNum', '2'); await page.dispatchEvent('#oBlanksNum', 'change'); await page.selectOption('#oRoomSel', ''); await page.waitForTimeout(800);
+    await page.click('#btnReportOptions'); await page.fill('#oBlanksNum', '2'); await page.dispatchEvent('#oBlanksNum', 'change'); await page.selectOption('#oRoomSel', ''); await page.click('#pgDone'); await page.waitForTimeout(800);
     const n = await page.evaluate(() => Reports.roomsOf(Reports.kids(App.master)).filter(r => Model.groupOf(r) !== 'Puggles').length); assert.strictEqual(await pages(), 2 * n, 'classes ' + n);
   });
   await t.test('the report list no longer offers Achievement records, and the Books picker is not on other reports', async () => {
@@ -36,10 +37,10 @@ const { open } = require('./lib/app-page');
     assert.strictEqual(await pages(), 2, 'the child\'s two books are two pages'); assert((await page.textContent('#report')).includes(await page.evaluate(() => window.__kidName)), 'the child\'s name');
   });
   await t.test('the Print class binders pop-up can add blank progress sheets after each class: a count box, default 3, 0 leaves them out', async () => {
-    await page.evaluate(() => App.showTab('reports')); await page.click('#rSubs button[data-rsub="binders"]'); await page.click('#btnBinders'); await page.waitForTimeout(200);
+    await page.evaluate(() => App.showTab('reports')); await page.click('#rSubs button[data-rsub="binders"]'); await page.click('#btnReportOptions'); await page.click('#btnBinders'); await page.waitForTimeout(200);
     assert.strictEqual(await page.inputValue('#bindBlanks'), '3'); await page.click('#bindNone'); await page.check('#dlg input[data-room="Sparks A"]'); await page.click('#bindGo'); await page.waitForTimeout(600);
     const n = await kids('Sparks A'), withBlanks = await pages(); assert.strictEqual(withBlanks, n + 3, 'children then 3 blanks');
-    await page.click('#btnBinders'); await page.waitForTimeout(200); await page.fill('#bindBlanks', '0'); await page.dispatchEvent('#bindBlanks', 'change'); await page.click('#bindNone'); await page.check('#dlg input[data-room="Sparks A"]'); await page.click('#bindGo'); await page.waitForTimeout(600); assert.strictEqual(await pages(), n);
+    await page.click('#btnReportOptions'); await page.click('#btnBinders'); await page.waitForTimeout(200); await page.fill('#bindBlanks', '0'); await page.dispatchEvent('#bindBlanks', 'change'); await page.click('#bindNone'); await page.check('#dlg input[data-room="Sparks A"]'); await page.click('#bindGo'); await page.waitForTimeout(600); assert.strictEqual(await pages(), n);
   });
   await t.test('no script errors', async () => { assert.strictEqual(errs.length, 0, errs.join(' | ')); });
   await t.done();

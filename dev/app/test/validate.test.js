@@ -175,7 +175,7 @@ test('the TEST file has no errors or warnings, and every finding says which chec
   assert(bad.findings.some(f => f.check === 'attendance'), 'the attendance error says "attendance"');
 });
 test('a section that is not an object is an error that says the records would be lost, for every object section', () => {
-  const words = { blueDrops: 'Dropped Blue Jewel', held: 'Held awards', doneBooks: 'Books finished before', received: 'Date received', givenNoDate: 'Given, no date', progressNoDate: 'No-date sign-offs', extraSheets: 'Added sheets', announcedNoDate: 'Told, no date', blueWings: 'Blue Jewel placement', blueOverrides: 'Blue Jewel given by hand', flags: 'Flag' };
+  const words = { blueDrops: 'Dropped Blue Jewel', held: 'Held awards', doneBooks: 'Books finished before', doneReviews: 'Reviews finished before', received: 'Date received', givenNoDate: 'Given, no date', progressNoDate: 'No-date sign-offs', extraSheets: 'Added sheets', announcedNoDate: 'Told, no date', blueWings: 'Blue Jewel placement', blueOverrides: 'Blue Jewel given by hand', flags: 'Flag' };
   Object.keys(words).forEach(k => { const r = mut(o => { o[k] = []; }); assert(hasC(r, 'error', new RegExp(words[k] + ' section is a list.*lost at the next save'), k), k + ': ' + levels(r).join(' | ')); });
   ['handbooks', 'attendance', 'awards', 'given', 'adults', 'teamMoves', 'games', 'progress'].forEach(k => { const r = mut(o => { o[k] = 'x'; }); assert(has(r, 'error', /section is text.*lost at the next save/), k + ': ' + levels(r).join(' | ')); });
   assert(hasC(mut(o => { o.blueDrops = null; }), 'error', /section is empty \(null\)/, 'blueDrops'));
@@ -197,6 +197,9 @@ test('flags: a flag has a real level, a note, a real date and (mostly) a known c
 test('doneBooks, received, givenNoDate, progressNoDate, extraSheets, announcedNoDate: shape errors and half-pairs', () => {
   assert(hasC(mut((o, k) => { o.doneBooks = { [k]: 'AoG' }; }), 'error', /Books finished before/, 'doneBooks'));
   assert(hasC(mut((o, k) => { o.doneBooks = { [k]: ['ZZ'] }; }), 'warn', /not in the list of books \(/, 'doneBooks'));
+  assert(hasC(mut((o, k) => { o.doneReviews = { [k]: 'HG' }; }), 'error', /Reviews finished before/, 'doneReviews'));
+  assert(hasC(mut((o, k) => { o.doneReviews = { [k]: ['ZZ'] }; }), 'warn', /not in the list of books \(/, 'doneReviews'));
+  assert(hasC(mut((o, k) => { o.doneReviews = { [k]: ['AoG'] }; }), 'warn', /without Sparks reviews/, 'doneReviews'));
   assert(hasC(mut((o, k) => { o.received = { [k]: { HG: '2026-02-30' } }; }), 'error', /Date received/, 'received'));
   assert(!has(mut((o, k) => { o.received = { [k]: { HG: 'no date' } }; }), 'error', /./) && !has(mut((o, k) => { o.received = { [k]: { HG: '' } }; }), 'error', /./), '"no date" and empty are fine');
   assert(hasC(mut((o, k) => { o.received = { [k]: { ZZ: '2026-09-16' } }; }), 'warn', /not in the list of books/, 'received'));
@@ -206,7 +209,7 @@ test('doneBooks, received, givenNoDate, progressNoDate, extraSheets, announcedNo
   assert(hasC(mut((o, k) => { o.progressNoDate = { [k]: { HG: ['RJ1.9'] } }; }), 'warn', /has no sign-off/, 'progressNoDate'));
   assert(hasC(mut((o, k) => { o.extraSheets = { [k]: { WR: 1 } }; }), 'error', /Added sheets/, 'extraSheets'));
   assert(hasC(mut((o, k) => { o.announcedNoDate = { [k]: 'X' }; }), 'error', /Told, no date/, 'announcedNoDate'));
-  assert(!has(mut((o, k) => { o.announcedNoDate = { [k]: ['HG Red Jewel 2'] }; o.extraSheets = { [k]: ['WR'] }; o.doneBooks = { [k]: ['AoG'] }; }), 'warn', /./), 'valid values are fine');
+  assert(!has(mut((o, k) => { o.announcedNoDate = { [k]: ['HG Red Jewel 2'] }; o.extraSheets = { [k]: ['WR'] }; o.doneBooks = { [k]: ['AoG'] }; o.doneReviews = { [k]: ['HG'] }; }), 'warn', /./), 'valid values are fine');
 });
 test('blueWings, blueOverrides, blueDrops: shape errors', () => {
   const w = { book: 'HG', slot: 2, n: 1, threshold: 6, earned: '2025-10-01', date: '2025-11-05', year: '2025-26' };
@@ -219,7 +222,7 @@ test('blueWings, blueOverrides, blueDrops: shape errors', () => {
   assert(!has(mut((o, k) => { o.blueDrops = { [k]: ['1|2026-10-07', '2|2026-10-07'] }; }), 'warn', /./), 'a valid list is fine');
 });
 test('records for people who are not on the roster are one warning, with the ids inside the parentheses', () => {
-  const r = mut(o => { ['held', 'doneBooks', 'received', 'givenNoDate', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops'].forEach(k => { o[k] = { [GHOST]: k === 'held' ? { x: 1 } : k === 'received' ? { HG: '2026-09-16' } : k === 'progressNoDate' ? { HG: [] } : [] }; }); });
+  const r = mut(o => { ['held', 'doneBooks', 'doneReviews', 'received', 'givenNoDate', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops'].forEach(k => { o[k] = { [GHOST]: k === 'held' ? { x: 1 } : k === 'received' ? { HG: '2026-09-16' } : k === 'progressNoDate' ? { HG: [] } : [] }; }); });
   assert(hasC(r, 'warn', /records refer to people who are not on the roster/, 'ghosts'), levels(r).join(' | '));
   r.findings.filter(f => f.level === 'warn').forEach(f => { if (f.msg.includes(GHOST)) assert(f.msg.indexOf(GHOST) > f.msg.indexOf('('), 'an id before the parenthesis would break the anonymizer\'s carried-over matching: ' + f.msg); });
 });

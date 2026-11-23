@@ -20,6 +20,8 @@ function deployCopy() {
     sh('cp -r "' + root + '/dev/app" dev/app && rm -rf dev/app/test');
     sh('cp -r "' + root + '/dev/test-data" dev/test-data');
     sh('cp "' + root + '/dev/tools/minify.js" dev/tools/');
+    sh('cp "' + root + '/dev/tools/backlog-html.js" dev/tools/');
+    sh('cp "' + root + '/BACKLOG.md" "' + root + '/version-history.html" .');
     sh('cp "' + root + '/dev/tools/stamp-source.sh" dev/tools/');      // N9 point 7: the deploy stamps the source commit with this script
     sh('ln -s "' + root + '/node_modules" node_modules');
     const r = run(template); assert.strictEqual(r.code, 0, 'first deploy of the copy: ' + r.out.slice(0, 300));
@@ -45,6 +47,9 @@ test('an unchanged rebuild passes', () => {
 test('a first deploy (no deploy folder) passes', () => {
   const tmp = deployCopy(); fs.rmSync(path.join(tmp, 'deploy'), { recursive: true, force: true });
   const r = run(tmp); assert.strictEqual(r.code, 0, r.out.slice(0, 300)); assert(release(tmp));
+  assert.match(read(tmp, 'deploy/app/version-history.html'), /href="backlog.html"/);
+  assert.match(read(tmp, 'deploy/app/backlog.html'), /href="version-history.html"/);
+  assert.match(read(tmp, 'deploy/app/sw.js'), /"backlog.html"/);
 });
 test('changing style.css without bumping the release is refused and deploy/ keeps the old file', () => {
   const tmp = deployCopy(), before = read(tmp, 'deploy', 'app', 'style.css');

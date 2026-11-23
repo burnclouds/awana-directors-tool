@@ -27,11 +27,12 @@ function textPages(buf) {
   await new Promise(r => server.listen(0, r));
   const browser = await chromium.launch(), page = await (await browser.newContext({ viewport: { width: 1366, height: 900 } })).newPage(), errs = [];
   page.on('pageerror', e => errs.push(e.message)); page.on('dialog', d => d.accept());
-  await page.goto('http://localhost:' + server.address().port + '/index.html'); await page.setInputFiles('#splashFiles', [DATA]); await page.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent));
+  const url = 'http://localhost:' + server.address().port + '/index.html';
+  await page.goto(url); await page.setInputFiles('#splashFiles', [DATA]); await page.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent));
   const toReports = async () => { await page.evaluate(() => document.querySelector('.tabs button[data-tab="reports"]').click()); await page.waitForTimeout(200); };
   const show = async (id, opts) => { await toReports(); await page.evaluate(([r, o]) => { App.reportOptions(o || {}); App.showReport(r); }, [id, opts]); await page.waitForFunction(() => document.querySelectorAll('#report .sheet').length > 0); await page.waitForTimeout(300); };
   const openBinders = async (quick, classes = []) => {
-    await toReports(); await page.click('#rSubs button[data-rsub="binders"]'); await page.click('#btnBinders'); await page.waitForTimeout(200);
+    await toReports(); await page.click('#rSubs button[data-rsub="binders"]'); await page.click('#btnReportOptions'); await page.click('#btnBinders'); await page.waitForTimeout(200);
     await page.selectOption('#bindQuick', { label: quick }); await page.click('#bindNone');
     for (const t of classes) await page.check('#dlg input[data-bind="' + t + '"]');
     await page.click('#bindGo'); await page.waitForTimeout(500);
@@ -105,6 +106,33 @@ function textPages(buf) {
     assert(r, 'the long name is on the sheet'); assert.strictEqual(r.align, 'left'); assert.notStrictEqual(r.ellipsis, 'ellipsis'); assert(/\bxlong\b/.test(r.cls) || /\blong\b/.test(r.cls), 'a long name is marked to shrink: ' + r.cls); assert(parseFloat(r.fs) <= 11, 'font shrinks: ' + r.fs); assert(!r.clipped, 'name is cut: ' + JSON.stringify(r));
     const buf = await toPdf(); boxes(buf).forEach(b => assert.deepStrictEqual(b, [792, 612])); const pages = textPages(buf);
     if (pages) { assert(pages.some(p => p.text.includes('Featherstonehaugh-Montgomery') || p.text.includes('Featherstonehaugh-')), 'the surname is in the PDF'); pages.forEach((p, i) => assert(p.bottom <= 612 - 29 + 1, 'attendance page ' + (i + 1) + ' runs to ' + Math.round(p.bottom) + 'pt')); }
+  });
+  await test('N46: the blank incident report prints one punch-margin Letter page without opening a data file', async () => {
+    const context = await browser.newContext();
+    try {
+      const blank = await context.newPage();
+      await blank.goto(url);
+      await blank.click('#splashSkip');
+      await blank.locator('button[data-tab="reports"]').click();
+      await blank.locator('#rSubs button[data-rsub="other"]').click();
+      await blank.locator('#rSel').selectOption('incidentReport');
+      assert(await blank.locator('#btnPrint').isEnabled());
+      assert.strictEqual(await blank.locator('#report .sheet.incident.punch').count(), 1);
+      assert.strictEqual(await blank.locator('#report input, #report textarea').count(), 0);
+      const writingLines = await blank.locator('#report .incident-line').count();
+      assert(writingLines >= 20, 'space to write in the form');
+      assert.match(await blank.locator('#pageStyle').textContent(), /size: portrait; margin: 0\.5in 0\.4in 0\.5in 0\.85in/);
+      const buf = await blank.pdf({ format: 'Letter', preferCSSPageSize: true });
+      assert.deepStrictEqual(boxes(buf), [[612, 792]]);
+      const pages = textPages(buf);
+      if (pages) {
+        assert.match(pages[0].text, /Incident report.*What happened.*Immediate action taken.*Follow-up needed.*Signature/);
+        assert(pages[0].bottom < PAGE_BOTTOM);
+      }
+      assert(await blank.evaluate(() => !App.master && !App.season && !App.dirty()));
+    } finally {
+      await context.close();
+    }
   });
   await test('no script errors', () => assert.deepStrictEqual(errs, []));
   await browser.close(); server.close(); console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

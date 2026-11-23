@@ -14,10 +14,10 @@ const heading = k => new RegExp('^###\\s+[\\d.]+\\s+`' + esc(k) + '`', 'm');   /
 test('every tracked section has its own heading in section 5, and a row in the section 3 table', () => {
   Season.SECTIONS.filter(k => k !== 'config').forEach(k => { assert(heading(k).test(doc), 'no "### 5.n `' + k + '`" heading'); });
   Season.SECTIONS.forEach(k => assert(row(k).test(doc), 'no table row for ' + k));
-  assert(/`Season\.SECTIONS` \(25 entries/.test(doc) && Season.SECTIONS.length === 25,'the document says 24 sections; the code has ' + Season.SECTIONS.length);
+  assert(/`Season\.SECTIONS` \(26 entries/.test(doc) && Season.SECTIONS.length === 26,'the document says 26 sections; the code has ' + Season.SECTIONS.length);
 });
 test('every key a populated file can hold is in the top-level table', () => {
-  const s = Season.blank('2026-27'); ['givenNoDate', 'held', 'flags', 'doneBooks', 'received', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout'].forEach(k => { s[k] = { x: 1 }; }); s.fake = true;
+  const s = Season.blank('2026-27'); ['givenNoDate', 'held', 'flags', 'doneBooks', 'doneReviews', 'received', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout'].forEach(k => { s[k] = { x: 1 }; }); s.fake = true;
   Object.keys(JSON.parse(Season.toJson(s))).forEach(k => assert(row(k).test(doc), 'no row for top-level key ' + k));
 });
 test('every config key (defaults and the ones set elsewhere) has a row in the config table', () => {

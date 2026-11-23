@@ -320,7 +320,7 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  ok
     assert(await page.locator('#personWrap .chip', { hasText: 'from ' }).count() >= 1, 'move chip');
     const eff = await page.evaluate(([i, d]) => { const p = App.master.people.find(x => x['x_ClubberID'] === i); return [Season.teamOn(App.season, i, d, App.quarterOf(d), Model.teamOf(p, App.quarterOf(d))), Season.teamOn(App.season, i, '2026-10-21', 'Q1', Model.teamOf(p, 'Q1'))]; }, [id, from]);
     assert.strictEqual(eff[0], other);
-    await tab('reports'); await page.selectOption('#rSel', 'teams'); await page.click('#qWrap button[data-q="' + await page.evaluate(d => App.quarterOf(d), from) + '"]'); await page.waitForTimeout(150);
+    await tab('reports'); await page.selectOption('#rSel', 'teams'); await page.click('#btnReportOptions'); await page.click('#qWrap button[data-q="' + await page.evaluate(d => App.quarterOf(d), from) + '"]'); await page.click('#pgDone'); await page.waitForTimeout(150);
     assert(/\*/.test(await page.textContent('#report')) && /teams\. \* = changes team during the quarter/.test(await page.textContent('#report')), 'printed list marks the mover');
     await tab('games'); await page.click('#tab-games .subtabs button[data-sub="teams"]'); assert(/Mid-quarter moves/.test(await page.textContent('#teamsWrap')), 'Color teams view lists the move');
     await tab('person'); await page.click('details.pcard summary'); assert(/moved to/.test(await page.textContent('details.pcard')), 'history line');
@@ -423,7 +423,7 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  ok
     await tab('reports');
     for (const id of ['handOut', 'awardsByChild', 'achievement', 'standings', 'handbooks']) {
       // The Hand out report is per group: its picker is set to Sparks, the group with awards waiting in this club.
-      await page.evaluate(i => App.showReport(i), id); if (id === 'handOut') { await page.selectOption('#oGroupSel', 'Sparks'); await page.selectOption('#oRoomSel', ''); await page.waitForTimeout(300); }
+      await page.evaluate(i => App.showReport(i), id); if (id === 'handOut') { await page.click('#btnReportOptions'); await page.selectOption('#oGroupSel', 'Sparks'); await page.click('#pgDone'); await page.click('#btnReportOptions'); await page.selectOption('#oRoomSel', ''); await page.click('#pgDone'); await page.waitForTimeout(300); }
       const html = await page.evaluate(() => document.getElementById('report').innerHTML);
       assert(html.length > 100 || /Nothing earned|No earned/.test(html), id + ' rendered nothing (' + html.length + ' chars)');   // an empty list is a valid result when this session has already handed out every award
     }

@@ -14,6 +14,19 @@ test('the model counts a date or the no-date box as given out, and nothing else'
   assert.strictEqual(M.uniGiven({}), false); assert.strictEqual(M.uniGiven({ [U.GIVEN]: '2026-10-21' }), true); assert.strictEqual(M.uniGiven({ [U.GIVEN_FLAG]: '1' }), true); assert.strictEqual(M.uniGiven({ [U.GIVEN_FLAG]: '' }), false);
   assert(M.BASE_USER_COLS.includes('x_Uni_GivenFlag'), 'the box is a column of the data file');
 });
+test('legacy conflicts stay available for Debug and editing the date clears the flag', () => {
+  const { season, master } = load(), [dated, legacy] = withUniform(master).map(p => p[M.X.ID]);
+  Object.assign(season.roster.people[dated].v, { [U.GIVEN]: '2026-10-21', [U.GIVEN_FLAG]: '1' });
+  Object.assign(season.roster.people[legacy].v, { [U.GIVEN]: '2026-02-30', [U.GIVEN_FLAG]: '1' });
+  const opened = M.fromRoster(season.roster);
+  assert.strictEqual(opened.people.find(p => p[M.X.ID] === dated)[U.GIVEN_FLAG], '1');
+  M.setUniformField(opened.people.find(p => p[M.X.ID] === dated), U.GIVEN, '2026-10-22');
+  const saved = M.toRoster(opened);
+  assert.strictEqual(saved.people[dated].v[U.GIVEN], '2026-10-22');
+  assert.strictEqual(saved.people[dated].v[U.GIVEN_FLAG], undefined);
+  assert.strictEqual(saved.people[legacy].v[U.GIVEN_FLAG], '1');
+  assert.strictEqual(M.fromRoster(saved).people.find(p => p[M.X.ID] === dated)[U.GIVEN_FLAG], '');
+});
 test('To do "Uniform to order": a child with no order date is listed; a date given out, or the no-date box, takes them off it', () => {
   const { master, season } = load(), kid = withUniform(master).find(p => !p[U.ORDERED]); assert(kid, 'the test club has a child who bought a uniform and has no order date');
   const id = kid[M.X.ID]; assert(toOrder(master, season).includes(id), 'listed first');

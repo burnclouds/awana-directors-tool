@@ -24,17 +24,17 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 200000).unref()
     await page.evaluate(() => App.showReport('progressSheets')); await page.waitForSelector('#report .onepage'); await page.waitForTimeout(200);
     assert.strictEqual(await page.inputValue('#oRoomSel'), 'Cubbies'); assert.strictEqual(await sheets(), await kidsIn('Cubbies'));
     assert.strictEqual(await page.evaluate(() => window.__busyShows), before, 'no pop-up for one class');
-    const note = await page.textContent('#bNote'); assert(note.includes('Showing Cubbies: ' + await kidsIn('Cubbies') + ' sheets') && note.includes(total + ' sheets'), note);
+    const note = await page.textContent('#bNote'); assert(note === 'Cubbies', note);
     assert.strictEqual((await page.textContent('#pageSum')).trim(), 'Pages to print: all ' + await kidsIn('Cubbies'));
   });
   await test('N4-2: another class draws just that class', async () => {
-    await page.selectOption('#oRoomSel', 'Sparks A'); await idle(); await page.waitForTimeout(200);
-    assert.strictEqual(await sheets(), await kidsIn('Sparks A')); assert(/Showing Sparks A/.test(await page.textContent('#bNote')));
+    await page.click('#btnReportOptions'); await page.selectOption('#oRoomSel', 'Sparks A'); await page.click('#pgDone'); await idle(); await page.waitForTimeout(200);
+    assert.strictEqual(await sheets(), await kidsIn('Sparks A')); assert(/Sparks A/.test(await page.textContent('#bNote')));
   });
   await test('N4-4/5/6: All classes opens the pop-up (old report stays under it), then everyone is drawn and the pop-up goes', async () => {
     const r = await page.evaluate(() => { const s = document.getElementById('oRoomSel'); s.value = ''; s.dispatchEvent(new Event('change', { bubbles: true })); const b = document.getElementById('busy'); return { open: b.open, modal: b.matches(':modal'), text: b.textContent, old: document.querySelectorAll('#report .onepage').length, inline: !!document.getElementById('drawing') }; });
     assert(r.open && r.modal && new RegExp('Drawing ' + total + ' progress sheets').test(r.text), JSON.stringify(r)); assert(r.old > 0 && r.old < total, 'old report still shown: ' + r.old); assert(!r.inline);
-    await idle(); await page.waitForTimeout(200); assert.strictEqual(await sheets(), total); assert.strictEqual((await page.textContent('#pageSum')).trim(), 'Pages to print: all ' + total); assert(/Showing everyone/.test(await page.textContent('#bNote')));
+    await idle(); await page.waitForTimeout(200); assert.strictEqual(await sheets(), total); assert.strictEqual((await page.textContent('#pageSum')).trim(), 'Pages to print: all ' + total);
   });
   await test('N4-7: Esc (a cancel event) does not close the pop-up', async () => {
     await page.evaluate(() => { const s = document.getElementById('oRoomSel'); s.value = 'Cubbies'; s.dispatchEvent(new Event('change', { bubbles: true })); s.value = ''; s.dispatchEvent(new Event('change', { bubbles: true })); });
@@ -42,44 +42,46 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 200000).unref()
     assert(r.prevented, 'cancel prevented'); await idle();
   });
   await test('N4-11: Choose pages works on the full list', async () => {
-    await page.click('#btnChoosePages'); await page.waitForSelector('#dlg[open]'); assert.strictEqual(await page.locator('#dlg input[type=checkbox]').count() >= total, true);
-    await page.click('#dlg button:text-is("Select none")'); await page.locator('#dlg input[type=checkbox]').nth(0).check(); await page.click('#dlg button:text-is("Done")');
+    await page.click('#btnReportOptions'); await page.waitForSelector('#reportOptions[open]'); assert.strictEqual(await page.locator('#reportOptions input[data-pg]').count() >= total, true);
+    await page.click('#reportOptions button:text-is("Select none")'); await page.locator('#reportOptions input[data-pg]').nth(0).check(); await page.click('#reportOptions button:text-is("Done")');
     assert.strictEqual((await page.textContent('#pageSum')).trim(), 'Pages to print: 1 of ' + total);
   });
   await test('N4-10: the Class binder with All classes draws behind the pop-up; one class does not', async () => {
     await page.evaluate(() => App.showReport('attendance')); const label = await page.$$eval('#rSel option', o => o.find(x => /Class binder/.test(x.textContent)).value);
     await page.selectOption('#rSel', label); await idle(); await page.waitForTimeout(300);
-    const before = await page.evaluate(() => window.__busyShows); await page.selectOption('#oRoomSel', ''); await idle(); await page.waitForTimeout(200);
+    const before = await page.evaluate(() => window.__busyShows); await page.click('#btnReportOptions'); await page.selectOption('#oRoomSel', ''); await page.click('#pgDone'); await idle(); await page.waitForTimeout(200);
     assert.strictEqual(await page.evaluate(() => window.__busyShows), before + 1, 'pop-up for the whole club'); assert.strictEqual(await sheets(), total);
-    await page.selectOption('#oRoomSel', 'Sparks C'); await idle(); await page.waitForTimeout(200); assert.strictEqual(await page.evaluate(() => window.__busyShows), before + 1, 'none for one class'); assert.strictEqual(await sheets(), await kidsIn('Sparks C'));
+    await page.click('#btnReportOptions'); await page.selectOption('#oRoomSel', 'Sparks C'); await page.click('#pgDone'); await idle(); await page.waitForTimeout(200); assert.strictEqual(await page.evaluate(() => window.__busyShows), before + 1, 'none for one class'); assert.strictEqual(await sheets(), await kidsIn('Sparks C'));
   });
   await test('N4-13/14: reportOptions keeps its meaning; the choice survives a trip to another report', async () => {
     await page.evaluate(() => App.showReport('progressSheets')); await idle();
     await page.evaluate(() => App.reportOptions({ room: '' })); await idle(); await page.waitForTimeout(200); assert.strictEqual(await sheets(), total, 'everyone');
     await page.evaluate(() => App.reportOptions({ room: 'Sparks B' })); await idle(); await page.waitForTimeout(200); assert.strictEqual(await sheets(), await kidsIn('Sparks B'));
-    await page.selectOption('#oRoomSel', ''); await idle(); await page.evaluate(() => App.showReport('attendance')); await page.waitForTimeout(200); await page.evaluate(() => App.showReport('progressSheets')); await idle(); await page.waitForTimeout(200);
+    await page.click('#btnReportOptions'); await page.selectOption('#oRoomSel', ''); await page.click('#pgDone'); await idle(); await page.evaluate(() => App.showReport('attendance')); await page.waitForTimeout(200); await page.evaluate(() => App.showReport('progressSheets')); await idle(); await page.waitForTimeout(200);
     assert.strictEqual(await sheets(), total, 'All classes kept');
   });
   await test('N4-8: PDF of one class and of everyone has one page per sheet', async () => {
     const pdf = async () => { await page.evaluate(() => window.dispatchEvent(new Event('beforeprint'))); await page.emulateMedia({ media: 'print' }); await page.waitForTimeout(300); const b = await page.pdf({ preferCSSPageSize: true }); await page.emulateMedia({ media: 'screen' }); await page.evaluate(() => window.dispatchEvent(new Event('afterprint'))); return [...b.toString('latin1').matchAll(/\/Type\s*\/Page[^s]/g)].length; };
-    assert.strictEqual(await pdf(), total, 'everyone'); await page.selectOption('#oRoomSel', 'Cubbies'); await idle(); await page.waitForTimeout(300); assert.strictEqual(await pdf(), await kidsIn('Cubbies'), 'one class');
+    assert.strictEqual(await pdf(), total, 'everyone'); await page.click('#btnReportOptions'); await page.selectOption('#oRoomSel', 'Cubbies'); await page.click('#pgDone'); await idle(); await page.waitForTimeout(300); assert.strictEqual(await pdf(), await kidsIn('Cubbies'), 'one class');
   });
   await test('N4-9: on a phone the pop-up fits and the picker is easy to tap', async () => {
-    await page.setViewportSize({ width: 390, height: 844 }); await page.selectOption('#oRoomSel', '');
-    const r = await page.evaluate(() => { const b = document.getElementById('busy'), x = b.getBoundingClientRect(); return { open: b.open, l: x.left, r: innerWidth - x.right, h: document.getElementById('oRoomSel').getBoundingClientRect().height }; });
-    assert(r.open && r.l >= 8 && r.r >= 8, JSON.stringify(r)); assert(r.h >= 44, 'picker height ' + r.h); await idle(); await page.waitForTimeout(200);
+    await page.setViewportSize({ width: 390, height: 844 }); await page.click('#btnReportOptions');
+    const height = await page.locator('#oRoomSel').evaluate(el => el.getBoundingClientRect().height);
+    await page.selectOption('#oRoomSel', ''); await page.click('#pgDone');
+    const r = await page.evaluate(() => { const b = document.getElementById('busy'), x = b.getBoundingClientRect(); return { open: b.open, l: x.left, r: innerWidth - x.right }; });
+    assert(r.open && r.l >= 8 && r.r >= 8, JSON.stringify(r)); assert(height >= 44, 'picker height ' + height); await idle(); await page.waitForTimeout(200);
     assert(await page.evaluate(() => document.getElementById('report').scrollWidth <= document.getElementById('report').clientWidth + 1), 'no sideways scroll'); await page.setViewportSize({ width: 1366, height: 900 });
   });
   await test('N4-12: a draw that throws does not leave the pop-up open, and the next draw works', async () => {
-    await page.selectOption('#oRoomSel', 'Cubbies'); await idle(); const n0 = errs.length;
+    await page.click('#btnReportOptions'); await page.selectOption('#oRoomSel', 'Cubbies'); await page.click('#pgDone'); await idle(); const n0 = errs.length;
     await page.evaluate(() => { const d = Reports.LIST.find(x => x.id === 'progressSheets'); window.__r = d.render; d.render = () => { throw new Error('stub draw failure'); }; });
-    await page.selectOption('#oRoomSel', ''); await idle(); await page.waitForTimeout(200);
+    await page.click('#btnReportOptions'); await page.selectOption('#oRoomSel', ''); await page.click('#pgDone'); await idle(); await page.waitForTimeout(200);
     assert.strictEqual(errs.length - n0, 1, 'one stub error'); assert(/stub draw failure/.test(errs[errs.length - 1]));
-    await page.evaluate(() => { Reports.LIST.find(x => x.id === 'progressSheets').render = window.__r; }); await page.selectOption('#oRoomSel', 'Cubbies'); await idle(); await page.waitForTimeout(200);
+    await page.evaluate(() => { Reports.LIST.find(x => x.id === 'progressSheets').render = window.__r; }); await page.click('#btnReportOptions'); await page.selectOption('#oRoomSel', 'Cubbies'); await page.click('#pgDone'); await idle(); await page.waitForTimeout(200);
     assert.strictEqual(await sheets(), await kidsIn('Cubbies')); errs.length = n0;
   });
   await test('N4-15: the Debug tab shows the last big draw', async () => {
-    await page.selectOption('#oRoomSel', ''); await idle(); await page.waitForTimeout(200);
+    await page.click('#btnReportOptions'); await page.selectOption('#oRoomSel', ''); await page.click('#pgDone'); await idle(); await page.waitForTimeout(200);
     await page.evaluate(() => App.showTab('debug')); await page.waitForTimeout(300); assert(/Last big draw[\s\S]{0,40}\d+ progress sheets in [\d.]+ s/.test(await page.textContent('#debugWrap')));
   });
   await test('no script errors', async () => assert.deepStrictEqual(errs, []));

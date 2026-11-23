@@ -23,10 +23,10 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     assert.strictEqual(await page.inputValue('#rSel'), 'statistics'); const n = await page.locator('#report section.sheet').count(); assert(n === 3, 'three sections: ' + n); assert.strictEqual(await page.locator('#report a[data-person]').count(), 0);
   });
   await test('Books and end-of-year awards (by group) is one page of children with their books and awards', async () => {
-    await tab('reports'); await page.selectOption('#rSel', 'booksYear'); await page.selectOption('#oGroupSel', 'T&T'); await page.waitForTimeout(500); const t = await page.textContent('#report'); assert(/Books and end-of-year awards/.test(t) && /Books finished/.test(t), t.slice(0, 200));
+    await tab('reports'); await page.selectOption('#rSel', 'booksYear'); await page.click('#btnReportOptions'); await page.selectOption('#oGroupSel', 'T&T'); await page.click('#pgDone'); await page.waitForTimeout(500); const t = await page.textContent('#report'); assert(/Books and end-of-year awards/.test(t) && /Books finished/.test(t), t.slice(0, 200));
   });
   await test('Awards to hand out has a page per class with a Given box and the counts to have ready', async () => {
-    await page.selectOption('#rSel', 'handOut'); await page.selectOption('#oGroupSel', 'Sparks'); await page.waitForTimeout(500); const t = await page.textContent('#report'); assert(/Awards to hand out|Nothing earned is waiting/.test(t), t.slice(0, 200));
+    await page.selectOption('#rSel', 'handOut'); await page.click('#btnReportOptions'); await page.selectOption('#oGroupSel', 'Sparks'); await page.click('#pgDone'); await page.waitForTimeout(500); const t = await page.textContent('#report'); assert(/Awards to hand out|Nothing earned is waiting/.test(t), t.slice(0, 200));
   });
   await test('the report list offers the Coaches binder bundle', async () => {
     const o = await page.$$eval('#rSel option', x => x.map(y => y.textContent)); assert(o.some(x => /Coaches binder/.test(x)) && o.some(x => /Quarterly Printables/.test(x)), o.join('|'));

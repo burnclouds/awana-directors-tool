@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.3.0';
+(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.3.1';
 // Club calendar: one row per club night or event. Stored as its own CSV so it can be rolled forward each year.
 (function (root) {
   const Csv = root.Csv || (typeof require !== 'undefined' ? require('./csv.js') : null);
@@ -6,18 +6,24 @@
   // One lesson column per group, named after the group, in the order Puggles, Cubbies, Sparks, T&T (N2: the old layout had Puggles in two columns, Puggles # and Puggles Title, and the lessons were filed two columns off).
   const COLS = ['Date', 'Type', 'Quarter', 'Theme', 'Notes', 'No Club', 'Puggles Lesson', 'Cubbies Lesson', 'Sparks Lesson', 'T&T Lesson'];
   const GROUPS = ['Puggles', 'Cubbies', 'Sparks', 'T&T'], lessonCol = g => g + ' Lesson';
+  const coloringCol = group => group + ' Coloring PDF';
+  const coloringCols = GROUPS.map(coloringCol);
   const TYPES = ['Club night', 'Event'];
   const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
 
   function load(text) {
     const { cols, records } = Csv.toRecords(Csv.parse(text));
     if (!cols.includes('Date') || !cols.includes('Quarter')) throw new Error('Not a calendar CSV: needs Date and Quarter columns.');
-    const rows = records.map(r => { const o = {}; COLS.forEach(c => { o[c] = r[c] || ''; }); if (!o['Puggles Lesson']) o['Puggles Lesson'] = [r['Puggles #'], r['Puggles Title']].filter(Boolean).join(' '); return o; });      // an older CSV with Puggles # and Puggles Title joins them
+    const fields = COLS.concat(coloringCols.filter(c => cols.includes(c)));
+    const rows = records.map(r => { const o = {}; fields.forEach(c => { o[c] = r[c] || ''; }); if (!o['Puggles Lesson']) o['Puggles Lesson'] = [r['Puggles #'], r['Puggles Title']].filter(Boolean).join(' '); return o; });      // an older CSV with Puggles # and Puggles Title joins them
     rows.forEach(r => { if (!/^\d{4}-\d{2}-\d{2}$/.test(r.Date)) throw new Error('Bad date "' + r.Date + '" (use YYYY-MM-DD).'); });
     return sort(rows);
   }
   const sort = rows => rows.sort((a, b) => a.Date.localeCompare(b.Date));
-  const toCsv = rows => Csv.serialize([COLS].concat(sort(rows.slice()).map(r => COLS.map(c => r[c]))), true);
+  function toCsv(rows) {
+    const fields = COLS.concat(coloringCols.filter(c => rows.some(r => r[c])));
+    return Csv.serialize([fields].concat(sort(rows.slice()).map(r => fields.map(c => r[c]))), true);
+  }
 
   const isNight = r => r.Type !== 'Event' && r['No Club'] !== '1';
   const nights = (rows, quarter) => rows.filter(r => isNight(r) && (!quarter || r.Quarter === quarter));
@@ -60,11 +66,29 @@
     return out;
   }
   // Lessons by week: config.lessons = { on: bool, groups: { Puggles: { on }, ... } }. A missing key reads as: on when any lesson cell is filled in, else off; every group on. The key is written when a setting is changed.
-  const hasLessons = rows => (rows || []).some(r => GROUPS.some(g => r && (r[lessonCol(g)] || '') !== ''));
+  const hasLessons = rows => (rows || []).some(r => r && GROUPS.some(g => r[lessonCol(g)] || r[coloringCol(g)]));
   function lessonSettings(config, rows) {
     const L = config && config.lessons && typeof config.lessons === 'object' && !Array.isArray(config.lessons) ? config.lessons : null, out = { on: L && typeof L.on === 'boolean' ? L.on : hasLessons(rows), groups: {} };
     GROUPS.forEach(g => { const o = L && L.groups && L.groups[g]; out.groups[g] = { on: !(o && o.on === false) }; }); return out;
   }
-  const api = { COLS, GROUPS, lessonCol, tidy, lessonSettings, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, quartersIn, DAYS, weekday, dayName, offDay, offDays };
+  function coloringUrl(value) {
+    if (typeof value !== 'string' || !/^https:\/\//i.test(value.trim())) return '';
+    try {
+      const url = new URL(value.trim());
+      return url.protocol === 'https:' && !url.username && !url.password ? url.href : '';
+    } catch {
+      return '';
+    }
+  }
+  function coloringSheets(config, rows, date) {
+    const row = rows.find(r => r.Date === date && isNight(r));
+    const settings = lessonSettings(config, rows);
+    if (!row || !settings.on) return [];
+    return GROUPS.flatMap(group => {
+      const url = coloringUrl(row[coloringCol(group)]);
+      return url && settings.groups[group].on ? [{ group, lesson: row[lessonCol(group)] || '', url }] : [];
+    });
+  }
+  const api = { COLS, GROUPS, lessonCol, coloringCol, coloringUrl, coloringSheets, tidy, lessonSettings, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, quartersIn, DAYS, weekday, dayName, offDay, offDays };
   if (typeof module !== 'undefined') module.exports = api; else root.Calendar = api;
 })(this);

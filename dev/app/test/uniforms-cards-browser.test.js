@@ -20,7 +20,10 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
         tr.querySelectorAll('td[data-label]').forEach(td => { const c = getComputedStyle(td, '::before'); labels.push([td.dataset.label, c.content.replace(/^"|"$/g, ''), c.display]); });
         tr.querySelectorAll('input, button, label, select').forEach(e => { const b = e.getBoundingClientRect(); if (b.width && (b.left < card.left - 1 || b.right > card.right + 1)) bad.push(e.tagName + ':' + (e.dataset.u || e.className)); if (b.width && b.height < 43.5 && e.tagName !== 'INPUT' || (e.type !== 'checkbox' && e.tagName === 'INPUT' && b.height < 43.5)) small.push(e.tagName + ':' + (e.dataset.u || e.className) + ':' + Math.round(b.height)); });
         return { bad, small, labels, namePlain: !tr.querySelector('td.uname').dataset.label, classPlain: !tr.querySelector('td.uclass').dataset.label }; });
-      assert.deepStrictEqual(r.bad, [], 'clipped: ' + r.bad.join(',')); assert.deepStrictEqual(r.small, [], 'under 44px: ' + r.small.join(',')); assert(r.labels.length >= 6, 'labels: ' + r.labels.length); assert(r.labels.every(([a, b, d]) => a === b && d === 'block'), JSON.stringify(r.labels)); assert(r.namePlain && r.classPlain, 'the name and class title carry no label');
+      assert.deepStrictEqual(r.bad, [], 'clipped: ' + r.bad.join(',')); assert.deepStrictEqual(r.small, [], 'under 44px: ' + r.small.join(','));
+      const labels = r.labels.map(([label]) => label);
+      assert(['Size', 'Ordered', 'Received', 'Given out', 'Notes'].every(label => labels.includes(label)) && !labels.includes('Item'), JSON.stringify(labels));
+      assert(r.labels.every(([a, b, d]) => a === b && d === 'block'), JSON.stringify(r.labels)); assert(r.namePlain && r.classPlain, 'the name and class title carry no label');
       assert.deepStrictEqual(errs, []); await ctx.close();
     });
     await test('phone ' + w + ': a size saves, Today fills a date, the no date tick counts as given, the bulk button works, and each box is named for the child', async () => {
@@ -29,7 +32,7 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
       await page.click(row + ' td[data-label="Ordered"] .todaybtn'); await page.waitForTimeout(250); assert.strictEqual(await val('ORDERED'), '2026-11-18', 'Today on Ordered');
       await page.check(row + ' input[data-uflag]'); await page.waitForTimeout(250); assert(await page.evaluate(i => Model.uniGiven(App.master.people.find(x => x[Model.X.ID] === i)), id), 'the no date tick counts as given out');
       const n = +(await page.getAttribute('#uBulkReceived', 'data-n')); if (n) { await page.click('#uBulkReceived'); await page.waitForTimeout(250); assert(await page.evaluate(() => App.master.people.filter(p => p[Model.UNI.RECEIVED] === '2026-11-18').length >= 1), 'bulk marked rows'); }
-      const names = await page.$$eval(row + ' input[type=text], ' + row + ' input[type=date]', e => e.map(x => x.getAttribute('aria-label') || '')), who = await page.$eval(row + ' td.uname', e => e.textContent.trim()); assert(names.length >= 3 && names.every(a => a.includes(who)), 'aria-labels name the child: ' + names.join(' | '));
+      const names = await page.locator(row).locator('input[type=date], input[data-uflag]').evaluateAll(e => e.map(x => x.getAttribute('aria-label') || '')), who = await page.$eval(row + ' td.uname', e => e.textContent.trim()); assert(names.length >= 3 && names.every(a => a.includes(who)), 'aria-labels name the child: ' + names.join(' | '));
       await ctx.close();
     });
     await test('phone ' + w + ': Tab goes through a card in the order it is drawn (sizes, then Ordered, Received, Given out, Notes)', async () => {
@@ -38,8 +41,18 @@ setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref()
       const seen = order.filter(i => i >= 0); assert(seen.length >= 5, 'stayed in the card for a while: ' + order.join(',')); assert(seen.every((v, i) => !i || v >= seen[i - 1]), 'never goes backwards: ' + order.join(',')); await ctx.close();
     });
   }
-  await test('1280: it is still a table (header row shown, rows are table rows)', async () => {
-    const { page, ctx } = await open(1280, 900); assert.notStrictEqual(await page.$eval('#uniWrap thead', e => getComputedStyle(e).display), 'none'); assert.strictEqual(await page.$eval('#uniWrap tbody tr', e => getComputedStyle(e).display), 'table-row'); await ctx.close();
+  await test('1280: table without Item, with no date beside the picker and above Today', async () => {
+    const { page, ctx } = await open(1280, 900);
+    assert.notStrictEqual(await page.$eval('#uniWrap thead', e => getComputedStyle(e).display), 'none');
+    assert.strictEqual(await page.$eval('#uniWrap tbody tr', e => getComputedStyle(e).display), 'table-row');
+    assert(!(await page.locator('#uniWrap th').allTextContents()).includes('Item'));
+    const cell = page.locator('#uniWrap td[data-label="Given out"]').filter({ has: page.getByRole('button', { name: 'Today', exact: true }) }).first();
+    const date = await cell.locator('input[type=date]').boundingBox();
+    const flag = await cell.locator('label').boundingBox();
+    const today = await cell.getByRole('button', { name: 'Today', exact: true }).boundingBox();
+    assert(flag.x >= date.x + date.width && flag.y < date.y + date.height, 'no date is beside the picker');
+    assert(today.y >= flag.y + flag.height, 'Today is below no date');
+    await ctx.close();
   });
   await browser.close(); console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);
 })();

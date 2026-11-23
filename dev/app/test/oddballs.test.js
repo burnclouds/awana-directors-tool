@@ -11,6 +11,38 @@ const rows = (s, check) => S.oddballs(s, groupOf).filter(r => !check || r.check 
 
 test('a clean file has no oddballs', () => { assert.deepStrictEqual(S.oddballs(fresh(), groupOf), []); });
 
+test('an old uniform conflict offers a correction that preserves the date', () => {
+  const s = fresh(), { UNI: U } = require('../model.js');
+  const date = '2026-10-07';
+  s.roster.people.a.v = { [U.GIVEN]: date, [U.GIVEN_FLAG]: '1' };
+  s.roster.people.b.v = { [U.GIVEN]: '2026-02-30', [U.GIVEN_FLAG]: '1' };
+  const found = rows(s, 'uniform-given-conflict');
+  assert.deepStrictEqual(found.map(r => r.id), ['a']);
+  assert.strictEqual(S.fixOddball(s, found[0]), true);
+  assert.deepStrictEqual(s.roster.people.a.v, { [U.GIVEN]: date });
+  assert.strictEqual(S.fixOddball(s, found[0]), false);
+});
+
+test('a received Cubbies book can fill an empty handbook only when the choice is unambiguous', () => {
+  const s = fresh(), cubbies = () => 'Cubbies';
+  S.setReceived(s, 'a', 'HC', '2026-10-07');
+  S.setReceived(s, 'b', 'HC', '2026-10-08');
+  const list = () => S.oddballs(s, cubbies).filter(r => r.check === 'cubbies-handbook');
+  const a = list()[0];
+  S.setHandbook(s, 'a', { code: 'AS', note: 'Keep this note' });
+  assert.strictEqual(S.fixOddball(s, a, cubbies), false);
+  assert.strictEqual(list().find(r => r.id === 'a').fix, '');
+  const b = list().find(r => r.id === 'b');
+  S.setReceived(s, 'b', 'AS', '2026-10-01');
+  assert.strictEqual(S.fixOddball(s, b, cubbies), false);
+  assert.strictEqual(list().find(r => r.id === 'b').fix, '');
+  S.setReceived(s, 'b', 'AS', '');
+  assert.strictEqual(S.fixOddball(s, b, groupOf), false);
+  assert.strictEqual(S.fixOddball(s, b, cubbies), true);
+  assert.strictEqual(S.childBook(s, 'b'), 'HC');
+  assert.strictEqual(S.receivedOf(s, 'b', 'HC'), '2026-10-08');
+});
+
 // 1. a handbook code with nothing behind it (the N38 case)
 test('a bare handbook code with no dates is listed, fixable, and the fix clears only the code', () => {
   const s = fresh(); s.handbooks = { b: 'WR' };

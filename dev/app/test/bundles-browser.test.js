@@ -20,18 +20,22 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
   });
   await test('choosing it shows a quarter picker (the next quarter) and builds one document: attendance, class binders, color teams, the coaches binder', async () => {
     await page.selectOption('#rSel', 'bundle:0'); await page.waitForTimeout(500);
+    await page.click('#btnReportOptions');
     assert(await page.isVisible('#qWrap'), 'quarter pills'); assert.strictEqual(await page.locator('#bQuarter').count(), 0, 'no separate Quarter to print select'); assert(!(await page.isVisible('#oRoom')), 'no room picker');
     const q = await page.$eval('#qWrap button.on', b => b.dataset.q), next = await page.evaluate(() => Reports.nextQuarter(App.calendar || [], App.today(), 'Q1')); assert.strictEqual(q, next, 'the default is the next quarter: ' + q);
+    await page.click('#pgDone');
     const t = await page.textContent('#report'); assert(/Emergency, Medical and Photos/.test(t) && /everyone by name/.test(t), 'binder pages'); assert(new RegExp(q + ' Color Team').test(t), 'attendance sheets for ' + q);
     assert(/Color Teams|Color teams/i.test(t), 'color teams');
   });
   await test('changing the quarter rebuilds it for that quarter', async () => {
-    const wideBefore = await page.evaluate(() => document.getElementById('sQuarter').value); await page.click('#qWrap button[data-q="Q3"]'); await page.waitForTimeout(400); assert.strictEqual(await page.$eval('#qWrap button.on', b => b.dataset.q), 'Q3', 'the pill follows'); assert.strictEqual(await page.evaluate(() => document.getElementById('sQuarter').value), wideBefore, 'the app-wide quarter is unchanged'); assert(/Q3 Color Team/.test(await page.textContent('#report')));
+    const wideBefore = await page.evaluate(() => document.getElementById('sQuarter').value); await page.click('#btnReportOptions'); await page.click('#qWrap button[data-q="Q3"]'); await page.click('#pgDone'); await page.waitForTimeout(400); assert.strictEqual(await page.$eval('#qWrap button.on', b => b.dataset.q), 'Q3', 'the pill follows'); assert.strictEqual(await page.evaluate(() => document.getElementById('sQuarter').value), wideBefore, 'the app-wide quarter is unchanged'); assert(/Q3 Color Team/.test(await page.textContent('#report')));
   });
-  await test('printing a bundle with an unlocked quarter asks once to lock it, and prints after the answer', async () => {
+  await test('printing an unlocked bundle keeps its selected pages after locking the quarter', async () => {
+    await page.click('#btnReportOptions'); await page.locator('#reportPageOptions input[data-pg]').first().uncheck(); await page.click('#pgDone');
     await page.evaluate(() => { window.__printed = 0; }); await page.click('#btnPrint'); await page.waitForTimeout(300);
-    if (await page.isVisible('#lockAsk')) { assert(/Lock Q3 now/.test(await page.textContent('#lockAskBody')), 'asks about the chosen quarter'); await page.click('#lockAskPrint'); await page.waitForTimeout(200); }
+    if (await page.isVisible('#lockAsk')) { assert(/Lock Q3 now/.test(await page.textContent('#lockAskBody')), 'asks about the chosen quarter'); await page.click('#lockAskLock'); await page.waitForTimeout(200); }
     assert.strictEqual(await page.evaluate(() => window.__printed), 1, 'printed once');
+    assert(await page.locator('#report .sheet').first().evaluate(sheet => sheet.classList.contains('skip')), 'keeps the excluded page');
   });
   await test('Options edits the bundle: rename, add a report, move it up, remove it; the Reports list follows; Back to standard restores it', async () => {
     await tab('options'); await page.waitForTimeout(400);
@@ -40,9 +44,9 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     assert.strictEqual(await page.$$eval('select[data-bitem^="0:"]', e => e.length), 5, 'five items');
     await page.click('button[data-bmove="0:4:-1"]'); await page.waitForTimeout(250); assert.strictEqual(await page.inputValue('select[data-bitem="0:3"]'), 'photos', 'moved up');
     await page.click('button[data-brem="0:3"]'); await page.waitForTimeout(250); assert.strictEqual(await page.$$eval('select[data-bitem^="0:"]', e => e.length), 4);
-    await tab('reports'); await page.waitForTimeout(400); assert.deepStrictEqual(await page.$$eval('#rSel optgroup option', e => e.map(x => x.textContent)), ['Start of quarter (bundle)', 'Coaches binder (bundle)', 'Class binder (bundle)', 'Club night pack (bundle)']);
+    await page.click('#btnDraftApply'); await tab('reports'); await page.waitForTimeout(400); assert.deepStrictEqual(await page.$$eval('#rSel optgroup option', e => e.map(x => x.textContent)), ['Start of quarter (bundle)', 'Coaches binder (bundle)', 'Class binder (bundle)', 'Club night pack (bundle)']);
     await tab('options'); await page.waitForTimeout(300); await page.click('#optBundleReset'); await page.waitForTimeout(300);
-    await tab('reports'); await page.waitForTimeout(400); assert.deepStrictEqual(await page.$$eval('#rSel optgroup option', e => e.map(x => x.textContent)), ['Quarterly Printables (bundle)', 'Coaches binder (bundle)', 'Class binder (bundle)', 'Club night pack (bundle)']);
+    await page.click('#btnDraftApply'); await tab('reports'); await page.waitForTimeout(400); assert.deepStrictEqual(await page.$$eval('#rSel optgroup option', e => e.map(x => x.textContent)), ['Quarterly Printables (bundle)', 'Coaches binder (bundle)', 'Class binder (bundle)', 'Club night pack (bundle)']);
     assert.strictEqual(await page.evaluate(() => App.season.config.bundles), undefined, 'nothing stored once back to standard');
   });
   await test('deleting a book in Options does not touch the bundles and throws no error (the book and bundle delete buttons are different buttons)', async () => {

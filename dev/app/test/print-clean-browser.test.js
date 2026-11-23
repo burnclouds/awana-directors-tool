@@ -106,6 +106,33 @@ const pagesOf = buf => { const f = path.join(os.tmpdir(), 'awana-clean-' + proce
   await test('a page that is not printed (an empty-report placeholder) does not decide the orientation or margins', async () => {
     const css = await pageStyleFor('<section class="sheet landscape emptysheet"></section><section class="sheet portrait"></section>'); assert(/^@page \{ size: portrait;/.test(css), css.slice(0, 120));
   });
+  await test('F16: Uniform tracking leaves room for writing and keeps recorded content in the Letter PDF', async () => {
+    const previous = await page.evaluate(() => {
+      const rows = Reports.kids(App.master).filter(p => Model.uniformItems(p).length).slice(0, 2);
+      const U = Model.UNI, originals = rows.map(p => ({ ...p }));
+      Object.assign(rows[0], { [U.SIZE_VERIFIED]: 'Youth M', [U.ORDERED]: '2026-10-01', [U.RECEIVED]: '2026-10-08', [U.GIVEN]: '2026-10-15', [U.NOTES]: 'Ready for collection' });
+      rows[1][U.GIVEN] = ''; rows[1][U.GIVEN_FLAG] = '1';
+      return originals;
+    });
+    try {
+      for (const legacy of [false, true]) {
+        if (legacy) await page.evaluate(id => { App.master.people.find(p => p[Model.X.ID] === id)[Model.UNI.SIZE_ORDERED] = 'Youth S'; }, previous[0].x_ClubberID);
+        const printed = await paper('uniforms'), text = flat(printed);
+        for (const value of ['2026-10-01', '2026-10-08', '2026-10-15', 'Ready for', 'collection', '(no date)']) assert(text.includes(value), value + ' is missing from the PDF');
+        if (legacy) assert(text.includes('Youth S'), 'legacy size is missing from the PDF');
+        await page.emulateMedia({ media: 'print' });
+        const measures = await page.locator('#report table.uniform-tracking').evaluate(table => {
+          const headings = table.tHead.rows[0].cells, row = table.tBodies[0].rows[0];
+          return { item: headings[2].offsetWidth, notes: headings[headings.length - 1].offsetWidth, height: row.getBoundingClientRect().height };
+        });
+        assert(measures.notes > measures.item && measures.height + 0.05 >= 0.28 * 96, JSON.stringify(measures));
+        await page.emulateMedia({ media: 'screen' });
+      }
+    } finally {
+      await page.emulateMedia({ media: 'screen' });
+      await page.evaluate(people => people.forEach(old => Object.assign(App.master.people.find(p => p[Model.X.ID] === old[Model.X.ID]), old)), previous);
+    }
+  });
   await test('no script errors', async () => { assert.strictEqual(errs.length, 0, errs.join(' | ')); });
   await browser.close(); server.close();
   console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

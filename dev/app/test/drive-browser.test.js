@@ -147,7 +147,7 @@ const GAPI = `window.gapi={load:function(n,o){google.picker=(function(){
     p.on('request', rq => { if (rq.method() === 'POST' && /googleapis\.com\/upload/.test(rq.url())) seen.bin.push(rq.postDataBuffer()); });
     await p.evaluate(() => { window.__pick = [{ id: 'F1', name: 'x', mimeType: 'application/json' }]; });
     await p.click('#splashDrive'); await p.waitForFunction(() => /\d+ active/.test(document.getElementById('status').textContent), null, { timeout: 8000 });
-    await p.click('button[data-tab="awards"]'); await p.selectOption('#awDate', '2026-10-21'); await p.click('#btnAwImages'); await p.waitForSelector('#slOne');
+    await p.evaluate(() => { App.today = () => '2026-10-21'; }); await p.click('button[data-tab="awards"]'); await p.click('#btnAwImages'); await p.waitForSelector('#slOne');
     await p.click('#slOne'); await p.click('#slOne');                       // test data: two presses
     await p.waitForFunction(() => /saved/.test(document.getElementById('driveStatus').textContent), null, { timeout: 15000 });
     assert.strictEqual(seen.bin.length, 1); assert(seen.bin[0].includes(Buffer.from([0x89, 0x50, 0x4e, 0x47])), 'PNG signature in the upload');

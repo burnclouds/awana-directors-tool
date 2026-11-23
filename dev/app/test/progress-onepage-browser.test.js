@@ -11,7 +11,7 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
 setTimeout(() => { console.log('timed out'); process.exit(2); }, 170000).unref();
 const pages = buf => (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
 // Pages are chosen in the Choose pages pop-up.
-async function untick(page, which) { await page.click('#btnChoosePages'); await page.locator('#dlg input[data-pg]')[which]().uncheck(); await page.click('#pgDone'); }
+async function untick(page, which) { await page.click('#btnReportOptions'); await page.locator('#reportOptions input[data-pg]')[which]().uncheck(); await page.click('#pgDone'); }
 (async () => {
   await new Promise(r => server.listen(0, r));
   const browser = await chromium.launch(), url = 'http://localhost:' + server.address().port + '/index.html';

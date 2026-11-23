@@ -17,7 +17,23 @@ test('every line printed under a report title is a fact (printed date, data date
   const bad = []; Reports.LIST.forEach(r => { let html = ''; try { html = render(r); } catch (e) { return; } printedSubs(html).forEach(t => { const parts = t.split(' · ').length > 1 && !FACT.some(f => f.test(t)) ? t.split(' · ') : [t]; parts.forEach(p => { if (!FACT.some(f => f.test(p.trim()))) bad.push(r.id + ': "' + p.slice(0, 90) + '"'); }); }); });
   assert.deepStrictEqual([...new Set(bad)], [], 'explanations that print: ' + [...new Set(bad)].join(' | '));
 });
-['attendDates:One row per child', 'standings:Rank 1 = best average place', 'ceremony:Earned and not yet given', 'pcChanges:Made here as pending changes', 'paceWatch:pace = core sections signed per night attended'].forEach(x => {
+test('F15: standings show rank and average place only for groups with a recorded place', () => {
+  const season = Season.blank('2026-27'), date = '2026-10-21';
+  const calendar = [{ Date: date, Type: 'Club night', Quarter: 'Q2' }];
+  const report = Reports.LIST.find(r => r.id === 'standings');
+  const standings = () => report.render({ season, calendar, settings: { quarter: 'Q2' } }).split('</section>').filter(Boolean);
+  const empty = standings();
+  assert.strictEqual(empty.length, 2);
+  assert(empty.every(page => !/<th>Rank<\/th>|<th>Avg place<\/th>/.test(page)));
+  Season.setGame(season, date, 'Sparks', 'Red', { place: 1, spirit: 2 });
+  Season.setGame(season, date, 'T&T', 'Red', { spirit: 2 });
+  const [sparks, tt] = standings();
+  assert(sparks.includes('<th>Rank</th>') && sparks.includes('<th>Avg place</th>'));
+  assert(/<tr><td>1<\/td><td><span[^>]*>Red<\/span><\/td><td>1<\/td><td>1<\/td>/.test(sparks));
+  assert(sparks.includes('Rank 1 = best average place') && !printedSubs(sparks).some(t => t.includes('Rank 1')));
+  assert(!/<th>Rank<\/th>|<th>Avg place<\/th>/.test(tt) && tt.includes('<th>Spirit</th><th>Points</th>') && tt.includes('/ 2'));
+});
+['attendDates:One row per child', 'ceremony:Earned and not yet given', 'pcChanges:Made here as pending changes', 'paceWatch:pace = core sections signed per night attended'].forEach(x => {
   const [id, phrase] = x.split(':');
   test(id + ': "' + phrase + '..." is not printed, but is still on the screen', () => {
     const html = render(Reports.LIST.find(r => r.id === id)); assert(html.includes(phrase), 'the text is gone from the screen too'); assert(!printedSubs(html).some(t => t.includes(phrase)), 'it prints');

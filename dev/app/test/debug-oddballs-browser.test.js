@@ -43,6 +43,47 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     await page.evaluate(() => document.querySelector('#debugWrap [data-oddfix="award-duplicate"]').click()); await page.waitForTimeout(300);
     assert.deepStrictEqual(await page.evaluate(a => App.season.awards['2026-10-07'][a], ids.a), ['Test Award 1']);
   });
+  await test('Debug corrects legacy uniform flags and missing Cubbies assignments, with Undo', async () => {
+    const date = '2026-10-09';
+    const id = await page.evaluate(date => {
+      const p = App.master.people.find(p => Model.isClubber(p) && Model.groupOf(Model.room(p)) === 'Cubbies');
+      const id = p[Model.X.ID];
+      p[Model.UNI.GIVEN] = date; p[Model.UNI.GIVEN_FLAG] = '1';
+      delete App.season.handbooks[id];
+      App.season.progress[id] = {};
+      App.season.doneBooks[id] = [];
+      App.season.received[id] = { HC: date };
+      App.touch();
+      return id;
+    }, date);
+    await page.click('#dbgOddCheck');
+    const uniform = page.locator('[data-oddfix="uniform-given-conflict"]');
+    const handbook = page.locator('[data-oddfix="cubbies-handbook"]');
+    const honeyComb = page.locator('#progressWrap button[data-book="HC"]');
+    const showProgress = () => page.evaluate(id => App.showPerson(id, { sub: 'progress' }), id);
+    const values = () => page.evaluate(id => {
+      const p = App.master.people.find(p => p[Model.X.ID] === id);
+      const v = App.season.roster.people[id].v;
+      return [p[Model.UNI.GIVEN], p[Model.UNI.GIVEN_FLAG], v[Model.UNI.GIVEN_FLAG] || '', Season.childBook(App.season, id), Season.receivedShown(App.season, id, 'HC')];
+    }, id);
+    await uniform.click();
+    assert.deepStrictEqual((await values()).slice(0, 3), [date, '', '']);
+    await page.click('#btnUndo');
+    assert.deepStrictEqual((await values()).slice(0, 3), [date, '1', '1']);
+    assert(await uniform.isVisible());
+    await showProgress();
+    assert.match(await honeyComb.getAttribute('class'), /\bst-open\b/);
+    await page.evaluate(() => App.showTab('debug'));
+    await handbook.click();
+    assert.deepStrictEqual((await values()).slice(3), ['HC', date]);
+    await showProgress();
+    assert.match(await honeyComb.getAttribute('class'), /\bst-cur\b/);
+    await page.click('#btnUndo');
+    assert.notStrictEqual((await values())[3], 'HC');
+    assert.match(await honeyComb.getAttribute('class'), /\bst-open\b/);
+    await page.evaluate(() => App.showTab('debug'));
+    assert(await handbook.isVisible());
+  });
   await test('no script errors', async () => { assert.strictEqual(errs.length, 0, errs.join(' | ')); });
   await browser.close(); server.close();
   console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

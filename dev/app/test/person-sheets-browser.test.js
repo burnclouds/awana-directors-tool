@@ -1,5 +1,5 @@
 // A child's page on the Person tab: the Progress sub-tab (one book tab per progress sheet, + Add sheet, the shared sheet boxes, Finished before),
-// and the Awards sub-tab (what was earned, no Given tick, the Announce page for the chosen night). Invented test club.
+// and the Awards sub-tab (what was earned, no Given tick, the Announce page for the current club night). Invented test club.
 // Usage: NODE_PATH=<dir with playwright> node test/person-sheets-browser.test.js
 const assert = require('assert'), fs = require('fs'), http = require('http'), path = require('path');
 const { chromium } = require('playwright');
@@ -44,14 +44,17 @@ const server = http.createServer((req, res) => { const f = path.join(app, decode
     await open(kids.t); const t = await bookTabs(); assert(t.some(x => /Agents|Discovery|Grace|Evidence/.test(x)), t.join('|'));
     await page.click('#progressWrap .booktabs button[data-book="DoG"]'); await page.waitForTimeout(300); assert(!/Start Zone/.test(await page.textContent('#progressWrap')), 'not on Discovery of Grace');
   });
-  await test('the Awards sub-tab shows what the child earned and was told to the group, has no Given tick, and opens the Announce page for the chosen night', async () => {
+  await test('the Awards sub-tab shows what the child earned and was told to the group, has no Given tick, and opens the Announce page for the current club night', async () => {
     await open(kids.s, 'awards'); assert((await subTabs()).includes('awards'), 'Awards sub-tab exists');
     const night = await page.evaluate(i => { const d = App.nightList().map(n => n.date)[0]; Season.addAward(App.season, d, i, 'Certificate of Award'); App.touch(); App.refresh(); return d; }, kids.s);
     await open(kids.s, 'awards');
     const txt = await page.textContent('#personWrap .peawards'); assert(/Certificate of Award/.test(txt) && /Awards earned/.test(txt), txt.slice(0, 200));
     assert((await page.locator('#personWrap .peawards input[type="checkbox"]').count()) === 0, 'no Given tick');
     await page.selectOption('#peAwNight', night); await page.click('[data-peannpage]'); await page.waitForTimeout(400);
-    assert(await page.isVisible('#tab-awards'), 'on the Awards tab'); assert.strictEqual(await page.inputValue('#awDate'), night);
+    assert(await page.isVisible('#tab-awards'), 'on the Awards tab'); const current = await page.evaluate(() => App.nextNight());
+    assert.notStrictEqual(current, night, 'the Person picker was on a different night');
+    const [, month, day] = current.split('-');
+    assert.match(await page.textContent('#awSecAnnounce h3'), new RegExp('^Announce on ' + Number(month) + '/' + Number(day) + ' '));
   });
   await test('no script errors', () => assert.deepStrictEqual(errs, []));
   await browser.close(); server.close(); console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

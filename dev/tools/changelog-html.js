@@ -139,7 +139,7 @@ const html = `<!doctype html>
 <body><main>
 <h1>AWANA Roster &amp; Reports: version history</h1>
 <p class="lede">What changed in each version, newest first. The latest three are open; open any other to read it. Lettered versions (such as 1.51.15b) are small releases between two numbered ones.</p>
-<div class="bar"><nav class="jump" aria-label="Series">${jump}</nav><span class="sp"></span><span id="tools" hidden><button type="button" data-all="open">Expand all</button> <button type="button" data-all="close">Collapse all</button></span></div>
+<div class="bar"><nav class="jump" aria-label="Series">${jump}</nav><a href="backlog.html">Backlog</a><span class="sp"></span><span id="tools" hidden><button type="button" data-all="open">Expand all</button> <button type="button" data-all="close">Collapse all</button></span></div>
 ${index}
 ${seriesHtml}
 </main><script>${JS}</script></body></html>

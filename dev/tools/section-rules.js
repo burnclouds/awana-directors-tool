@@ -13,7 +13,7 @@
 (function (root) {
   const RULES = {
     config: 'config', handbooks: 'by-person', attendance: 'by-date-person', awards: 'by-date-person', given: 'by-person', givenNoDate: 'by-person',
-    held: 'by-person', flags: 'drop', doneBooks: 'by-person', received: 'by-person', adults: 'deep-scrub', teamMoves: 'by-person', games: 'copy',
+    held: 'by-person', flags: 'drop', doneBooks: 'by-person', doneReviews: 'by-person', received: 'by-person', adults: 'deep-scrub', teamMoves: 'by-person', games: 'copy',
     progress: 'by-person', progressNoDate: 'by-person', extraSheets: 'by-person', announcedNoDate: 'by-person', blueWings: 'by-person', blueOverrides: 'by-person-text',
     blueDrops: 'by-person', pastTurnout: 'by-person', absences: 'drop', roster: 'roster', calendar: 'scrub-text', rotation: 'scrub-text',
   };

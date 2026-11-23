@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.26.0';
+(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.26.2';
 // Print reports. Each render(ctx) returns HTML; ctx = { master, settings, opts }.
 (function (root) {
   const M = root.Model || (typeof require !== 'undefined' ? require('./model.js') : null);
@@ -212,7 +212,9 @@
   }
   function uniforms(ctx) {
     const n = f => kids(ctx.master).filter(p => M.uniformItems(p).length && f(p)).length;
-    return sheet('Uniform Tracking', table(uniformHead(ctx.master), uniformRows(ctx.master), 'wrap'), 'landscape',
+    const { head, old } = uniformCols(ctx.master);
+    const widths = old ? [16, 10, 10, 7, 10, 7, 10, 10, 7, 13] : [19, 13, 13, 8, 10, 10, 10, 17];
+    return sheet('Uniform Tracking', table(head, uniformRows(ctx.master), 'wrap uniform-tracking', widths), 'landscape',
       'Still to order: ' + n(M.uniToOrder) + ' · still to receive from Awana: ' + n(M.uniToReceive) + ' · still to give to students: ' + kids(ctx.master).filter(p => M.uniformItems(p).length && !M.uniGiven(p)).length);
   }
 
@@ -223,8 +225,10 @@
     if (!cal.length) return '<p class="empty">Load a calendar on the Calendar tab first.</p>';
     const L = Cal.lessonSettings(ctx.season && ctx.season.config, all);
     if (!L.on) return '<p class="empty">Lessons by week are not turned on (Calendar tab, Lessons by week).</p>';
-    const groups = Cal.GROUPS.filter(g => L.groups[g].on);
-    if (!groups.length) return '<p class="empty">Every group is switched off for lessons by week (Calendar tab, Lessons by week).</p>';
+    const enabled = Cal.GROUPS.filter(g => L.groups[g].on);
+    if (!enabled.length) return '<p class="empty">Every group is switched off for lessons by week (Calendar tab, Lessons by week).</p>';
+    const clubNights = cal.filter(Cal.isNight);
+    const groups = enabled.filter(g => clubNights.some(r => String(r[Cal.lessonCol(g)] ?? '').trim()));
     const head = '<tr><th>Date</th><th>Theme</th>' + groups.map(g => '<th>' + esc(g) + '</th>').join('') + '</tr>';
     const body = cal.map(r => r['No Club'] === '1'
       ? '<tr><td>' + Cal.short(r.Date) + '</td><td colspan="' + (groups.length + 1) + '"><span class="none">NO CLUB</span>' + (r.Theme ? ' <span class="none">' + esc(r.Theme) + '</span>' : '') + '</td></tr>'
@@ -285,6 +289,22 @@
       'landscape' + (rows.length ? '' : ' emptysheet'), '<span class="noprint">Made here as pending changes. Each clears automatically when a later export matches. Name shown is the pending value if one is set.</span>');      // N51: an explanation is screen help, not printed
   }
 
+  function incidentReport() {
+    const fields = labels => '<div class="incident-fields">' + labels.map(label =>
+      '<div><b>' + label + '</b><div class="incident-line"></div></div>').join('') + '</div>';
+    const writing = (label, lines) => '<div class="incident-writing"><b>' + label + '</b>' +
+      '<div class="incident-line"></div>'.repeat(lines) + '</div>';
+    return sheet('Incident report',
+      fields(['Date of incident', 'Time', 'Location']) +
+      writing('People involved and witnesses', 3) +
+      writing('What happened', 6) +
+      writing('Immediate action taken', 4) +
+      writing('Who was notified and when', 3) +
+      writing('Follow-up needed', 3) +
+      fields(['Prepared by', 'Signature', 'Date']),
+      'portrait punch incident');
+  }
+
   const LIST = [
     { id: 'attendance', title: 'Attendance sheets (per room)', render: attendance, opts: ['room', 'quarter'] },
     { id: 'teams', title: 'Color teams (Sparks, T&T)', render: colorTeams, opts: ['order', 'quarter'] },
@@ -298,6 +318,7 @@
     { id: 'lessons', title: 'Lessons by week', render: lessons },
     { id: 'volunteers', title: 'Volunteer contact list', render: volunteers },
     { id: 'pcChanges', title: 'Changes needed in Planning Center', render: pcChanges },
+    { id: 'incidentReport', title: 'Blank incident report', render: incidentReport, requiresRoster: false },
   ];
 
   // ---------- report bundles: a named list of reports printed together (for example everything needed at the start of a quarter) ----------
