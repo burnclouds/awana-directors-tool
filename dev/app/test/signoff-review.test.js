@@ -65,6 +65,59 @@ test('uses an inclusive season end beyond the final scheduled meeting', () => {
   assert.equal(R.local(s).view.status, 'season-end-needed');
   assert.deepEqual(R.local(s, { coverage, seasonEnd: '2027-07-31' }).warnings.map(r => r.id), ['second']);
 });
+function comparison(overrides = {}) {
+  const season = fixture(), date = '2026-09-09';
+  S.setMark(season, date, 'first', 'a', true);
+  S.setMark(season, date, 'third', 'a', true);
+  const scope = { organizationId: 'test-org', eventId: 'test-event', date };
+  const complete = (id, ids) => Object.assign({ id, status: 'complete', rows: ids.map(personId => ({ personId })) }, scope);
+  return Object.assign({
+    season, ...scope, sessions: [complete('first-time', ['one', 'two']), complete('second-time', ['one'])],
+    coveredIds: ['first', 'second', 'third'], verifiedIds: ['first', 'second', 'third'],
+    resolvePerson: ({ organizationId, personId }) => {
+      const id = { one: 'first', two: 'second', three: 'third' }[personId];
+      return organizationId === 'test-org' && id ? { status: 'matched', id } : { status: 'unmatched' };
+    }
+  }, overrides);
+}
+test('compares complete sessions, deduplicates repeated scans and reports both mismatch directions', () => {
+  const data = comparison(), before = JSON.stringify(data);
+  assert.deepEqual(R.checkIns(data), {
+    status: 'complete', date: '2026-09-09', agreements: ['first'],
+    warnings: [{ id: 'second', reason: 'check-in-without-present' }, { id: 'third', reason: 'present-without-check-in' }],
+    unresolved: []
+  });
+  assert.equal(JSON.stringify(data), before);
+});
+test('requires exact session scope and complete paginated results; a verified empty session is distinct', () => {
+  const data = comparison();
+  for (const changes of [{ status: 'unavailable' }, { eventId: 'other' }, { organizationId: 'other' }, { date: '2026-09-10' }]) {
+    assert.deepEqual(R.checkIns({ ...data, sessions: [data.sessions[0], { ...data.sessions[1], ...changes }] }),
+      { status: 'unavailable', reason: 'session-incomplete' });
+  }
+  assert.equal(R.checkIns({ ...data, sessions: [] }).status, 'unavailable');
+  assert.deepEqual(R.checkIns({ ...data, date: '2026-08-25' }), { status: 'out-of-scope', reason: 'outside' });
+  const empty = R.checkIns({ ...data, sessions: [{ ...data.sessions[0], rows: [] }] });
+  assert.deepEqual(empty.warnings.map(r => r.id), ['first', 'third']);
+});
+test('unlinked guests and conflicting identities cannot cause a false missing check-in', () => {
+  const data = comparison();
+  data.sessions[1].rows.push({ personId: '' }, { personId: 'other' });
+  data.verifiedIds = ['first', 'second'];
+  const result = R.checkIns(data);
+  assert.deepEqual(result.warnings, [{ id: 'second', reason: 'check-in-without-present' }]);
+  assert.deepEqual(result.unresolved, [
+    { reason: 'unlinked-check-in' }, { reason: 'unlinked-check-in' }, { id: 'third', reason: 'unlinked-local-present' }
+  ]);
+  data.verifiedIds.push('third');
+  assert.deepEqual(R.checkIns(data).unresolved.at(-1), { id: 'third', reason: 'incomplete-identity-coverage' });
+});
+test('ignores verified people outside the selected local roster', () => {
+  const data = comparison({ coveredIds: ['first'], verifiedIds: ['first'] });
+  assert.deepEqual(R.checkIns(data), {
+    status: 'complete', date: '2026-09-09', agreements: ['first'], warnings: [], unresolved: []
+  });
+});
 for (const { name, run } of tests) {
   run(); console.log('  ok   ' + name);
 }

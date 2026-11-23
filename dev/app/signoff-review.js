@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['signoff-review.js'] = '1.0.0';
+(this.AwanaVersions = this.AwanaVersions || {})['signoff-review.js'] = '1.1.0';
 // N72: classify original sign-off dates against a committed season and its attendance.
 (function (root) {
   const S = root.Season || require('./season.js'), Calendar = root.Calendar || require('./calendar.js');
@@ -70,6 +70,53 @@
     return { view, warnings: warnings.sort(order), unresolved: unresolved.sort(order) };
   }
 
-  const api = { schedule, dateStatus, local };
+  // Each normalized session carries its confirmed scope and only projected person IDs.
+  // coveredIds is the relevant local roster for those sessions, verifiedIds the trusted identity subset.
+  function checkIns({ season, options, organizationId, eventId, date, sessions, coveredIds, verifiedIds, resolvePerson }) {
+    const state = dateStatus(schedule(season, options), date);
+    if (state !== 'club') return { status: 'out-of-scope', reason: state };
+    if (!organizationId || !eventId || !Array.isArray(coveredIds) || !Array.isArray(verifiedIds) || !Array.isArray(sessions) ||
+        !sessions.length || typeof resolvePerson !== 'function') return { status: 'unavailable', reason: 'scope-unconfirmed' };
+    const unique = new Set(sessions.map(s => s && s.id));
+    if (unique.size !== sessions.length || sessions.some(s => !s || !s.id || s.organizationId !== organizationId ||
+        s.eventId !== eventId || s.date !== date || s.status !== 'complete' || !Array.isArray(s.rows))) {
+      return { status: 'unavailable', reason: 'session-incomplete' };
+    }
+
+    const people = (season.roster && season.roster.people) || {};
+    const covered = new Set(coveredIds.filter(id => Object.hasOwn(people, id)));
+    const verified = new Set(verifiedIds.filter(id => covered.has(id)));
+    const night = (season.attendance || {})[date] || {};
+    const checkedIn = new Set(), unresolved = [], agreements = [], warnings = [];
+    let remoteUnknown = false;
+
+    for (const session of sessions) {
+      for (const row of session.rows) {
+        const personId = row && row.personId;
+        const result = personId && resolvePerson({ organizationId, personId });
+        if (!result || result.status !== 'matched' || (covered.has(result.id) && !verified.has(result.id))) {
+          remoteUnknown = true;
+          unresolved.push({ reason: result && result.status === 'ambiguous' ? 'ambiguous-check-in' : 'unlinked-check-in' });
+        } else if (!Object.hasOwn(people, result.id)) {
+          remoteUnknown = true;
+          unresolved.push({ reason: 'unlinked-check-in' });
+        } else if (verified.has(result.id)) checkedIn.add(result.id);
+      }
+    }
+    const present = id => !!(night[id] && night[id].a);
+    for (const id of covered) {
+      if (checkedIn.has(id)) {
+        if (present(id)) agreements.push(id);
+        else warnings.push({ id, reason: 'check-in-without-present' });
+      } else if (present(id)) {
+        if (!verified.has(id)) unresolved.push({ id, reason: 'unlinked-local-present' });
+        else if (remoteUnknown) unresolved.push({ id, reason: 'incomplete-identity-coverage' });
+        else warnings.push({ id, reason: 'present-without-check-in' });
+      }
+    }
+    return { status: 'complete', date, agreements, warnings, unresolved };
+  }
+
+  const api = { schedule, dateStatus, local, checkIns };
   if (typeof module !== 'undefined') module.exports = api; else root.SignoffReview = api;
 })(this);
