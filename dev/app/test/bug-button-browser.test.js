@@ -61,6 +61,18 @@ async function test(name, fn) { try { await fn(); passed++; console.log('  ok   
     assert.match(await page.textContent('#bNote'), /Q1/);
     assert.match(await page.textContent('#calNote'), /Q1/);
     assert.strictEqual(await snapshot(), before);
+    await tab0('roster');
+    await page.selectOption('#fQuarter', 'Q3');
+    await tab0('reports');
+    assert.match(await page.textContent('#bNote'), /Q3/);
+    await openCode(value);
+    assert.match(await page.textContent('#bNote'), /Q1/);
+    await page.evaluate(() => {
+      const select = Array.from(document.querySelectorAll('#tab-reports select')).find(el => Array.from(el.options).some(o => o.value === 'standings'));
+      select.value = 'attendance'; select.dispatchEvent(new Event('change', { bubbles: true }));
+      select.value = 'standings'; select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    assert.match(await page.textContent('#bNote'), /Q3/);
   });
   await test('invalid codes and unavailable dates are handled without changing saved state', async () => {
     const before = await snapshot();

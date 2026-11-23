@@ -32,6 +32,7 @@
   // The quarter follows the calendar: the latest club night on or before today. A quarter chosen by hand (Reports or Color teams) is an override that is
   // remembered with the day it was chosen and lapses after OVERRIDE_DAYS, so a leftover choice cannot hold the app in last quarter. With no calendar the last value stays.
   const OVERRIDE_DAYS = 7;
+  let locationReportQuarter = null;
   const daysSince = iso => Math.round((Date.parse(today() + 'T12:00:00Z') - Date.parse(iso + 'T12:00:00Z')) / 864e5);
   function applyQuarter() {
     const o = settings.quarterOverride, live = o && /^Q[1-4]$/.test(o.q) && /^\d{4}-\d{2}-\d{2}$/.test(o.on || '') && daysSince(o.on) >= 0 && daysSince(o.on) < OVERRIDE_DAYS;
@@ -42,7 +43,7 @@
     const fq = document.getElementById('fQuarter'); if (fq) fq.value = q;      // the Roster tab's quarter picker follows the app-wide quarter
     return changed;
   }
-  function setQuarter(q) { settings.quarterOverride = { q, on: today() }; applyQuarter(); }
+  function setQuarter(q) { locationReportQuarter = null; settings.quarterOverride = { q, on: today() }; applyQuarter(); }
 
   // Shared with app-season.js (attendance, games, awards, progress).
   const App = window.App = {
@@ -809,8 +810,7 @@
   }
   fillReportSel(); App.fillReportSel = fillReportSel;
   let bundleQ = '';      // the quarter chosen for a bundle; empty until chosen, then it is the next quarter
-  let locationReportQuarter = '';
-  const reportQuarter = () => locationReportQuarter || settings.quarter;
+  const reportQuarter = () => locationReportQuarter?.report === sel.value ? locationReportQuarter.quarter : settings.quarter;
   $('sQuarter').value = settings.quarter;
   const bundleOf = () => sel.value === 'bundle:picked' ? binderSel : /^bundle:\d+$/.test(sel.value) ? Reports.bundlesOf(App.season)[+sel.value.slice(7)] || null : null;
   const isNightPack = b => b && b.name === 'Club night pack' && ['announceList', 'handOut'].every(id => b.items.some(i => i.report === id));
@@ -879,6 +879,7 @@
     return bundleItems(b).filter(i => i.report === 'progressSheets').reduce((s, i) => s + sheetCount(i.room || ''), 0);
   }
   function renderReport() {
+    if (locationReportQuarter?.report !== sel.value) locationReportQuarter = null;
     if (reportOptionsDialog.open) { reportOptionChanged(); return; }
     if (drawingBig) return;      // another change while it is being drawn: the drawing in progress picks up the pickers as they are now
     const n = bigCount();
@@ -1033,11 +1034,11 @@
       const def = Reports.LIST.find(r => r.id === view.report && !r.hidden);
       if (!def || ![...sel.options].some(o => o.value === def.id)) return Object.keys(view);
       sel.value = def.id;
-      locationReportQuarter = '';
+      locationReportQuarter = null;
       $('oKidSel').value = '';
       configureReportControls(def);
       const skipped = [];
-      if (view.quarter && !$('qWrap').hidden) locationReportQuarter = view.quarter;
+      if (view.quarter && !$('qWrap').hidden) locationReportQuarter = { report: def.id, quarter: view.quarter };
       else if (view.quarter) skipped.push('quarter');
       locationReportFilters.forEach(([key, wrap, id]) => {
         if (!view[key]) return;
@@ -1115,8 +1116,8 @@
   });
   document.addEventListener('click', e => { const b = e.target.closest('.optsubs button[data-optsub]'); if (b) showTab(b.dataset.optsub); });
   function syncQ() { const cur = bundleOf() ? bundleQ : reportQuarter(); document.querySelectorAll('#qWrap button[data-q]').forEach(b => { const on = b.dataset.q === cur; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
-  $('qWrap').addEventListener('click', e => { const b = e.target.closest('button[data-q]'); if (!b) return; if (bundleOf()) { bundleQ = b.dataset.q; syncQ(); reportOptionChanged(); return; } locationReportQuarter = ''; const q = $('sQuarter'); q.value = b.dataset.q; q.dispatchEvent(new Event('input', { bubbles: true })); syncQ(); });
-  $('sQuarter').addEventListener('input', e => { const q = e.target.value.trim().toUpperCase(); if (/^Q[1-4]$/.test(q)) { locationReportQuarter = ''; setQuarter(q); reportOptionChanged(); renderRoster(); } });
+  $('qWrap').addEventListener('click', e => { const b = e.target.closest('button[data-q]'); if (!b) return; if (bundleOf()) { bundleQ = b.dataset.q; syncQ(); reportOptionChanged(); return; } const q = $('sQuarter'); q.value = b.dataset.q; q.dispatchEvent(new Event('input', { bubbles: true })); syncQ(); });
+  $('sQuarter').addEventListener('input', e => { const q = e.target.value.trim().toUpperCase(); if (/^Q[1-4]$/.test(q)) { setQuarter(q); reportOptionChanged(); renderRoster(); } });
   // The Roster tab's own quarter picker (flag 10) sets the same app-wide quarter as the Reports pills and the Color teams box, and they follow it.
   $('fQuarter').addEventListener('change', e => { setQuarter(e.target.value); $('sQuarter').value = settings.quarter; $('tQuarter').value = settings.quarter; syncQ(); renderRoster(); });
   applyClub(); App.clubChanged = applyClub;      // called whenever a file opens or an undo changes the title (App.loadData runs first)
@@ -1472,7 +1473,7 @@
   // The data JSON holds the roster (with the Planning Center data as of its last import), calendar and rotation. Opening one
   // replaces them; noImport (restore, new season) does not re-apply an export opened earlier in the session.
   App.loadData = (s, opts) => {
-    locationReportQuarter = '';
+    locationReportQuarter = null;
     if (App.fileSettingsLoaded) App.fileSettingsLoaded();      // the update and auto-save timers take the file's settings (app-update.js)
     if (App.clubChanged) App.clubChanged();                   // the title typed in this file (config.clubTitle), or the derived one
     if (App.driveSettingsLoaded) App.driveSettingsLoaded();   // the Drive save style and file name come from the file
