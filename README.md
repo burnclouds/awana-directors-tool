@@ -236,6 +236,8 @@ node test/make-deploy.test.js                 # make-deploy.sh: a changed build 
 node test/anonymizer-atomic.test.js           # the anonymizer writes its files only when every check passes (on the TEST data; the real-file test is anonymized-data.test.js), and stops on any key it does not know
 NODE_PATH=<dir with playwright> node test/pc-capture-browser.test.js   # the import keeps every column and row through save and reopen, is one History entry (one undo step), the same export twice changes nothing, an export opened before a data file is applied after it as its own entry
 node test/pc-capture.test.js                  # nothing from a Planning Center export is lost: every column, row, blank row, extra cell and spaces-only value is kept, a club-like column name is stored as pc:, and the whole export can be rebuilt from the data file (R17; uses test/pc-fixture.js)
+node test/planning-center.test.js             # disabled Planning Center OAuth and API reader, browser load without network or storage, and verified identity links
+node test/pc-registrations.test.js            # mocked signup reads, field coverage and roster preview without changing stored records
 node test/anon-pc.test.js                     # the anonymizer's rule for every Planning Center column, the unknown-key list, and how the kept export record is scrubbed (dev/tools/anon-pc.js)
 node test/validate.test.js                    # the file check (Validate tab): every section and every config key has a check, a section that would be emptied on open is an error, and a new section or setting cannot be added without a check
 node test/check-file.test.js                  # dev/tools/check-file.js <data.json>: the Validate tab's result as counts only ("error held 1"), safe to paste; exit 0/1/2
@@ -388,7 +390,7 @@ NODE_PATH=<dir with playwright> node test/browser.test.js <export.csv> <calendar
 5. Hard-refresh the page. The splash screen and the header show the version; the Debug tab shows every file's version and date.
 6. **After a deploy, update the private version history artifact.** Publish the same history file with the Artifact tool to the private link https://claude.ai/artifact/DSVoBfFjNvpxf1WcYdeyT5 (only the owner can open it until shared).
 
-Script load order matters and is enforced by `versions.test.js`: `csv, info, model, calendar, rotation, teams, catalog, season, datamerge, flagtrail, location-code, teamplan, pace, signoff-review, intake, check, validate, todo, reports, reports-season, slides, stats, store, app, app-ask, app-season, app-person, app-signoff-review, app-todo, app-teamgrid, app-stats, app-store, app-options, app-update, app-sw, app-info, app-flagpop, app-help, app-trail, app-merge, app-flagmode, app-flagmarks, app-tools, app-search, app-topbar`, then the optional Drive files `drive-config, drive, app-drive`.
+Script load order matters and is enforced by `versions.test.js`: `csv, info, model, planning-center, planning-center-identity, pc-registrations, calendar, rotation, teams, catalog, season, datamerge, flagtrail, location-code, teamplan, pace, signoff-review, intake, check, validate, todo, reports, reports-season, slides, stats, store, app, app-ask, app-season, app-person, app-signoff-review, app-todo, app-teamgrid, app-stats, app-store, app-options, app-update, app-sw, app-info, app-flagpop, app-help, app-trail, app-merge, app-flagmode, app-flagmarks, app-tools, app-search, app-topbar`, then the optional Drive files `drive-config, drive, app-drive`.
 
 ## Known open items
 
