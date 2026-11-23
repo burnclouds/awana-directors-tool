@@ -213,6 +213,7 @@
 
   <section id="tab-calendar" hidden>
     <div class="bar">
+      <button type="button" id="btnCalMake" aria-controls="calMaker" aria-expanded="false">Make calendar…</button>
       <button id="btnCalAdd">Add date</button>
       <button id="btnCalShift">Roll dates forward…</button>
       <button id="btnCalCsv" title="Save the calendar as a CSV (a template when it is empty). Bring it back with Import…">Save calendar CSV</button>
@@ -220,6 +221,7 @@
       <span id="calDayWarn" class="status warn"></span>
       <span id="calStatus" class="status"></span>
     </div>
+    <section id="calMaker" aria-labelledby="calMakerTitle" hidden></section>
     <nav id="calSubs" class="rsubs calsubs" role="tablist" aria-label="Calendar view"><button type="button" role="tab" data-calsub="dates" class="on" aria-selected="true">Dates</button><button type="button" role="tab" data-calsub="lessons" aria-selected="false">Lessons by week</button></nav>
     <div id="calWrap" class="scroll"></div>
   </section>
@@ -311,7 +313,7 @@
       <ol>
         <li><b>Import&hellip; the export alone</b> (or drop it on the opening screen). It builds the whole roster: every person with their class, grade, birthdate, emergency contact, allergies and vest or shirt order. If Planning Center has changed its columns since the app was built, a window tells you what, and a bar under the header keeps the reminder (see <a href="#m-pc-columns">When Planning Center changes its form</a>).</li>
         <li><b>Download data file</b> (or <b>Save to Google Drive</b>). With no data file yet it asks for the <b>club year</b> (it suggests the current one, such as 2026-27) and creates your data file. From now on that is the file you import each time; the export is only for merging changes.</li>
-        <li><b>Calendar tab:</b> bring in a calendar CSV (an example is below) or <i>Add date</i> for each club night. Attendance, games and the quarter all come from the calendar.</li>
+        <li><b>Calendar tab:</b> use <i>Make calendar</i> to generate club nights, or <i>Add date</i> to enter a night by hand. Attendance, games and the quarter all come from the calendar.</li>
         <li><b>New club year, Options and Color teams.</b> <i>Options</i> starts with an index (a <i>Go to section</i> list on a phone) that moves you to the section you pick; <i>Validate</i> and <i>Debug</i> are its last entry. Under <i>New season</i> a four-step <b>New club year</b> list says what is still to do (this year&rsquo;s file, the calendar, Q1 colors, this year&rsquo;s books), each with a Go. On <i>Color teams</i>, <b>Fill blanks</b> lets you choose this quarter or every open quarter before anything is written; <b>More</b> holds Re-draw, Import, Save colors CSV and Start new year. <i>Edit</i> on Roster opens the child&rsquo;s Person page (Registration); <i>All fields</i> there is the full list of columns.</li>
         <li><b>Club-night helpers.</b> On a club night (or the day after) the top of <i>To do</i> has a <b>Tonight</b> strip: classes entered, games entered, awards to announce, each with a Go; it is not part of the To do number. <i>Options, Start on</i> chooses what opens after a file opens (Roster, Tonight&rsquo;s tab, or To do) and is kept in the data file. On <i>Color team games</i>, tap a number to set a team&rsquo;s place or spirit and tap it again to clear it; <b>Clear</b> empties the row; when three different places are set the fourth team gets the one left (one Undo step), and ties are never filled in for you. <i>Uniforms</i> has <b>Mark the N shown as ordered / received today</b>, which touches only the rows shown that have no date yet. On <i>To do</i> the rows sit under one line per class (a class with something to do starts open; a class with only things to check starts closed); the name opens the Person page with what needs attention highlighted.</li>
         <li><b>To do tab:</b> it lists what the export could not tell the app: children with no class or one that is not one of yours, color teams (Color team games, then <i>Assign blanks</i>), handbooks, missing grades and contacts.</li>
@@ -541,6 +543,7 @@
       <ul>
         <li>One row per club night or event: date, <b>Type</b> (Club night or Event), <b>Quarter</b>, <b>No club</b> (a cancelled night), theme, notes and the lessons for each group. Edit any cell; rows re-sort when you change a date. <i>Add date</i> adds a row; <i>Delete</i> removes one.</li>
         <li><b>Club meets on</b> sets your club&rsquo;s day (Wednesday unless you change it; other clubs meet on other days). A club night on a different day shows a yellow &#9888; in the <i>Day</i> column and a count appears in the toolbar. Events (Grand Prix, a Saturday outing) and cancelled nights are never flagged. The setting is saved in the data file.</li>
+        <li><b>Make calendar&hellip;</b> proposes weekly dates and editable holiday breaks. Choose quarter starts and review existing nights the app keeps. Applying the calendar is one History entry. Undo restores the previous calendar and settings.</li>
         <li><b>Roll dates forward&hellip;</b> moves every date by a number of weeks (52 keeps the same weekdays for next year). Check Easter, Thanksgiving and holiday weeks afterward.</li>
         <li>The calendar decides which nights count toward each quarter, the attendance and games tabs&rsquo; night lists, and the master schedule and lessons reports.</li>
         <li><b>Save calendar CSV</b> and <i>Import&hellip;</i> take it out and bring it back; <a href="#m-ex-calendar">an example and the rules</a> are in <a href="#m-f-examples">section 2</a>.</li>
@@ -806,6 +809,7 @@
 <script src="datamerge.js"></script>
 <script src="flagtrail.js"></script>
 <script src="teamplan.js"></script>
+<script src="calendar-safety.js"></script>
 <script src="pace.js"></script>
 <script src="intake.js"></script>
 <script src="check.js"></script>
@@ -819,6 +823,7 @@
 <script src="app.js"></script>
 <script src="app-ask.js"></script>
 <script src="app-season.js"></script>
+<script src="app-calendar-maker.js"></script>
 <script src="app-person.js"></script>
 <script src="app-todo.js"></script>
 <script src="app-teamgrid.js"></script>

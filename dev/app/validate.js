@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['validate.js'] = '1.18.1';
+(this.AwanaVersions = this.AwanaVersions || {})['validate.js'] = '1.18.2';
 // File checks for the Validate and Debug tabs. Pure functions: text in, findings out (nothing is read from or written to disk).
 //   validate(text, name) -> { kind, findings: [{ level: 'error' | 'warn' | 'info', msg, check }] }   (check: the part of the file the finding is about: a section name, 'config', 'roster', 'ghosts', 'calendar', 'history', 'replay' or 'file')
 //   inspect(text, name, lastModifiedMs) -> { kind, nameStamp, modified, facts }   (the dates and counts shown on the Debug tab)
@@ -30,7 +30,7 @@
   // What the data-file check covers. test/validate.test.js fails when a section (Season.SECTIONS) or a config key the code uses is missing here, so a new
   // one cannot be added without a check; each entry is exercised by a mutation test there.
   const CHECKED_SECTIONS = ['config', 'handbooks', 'attendance', 'awards', 'given', 'givenNoDate', 'held', 'flags', 'doneBooks', 'doneReviews', 'received', 'adults', 'teamMoves', 'games', 'progress', 'progressNoDate', 'extraSheets', 'announcedNoDate', 'blueWings', 'blueOverrides', 'blueDrops', 'pastTurnout', 'absences', 'roster', 'calendar', 'rotation'];      // (history is checked too, but is not one of Season.SECTIONS: it is the record of changes to them)
-  const CHECKED_CONFIG = ['clubDay', 'blueJewelWeeks', 'teamOrder', 'saveStyleDrive', 'saveStyleLocal', 'autoUpdate', 'autoSave', 'drivePinDays', 'sparksBooks', 'yearBook', 'placePoints', 'books', 'progress', 'awardLists', 'exclude', 'completion', 'endOfYear', 'store', 'teamPlan', 'teamsOk', 'todoIgnored', 'driveDirs', 'bundles', 'bookOrder', 'slideNames', 'medRead', 'medPrinted', 'clubTitle', 'driveKeepName', 'cubbiesDetail', 'tntBook', 'carriedThrough', 'bugButton', 'startTab', 'lessons', 'showHiddenNotes'];
+  const CHECKED_CONFIG = ['clubDay', 'blueJewelWeeks', 'teamOrder', 'saveStyleDrive', 'saveStyleLocal', 'autoUpdate', 'autoSave', 'drivePinDays', 'sparksBooks', 'yearBook', 'placePoints', 'books', 'progress', 'awardLists', 'exclude', 'completion', 'endOfYear', 'store', 'teamPlan', 'teamsOk', 'todoIgnored', 'driveDirs', 'bundles', 'bookOrder', 'slideNames', 'medRead', 'medPrinted', 'clubTitle', 'driveKeepName', 'cubbiesDetail', 'tntBook', 'carriedThrough', 'bugButton', 'startTab', 'lessons', 'showHiddenNotes', 'breaks', 'easterFlag'];
 
   // ---------- the data file ----------
   function validateData(text, name, out) {
@@ -52,6 +52,11 @@
 
     cur = 'config';
     const cfg = isObj(o.config) ? o.config : {}, clubDayOk = cfg.clubDay === undefined || (Number.isInteger(cfg.clubDay) && cfg.clubDay >= 0 && cfg.clubDay <= 6);
+    if (cfg.breaks !== undefined && (!Array.isArray(cfg.breaks) || cfg.breaks.some(b => !isObj(b) ||
+        typeof b.name !== 'string' || !b.name.trim() || !isDate(b.from) || !isDate(b.to) || b.from > b.to))) {
+      err('Calendar breaks must have a name and a valid date range.');
+    }
+    if (cfg.easterFlag !== undefined && typeof cfg.easterFlag !== 'boolean') err('The Easter week flag must be true or false.');
     if (!clubDayOk) err('The club day setting is ' + JSON.stringify(cfg.clubDay) + ' (it must be 0 for Sunday through 6 for Saturday).');
     if (cfg.blueJewelWeeks !== undefined && !(Array.isArray(cfg.blueJewelWeeks) && cfg.blueJewelWeeks.every((n, i, a) => typeof n === 'number' && (i === 0 || n > a[i - 1])))) err('Blue Jewel weeks must be a rising list of numbers.');
     if (cfg.teamOrder !== undefined && !(Array.isArray(cfg.teamOrder) && cfg.teamOrder.length === TEAMS.length && TEAMS.every(t => cfg.teamOrder.includes(t)))) err('The team color order must list Red, Blue, Green and Yellow once each (it is ' + JSON.stringify(cfg.teamOrder) + ').');
