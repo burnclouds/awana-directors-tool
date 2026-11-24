@@ -36,8 +36,8 @@ Follow the existing vanilla JavaScript style: two-space indentation, semicolons,
 
 ## Model Selection
 
-- **Codex, default:** GPT Sol at Low effort for routine implementation, test fixes, and mechanical edits.
-- **Codex, complex work:** GPT Astra at Medium effort for complex code implementation and detailed code review.
+- **Codex, implementation:** GPT Sol at Low effort writes all code, including complex code. Use it for routine edits, test fixes, and mechanical changes alike.
+- **Codex, support:** GPT Astra at Medium effort does not write feature code. Use it for two things only: planning a change before Sol starts (a short plan with line ranges and test cases), and diagnosing and fixing regressions that Sol's changes cause.
 - **Claude Sonnet:** most management tasks, including planning coordination, handoff updates, and task specs.
 - **Claude Haiku:** documentation tasks.
 - **Claude Opus:** large-scale review (cross-branch, data safety, security, and release review) and UX/UI recommendations.
