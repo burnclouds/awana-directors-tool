@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-merge.js'] = '1.0.2';
+(this.AwanaVersions = this.AwanaVersions || {})['app-merge.js'] = '1.0.3';
 // Merge a data file (File menu > Merge a data file): the screen for datamerge.js. Three steps, nothing is saved until Apply on the last one:
 //   1. Summary of everything the merge would do, as a categorized diff (counts, filters, a download).
 //   2. The real conflicts, if there are any: each one needs a choice (Keep mine, Take theirs, or Edit).
@@ -87,21 +87,89 @@
     if (choices[id] && choices[id].pick === 'edit' && !choices[id].value) delete choices[id];      // an Edit with nothing typed is not a decision
     const left = DM.summary(P, choices).counts.Undecided; $('mgLeft').textContent = left ? left + ' still to decide' : 'All decided'; $('mgNext').disabled = !!left;
   }
+  App.reviewCalendar = (mine, other, merged, impacts, otherLabel, savedChoices, backLabel) => new Promise(resolve => {
+    const file = App.season, panel = document.createElement('dialog');
+    const picks = savedChoices || {};
+    let dates = CalendarSafety.reviewDates(mine, other, impacts);
+    const describe = rows => rows.map(row => [row.Date, row.Type, row.Quarter, Calendar.stateOf(row), row.Theme].filter(Boolean).join(' · ')).join(', ') || 'No row';
+    panel.id = 'calendarReview'; panel.setAttribute('aria-label', 'Review calendar conflicts');
+    document.body.appendChild(panel);
+    function render(message) {
+      panel.innerHTML = '<h3>Review calendar conflicts</h3><p role="status">' + esc(message) + '</p>' + dates.map(item =>
+        '<p><label>' + esc(item.date + ' (' + item.reasons.join(', ') + ')') + '<select data-date="' + esc(item.date) + '">' +
+        '<option value="">Choose a calendar</option><option value="mine">Keep ours · ' + esc(describe(item.mine)) +
+        '</option><option value="other">Keep ' + esc(otherLabel) + ' · ' + esc(describe(item.other)) +
+        '</option></select></label></p>').join('') +
+        '<button data-apply>Use reviewed calendar</button> <button data-export>Export local copy</button> <button data-close>' + esc(backLabel || 'Leave blocked') + '</button>';
+      const apply = panel.querySelector('[data-apply]');
+      function update() { apply.disabled = dates.some(item => !picks[item.date]); }
+      for (const select of panel.querySelectorAll('select')) {
+        select.value = picks[select.dataset.date] || '';
+        select.onchange = () => { picks[select.dataset.date] = select.value; update(); };
+      }
+      panel.querySelector('[data-export]').onclick = () => {
+        if (file === App.season) App.download(Season.fileName(file.year), App.snapshotJson(), 'application/json', { local: true });
+      };
+      panel.querySelector('[data-close]').onclick = () => finish(null);
+      apply.onclick = () => {
+        if (file !== App.season) { finish(null); return; }
+        const rows = CalendarSafety.reviewedCalendar(merged, dates, picks);
+        if (!rows) { render('Overlapping dates need consistent choices.'); return; }
+        const candidate = Object.assign({}, merged, { calendar: rows });
+        for (const item of dates.filter(item => item.reasons.includes('season classification would change'))) {
+          const start = Season.seasonStart(picks[item.date] === 'mine' ? mine : other);
+          if ((item.date < start) !== (item.date < Season.seasonStart(candidate))) {
+            render('These choices give ' + item.date + ' a different season classification. Review the dates together.'); return;
+          }
+        }
+        const additional = CalendarSafety.mergeConflicts(mine, other, candidate, App.today())
+          .filter(impact => !dates.some(item => item.date === impact.date && Object.keys(impact.reasons).every(r => item.reasons.includes(r))));
+        if (additional.length) {
+          for (const impact of additional) {
+            const prior = impacts.find(item => item.date === impact.date);
+            if (prior) Object.assign(prior.reasons, impact.reasons); else impacts.push(impact);
+            delete picks[impact.date];
+          }
+          dates = CalendarSafety.reviewDates(mine, other, impacts);
+          render('The combined calendar affects additional records. Review the affected dates.'); return;
+        }
+        finish(rows);
+      };
+      update();
+    }
+    function finish(rows) { panel.close(); panel.remove(); resolve(rows); }
+    panel.oncancel = e => { e.preventDefault(); finish(null); };
+    render('Choose the calendar to use for each affected date.'); panel.showModal();
+  });
+
   // The other file's text in, the dialog out. Roster and calendar of the open file are brought up to date first, so the merge starts from exactly what is on screen.
   App.mergeFile = async (text, name) => {
     if (!App.season) return App.ask.alert('Open or start a data file first: a merge adds another file’s changes to the one that is open.');
     let other; try { other = Season.fromJson(text); } catch (err) { return App.ask.alert('That file is not a data file this app can read.\n\n' + err.message); }
-    const mine = App.mergeIn.current();
+    const file = App.season, initial = App.snapshotJson(), mine = Season.fromJson(initial);
     if (other.year && mine.year && other.year !== mine.year && !(await App.ask.confirm('That file is for club year ' + other.year + ' and this one is ' + mine.year + '. Merge anyway?', { title: 'Different club year', ok: 'Merge anyway' }))) return;      /* a merge replaces the session, which clears Undo: it stays a confirmation */
     const plan = DM.plan(mine, other, Object.assign({ from: name }, App.mergeNames(mine)));
-    return App.mergeScreen(plan, { name }).then(r => {
+    let decisions = {};
+    const picks = {};
+    while (file === App.season) {
+      const r = await App.mergeScreen(plan, { name, choices: decisions });
       if (!r) return;
-      const out = DM.finish(plan, r.choices), n = r.counts;
+      decisions = r.choices;
+      let out = DM.finish(plan, decisions);
+      const n = r.counts;
       const impacts = CalendarSafety.mergeConflicts(mine, other, out, App.today());
-      if (impacts.length) return App.ask.alert('The merged calendar would affect club records from another copy. Review the dates before merging. ' + CalendarSafety.summary(impacts), { title: 'Calendar needs review' });
+      if (impacts.length) {
+        const rows = await App.reviewCalendar(mine, other, out, impacts, 'the other copy', picks, 'Back to merge');
+        if (!rows) continue;
+        out = DM.finish(plan, r.choices, rows);
+      }
+      if (file !== App.season || initial !== App.snapshotJson()) {
+        App.flash('The open file changed during review. Start the merge again.', 'warn'); return;
+      }
       App.mergeIn.apply(out);
       App.flash('Merged ' + name + ': added ' + n.Added + ', changed ' + n.Changed + ', ' + n.Review + ' to review. Not saved yet: save the data file when you are ready.', 'info');
-    });
+      return;
+    }
   };
   // Names for the summary rows: children by name, books by their title.
   App.mergeNames = season => { const names = people(); return { names: id => names[id] || id, bookName: c => ((season.config.books || {})[c] || {}).name || c }; };

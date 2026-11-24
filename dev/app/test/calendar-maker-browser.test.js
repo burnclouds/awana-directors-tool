@@ -44,5 +44,22 @@ const { open } = require('./lib/app-page.js');
     assert.deepEqual(undone.calendar, before.calendar);
     assert.deepEqual(undone.settings, before.settings);
   });
+  await t.test('an off-weekday first calendar applies with an earlier sign-off notice', async () => {
+    await page.evaluate(() => {
+      const s = Season.blank('2040-41');
+      s.fake = true;
+      s.progress = { child: { HG: { 'Rank.1': '2040-09-03' } } };
+      App.openSeason(Season.toJson(s), { refresh: true });
+      App.showTab('calendar');
+    });
+    await page.click('#btnCalMake');
+    for (const name of ['first', 'last']) await page.fill('#calMaker input[name="' + name + '"]', '2040-09-06');
+    await page.locator('#calMaker input[name="last"]').press('Tab');
+    assert.match(await page.textContent('#flash'), /special event or a different meeting/);
+    await page.getByRole('button', { name: 'Preview calendar' }).click();
+    assert.match(await page.textContent('#calMakerPreview'), /2040-09-06.*2040-09-03.*Rank.1/);
+    await page.click('#calMaker [data-apply]');
+    assert.deepEqual((await state()).calendar.map(r => r.Date), ['2040-09-06']);
+  });
   await t.done();
 })();

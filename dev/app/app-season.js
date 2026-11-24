@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.99.7';
+(this.AwanaVersions = this.AwanaVersions || {})['app-season.js'] = '1.99.8';
 // Season tabs: Attendance, Games, Awards, Progress, History. Talks to app.js through window.App.
 // The data JSON is the only file we write: season records, roster extras, calendar and rotation. Every edit goes through touchSeason().
 (function () {
@@ -310,12 +310,18 @@
     if (dirty && !(opts && (opts.refresh || opts.discardOk))) return App.ask.confirm('Discard unsaved changes?', { title: 'Discard unsaved changes?', ok: 'Discard and open', danger: true }).then(yes => yes ? App.openSeason(text, Object.assign({}, opts, { discardOk: true })) : undefined);
     openingText = text;
     const s = Season.fromJson(text), bad = Season.badDates(s);
-    if (!bad.length) return openParsed(s);
+    if (!bad.length) { openParsed(s); return true; }
     const before = Season.snapshot(s);
-    dateFixDialog(s, bad, n => {
-      const e = Season.record(s, before, { separate: true });           // logged before the open, so History shows exactly the date fixes
-      if (e) e.label = 'Date fixes: ' + [n.fixed && n.fixed + ' corrected', n.removed && n.removed + ' removed'].filter(Boolean).join(', ');
-      openParsed(s, true);
+    return new Promise((resolve, reject) => {
+      $('dlg').addEventListener('close', () => resolve(false), { once: true });
+      dateFixDialog(s, bad, n => {
+        try {
+          const e = Season.record(s, before, { separate: true });
+          if (e) e.label = 'Date fixes: ' + [n.fixed && n.fixed + ' corrected', n.removed && n.removed + ' removed'].filter(Boolean).join(', ');
+          openParsed(s, true);
+          resolve(true);
+        } catch (err) { reject(err); }
+      });
     });
   };
   function openParsed(s, fixed) {
@@ -369,7 +375,7 @@
   const entered = d => !!(season && season.attendance[d] && Object.keys(season.attendance[d]).length);
   function nightList() {
     const set = new Map();
-    App.calendar.filter(Calendar.isNight).forEach(r => set.set(r.Date, r.Quarter));
+    App.calendar.filter(Calendar.countsNight).forEach(r => set.set(r.Date, r.Quarter));
     if (season) Object.keys(season.attendance).forEach(d => { if (entered(d) && !set.has(d)) set.set(d, ''); });
     return [...set.keys()].sort().map(d => ({ date: d, quarter: set.get(d) }));
   }
@@ -963,13 +969,13 @@
     // and cannot be typed in; under the row an earned jewel has the same Given, Announced and Hold boxes as every other award. The row is on the tab of the book the jewel's name carries (the child's book at the time).
     const blueJewelRow = () => {
       // The gems in this book's wings (placed by the club-year rule: Season.sparkJewels). The row shows on the current book, and on any book with a gem placed in it.
-      const jewels = Season.sparkJewels(season, id, App.calendar), weeks = season.config.blueJewelWeeks || [], cur = Season.childBook(season, id) || Season.bookOrder(season, bg)[0], waiting = Season.heldGems(season, id, App.calendar), skippedHere = Season.blueWingPlan(season, id, App.calendar).skipped.filter(x => x.book === book).length;
+      const jewels = Season.sparkJewels(season, id, App.calendar), weeks = Season.blueJewelRequirements(season, App.calendar, id), cur = Season.childBook(season, id) || Season.bookOrder(season, bg)[0], waiting = Season.heldGems(season, id, App.calendar), skippedHere = Season.blueWingPlan(season, id, App.calendar).skipped.filter(x => x.book === book).length;
       const slots = [1, 2, 3, 4].map(n => { const j = jewels.find(x => x.book === book && x.n === n), name = book + ' Blue Jewel ' + n;
         return { n, j, name, home: book, hasGiven: (season.given[id] || {})[name] || Season.isGivenNoDate(season, id, name) }; });
       if (!slots.some(s => s.j) && book !== cur) return '';
       const done = slots.every(s => s.j);
       return '<div class="pblock bjblock' + (done ? ' done' : '') + '"><span class="plabel">Blue Jewels' + (done ? ' ✓' : '') + flagBtn('block', book, 'BJ', '', 'Blue Jewels') + '</span>' +
-        slots.map(s => '<span class="pcell"><label class="pitem">' + s.n + ' &middot; ' + esc(String(weeks[s.n - 1] || '?')) + ' nights<input type="date" disabled value="' + esc(s.j ? s.j.date : '') + '" aria-label="Blue Jewel ' + s.n + ' earned' + (s.home !== book ? ' (' + esc(s.home) + ' book)' : '') + '" title="Awarded automatically from nights present' + (s.home !== book ? ' (earned in the ' + esc(s.home) + ' book)' : '') + '"></label>' +
+        slots.map(s => '<span class="pcell"><label class="pitem">' + s.n + ' &middot; ' + esc(String(s.j?.threshold ?? weeks[s.n - 1] ?? '?')) + ' nights<input type="date" disabled value="' + esc(s.j ? s.j.date : '') + '" aria-label="Blue Jewel ' + s.n + ' earned' + (s.home !== book ? ' (' + esc(s.home) + ' book)' : '') + '" title="Awarded automatically from nights present' + (s.home !== book ? ' (earned in the ' + esc(s.home) + ' book)' : '') + '"></label>' +
           (s.j ? ' <button type="button" class="todaybtn" data-bjdrop="1" data-bjbook="' + esc(book) + '" data-bjslot="' + s.n + '" data-bjgem="' + esc(String(s.j.gem)) + '" data-bjdate="' + esc(s.j.date) + '" data-bjov="' + (s.j.override ? '1' : '0') + '" aria-label="Drop Blue Jewel ' + s.n + ' of ' + esc(book) + '" title="Drop this Blue Jewel: it leaves the wings and its award">Drop</button>'
             : ' <button type="button" class="todaybtn" data-bjgrant="1" data-bjbook="' + esc(book) + '" data-bjslot="' + s.n + '" aria-label="Grant Blue Jewel ' + s.n + ' of ' + esc(book) + ' by hand" title="Grant this Blue Jewel by hand (a leader decision, with a note)">Grant by hand</button>') + '</span>').join('') +
         '<span class="pawards">awarded automatically, by nights present' + (waiting ? '; ' + waiting + ' earned and held for the next set of wings' : '') + (skippedHere ? '; ' + skippedHere + ' hand grant' + (skippedHere === 1 ? ' was' : 's were') + ' not placed: that slot already holds a gem from an earlier year' : '') + '</span>' +

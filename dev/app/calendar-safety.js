@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['calendar-safety.js'] = '1.2.1';
+(this.AwanaVersions = this.AwanaVersions || {})['calendar-safety.js'] = '1.2.3';
 // N3: inspect calendar dependencies and build a detached proposal before changing the open file.
 (function (root) {
   const Calendar = root.Calendar || require('./calendar.js');
@@ -60,26 +60,8 @@
     return { dates, latest, locked, meetings };
   }
 
-  function classificationDates(season) {
-    const dates = new Set();
-    const add = date => { if (Season.isRealDate(date)) dates.add(date); };
-    const progress = season.progress || {};
-    Object.entries(progress).forEach(([id, books]) => {
-      Object.keys(books || {}).forEach(book => values(Season.signsShown(season, id, book)).forEach(add));
-    });
-    const givenByChild = season.given || {};
-    Object.entries(givenByChild).forEach(([id, given]) => {
-      Object.entries(given || {}).forEach(([award, date]) => { if (!Season.isGivenNoDate(season, id, award)) add(date); });
-    });
-    const received = season.received || {};
-    Object.entries(received).forEach(([id, books]) => Object.keys(books || {}).forEach(book => add(Season.receivedShown(season, id, book))));
-    values(season.handbooks).forEach(text => add(Season.parseHandbook(text).date));
-    for (const section of ['blueOverrides', 'blueWings']) {
-      values(season[section]).forEach(list => { if (Array.isArray(list)) list.forEach(x => { if (x) { add(x.date); add(x.earned); } }); });
-    }
-    values(season.blueDrops).forEach(list => { if (Array.isArray(list)) list.forEach(x => { if (typeof x === 'string') add(x.split('|')[1]); }); });
-    return [...dates].sort();
-  }
+  const { classificationRecords } = Season;
+  const classificationDates = season => [...classificationRecords(season).keys()].sort();
 
   function quarterRegressions(rows) {
     const out = [];
@@ -95,7 +77,7 @@
 
   // Used by regeneration and by other routes that would replace or roll the existing schedule.
   function compare(season, previous, candidate, today, evidence = inspect(season, previous, today)) {
-    const next = meetingIndex(activeRows(season, candidate)), blocks = [], existing = [];
+    const next = meetingIndex(activeRows(season, candidate)), blocks = [], existing = [], notices = [];
     const state = rows => (rows || []).map(r => [r.Type, Calendar.isNight(r), r.Quarter]);
     const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     for (const [date, reasons] of evidence.dates) {
@@ -109,6 +91,7 @@
     }
     for (const [date, rows] of next) {
       const before = evidence.meetings.get(date) || [], reasons = {};
+      if (rows.length > 1) blocks.push({ date, reasons: { 'multiple club night rows': rows.length } });
       if (date <= evidence.latest && rows.some(Calendar.isNight) && !before.some(Calendar.isNight)) reasons['previous schedule'] = 1;
       if (rows.some(r => Calendar.isNight(r) && evidence.locked.has(r.Quarter) &&
           !before.some(old => Calendar.isNight(old) && old.Quarter === r.Quarter))) reasons['locked quarter'] = 1;
@@ -119,13 +102,57 @@
       .forEach(date => blocks.push({ date, reasons: { 'quarter would go backward': 1 } }));
     const beforeStart = Season.seasonStart(Object.assign({}, season, { calendar: previous.filter(valid) }));
     const afterStart = Season.seasonStart(Object.assign({}, season, { calendar: candidate.filter(valid) }));
-    if (beforeStart && afterStart && beforeStart !== afterStart) {
-      classificationDates(season).filter(date => (date < beforeStart) !== (date < afterStart))
-        .forEach(date => blocks.push({ date, reasons: { 'season classification would change': 1 } }));
+    const movesLater = afterStart && afterStart > beforeStart;
+    if (afterStart && beforeStart !== afterStart) {
+      const details = new Map();
+      classificationRecords(season, details);
+      for (const [date, records] of details) {
+        if (movesLater && date < afterStart && date >= beforeStart) {
+          notices.push({ date, first: afterStart, records });
+        } else if (date >= afterStart && date < beforeStart) {
+          blocks.push({ date, reasons: { 'season classification would change': 1 } });
+        }
+      }
+      if (movesLater && beforeStart && !notices.length) notices.push({ date: beforeStart, first: afterStart, records: [] });
     } else if (beforeStart && !afterStart && classificationDates(season).length) {
       blocks.push({ date: beforeStart, reasons: { 'effective season start would be lost': 1 } });
     }
-    return { blocks, existing };
+    return { blocks, existing, notices };
+  }
+
+  function correctionImpact(season, before, after, today, comparison = compare(season, before, after, today)) {
+    const { blocks, notices } = comparison;
+    const dates = new Map();
+    for (const { date, reasons } of blocks) {
+      dates.set(date, Object.assign(dates.get(date) || {}, reasons));
+    }
+    const records = classificationRecords(season);
+    const prior = meetingIndex(before), next = meetingIndex(after);
+    for (const date of new Set([...prior.keys(), ...next.keys()])) {
+      if (JSON.stringify(prior.get(date)) === JSON.stringify(next.get(date))) continue;
+      const counts = Object.assign({}, records.get(date));
+      for (const [reason, entries] of Object.entries(linksAt(season, date))) {
+        const count = Object.keys(entries || {}).length;
+        if (count) counts[reason] = count;
+      }
+      if (Object.keys(counts).length) dates.set(date, Object.assign(dates.get(date) || {}, counts));
+    }
+    if (dates.size) notices.filter(n => n.records.length).forEach(n =>
+      dates.set(n.date, Object.assign(dates.get(n.date) || {}, { 'season classification would change': 1 })));
+    if (notices.length || blocks.some(b => b.reasons['season classification would change'] || b.reasons['effective season start would be lost'])) {
+      const lost = blocks.some(b => b.reasons['effective season start would be lost']);
+      for (const [date, counts] of records) {
+        if (lost || dates.get(date)?.['season classification would change']) {
+          dates.set(date, Object.assign(dates.get(date) || {}, counts));
+        }
+      }
+    }
+    const quarters = (rows, date) => rows.filter(row => row.Date === date).map(row => row.Quarter || 'unassigned').join(', ') || 'no row';
+    const flags = new Set(['previous schedule', 'locked quarter', 'quarter team note', 'season classification would change',
+      'effective season start would be lost', 'quarter would go backward']);
+    return [...dates].map(([date, reasons]) =>
+      date + ' · ' + quarters(before, date) + ' → ' + quarters(after, date) + ' · ' +
+      Object.entries(reasons).map(([reason, count]) => flags.has(reason) ? reason : reason + ' (' + count + ')').join(', '));
   }
 
   function propose(season, rows, inputs, today) {
@@ -133,7 +160,13 @@
     const cutoff = (season.config || {}).carriedThrough;
     if (Season.isRealDate(cutoff) && inputs.first <= cutoff) throw new Error('Choose a first night after the previous season ended.');
     const generated = Calendar.generate(inputs), evidence = inspect(season, rows, today);
-    if (!generated.length) throw new Error('Choose a range containing at least one matching club weekday.');
+    for (const date of new Set([inputs.first, inputs.last])) {
+      const day = Calendar.weekday(date);
+      if (day !== inputs.day) generated.push(...Calendar.generate({ ...inputs, first: date, last: date, day }));
+    }
+    for (const [date, counts] of classificationRecords(season)) {
+      if (evidence.meetings.has(date)) evidence.dates.set(date, Object.assign(evidence.dates.get(date) || {}, counts));
+    }
     const previous = activeRows(season, rows);
     const archived = rows.filter(r => !previous.includes(r));
     const byDate = new Map(generated.map(row => [row.Date, row]));
@@ -160,7 +193,8 @@
       added.add(date);
     }
 
-    const starts = inputs.starts || Calendar.suggestQuarters(candidate);
+    const uniqueMeetings = [...meetingIndex(candidate).values()].map(meetings => meetings[0]);
+    const starts = inputs.starts || Calendar.suggestQuarters(uniqueMeetings);
     const assigned = Calendar.applyQuarters(candidate, starts);
     const sorted = Calendar.sort(candidate.slice());
     const proposed = assigned.map((row, i) => {
@@ -170,7 +204,41 @@
       return row;
     });
     const impact = compare(season, rows, proposed, today, evidence);
+    const classification = impact.blocks.filter(b => b.reasons['season classification would change']);
+    for (const date of quarterRegressions(proposed)) {
+      if (!impact.blocks.some(b => b.date === date && b.reasons['quarter would go backward'])) impact.blocks.push({ date, reasons: { 'quarter would go backward': 1 } });
+    }
+    const earlier = [...new Set([...impact.notices.filter(n => n.records.length), ...classification].map(b => b.date))].sort();
+    if (Season.isRealDate(cutoff) && earlier.length) {
+      const through = earlier.at(-1);
+      // Extending the old season may never archive an active row or hide dated activity.
+      if (through > cutoff && !proposed.some(r => r.Date <= through) &&
+          ![...evidence.dates.keys()].some(date => date <= through)) {
+        impact.cutoffChoice = { before: cutoff, through, dates: earlier };
+        if (inputs.cutoffThrough === through && inputs.cutoffReason?.trim()) {
+          impact.blocks = impact.blocks.filter(b => !classification.includes(b));
+          impact.cutoffReason = inputs.cutoffReason.trim();
+        }
+      }
+    }
     return Object.assign(impact, { rows: proposed, starts, added: [...added], kept, archived });
+  }
+
+  function activityAt(season, date) {
+    const details = new Map();
+    classificationRecords(season, details);
+    const ids = new Set([...(details.get(date) || []).map(r => r.id),
+      ...Object.keys(season.attendance?.[date] || {}), ...Object.keys(season.awards?.[date] || {})]);
+    for (const [id, moves] of Object.entries(season.teamMoves || {})) {
+      if (Array.isArray(moves) && moves.some(m => m?.from === date)) ids.add(id);
+    }
+    const recorded = ids.size > 0 || Object.values(linksAt(season, date)).some(entries => Object.keys(entries || {}).length);
+    return { recorded, ids: [...ids] };
+  }
+  function noticeText(n, name = id => id) {
+    if (!n.records.length) return 'The season start moves from ' + n.date + ' to ' + n.first;
+    return 'The season now starts on ' + n.first + '. These records from ' + n.date + ' belong to an earlier year. ' +
+      n.records.map(r => [r.kind, name(r.id), r.item].filter(Boolean).join(' · ')).join(', ');
   }
 
   function linksAt(season, date) {
@@ -183,6 +251,7 @@
     out['dated note'] = Object.entries(season.flags || {}).filter(([, f]) => f && f.date === date).map(([id]) => id).sort();
     return out;
   }
+
 
   // Calendars merge as whole arrays. Look for records from the other copy that would
   // lose the date or quarter they had there, even with no ordinary merge conflict.
@@ -226,11 +295,43 @@
     return [...result].sort(([a], [b]) => a.localeCompare(b)).map(([date, reasons]) => ({ date, reasons }));
   }
 
+  // A classification conflict can be on a sign-off date with no meeting row.
+  // Review the differing rows that determine whether that date precedes the first night.
+  function reviewDates(mine, other, impacts) {
+    const rowsAt = (s, date) => (s.calendar || []).filter(r => r.Date === date);
+    return impacts.map(({ date, reasons }) => {
+      const affected = new Set([date]);
+      if (reasons['season classification would change']) {
+        for (const row of [...mine.calendar, ...other.calendar]) {
+          if (Calendar.isNight(row) && row.Date <= date &&
+              JSON.stringify(rowsAt(mine, row.Date)) !== JSON.stringify(rowsAt(other, row.Date))) affected.add(row.Date);
+        }
+      }
+      const days = [...affected].sort();
+      return { date, days, reasons: Object.keys(reasons), mine: days.flatMap(day => rowsAt(mine, day)),
+        other: days.flatMap(day => rowsAt(other, day)) };
+    });
+  }
+
+  function reviewedCalendar(merged, dates, choices) {
+    const replacements = new Map();
+    for (const item of dates) {
+      const pick = choices[item.date];
+      if (pick !== 'mine' && pick !== 'other') return null;
+      for (const day of item.days) {
+        const rows = item[pick].filter(row => row.Date === day);
+        if (replacements.has(day) && JSON.stringify(replacements.get(day)) !== JSON.stringify(rows)) return null;
+        replacements.set(day, rows);
+      }
+    }
+    return Calendar.sort(merged.calendar.filter(row => !replacements.has(row.Date)).concat(...replacements.values()));
+  }
+
   function summary(blocks) {
     return blocks.slice(0, 8).map(({ date, reasons }) => date + ' (' + Object.keys(reasons).join(', ') + ')').join('; ') +
       (blocks.length > 8 ? ' and ' + (blocks.length - 8) + ' more' : '');
   }
 
-  const api = { inspect, compare, propose, mergeConflicts, summary };
+  const api = { activityAt, noteImpact: Season.recordedNightActivity, noticeText, inspect, compare, correctionImpact, propose, mergeConflicts, reviewDates, reviewedCalendar, summary };
   if (typeof module !== 'undefined') module.exports = api; else root.CalendarSafety = api;
 })(this);

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['datamerge.js'] = '1.1.6';
+(this.AwanaVersions = this.AwanaVersions || {})['datamerge.js'] = '1.1.7';
 // Merging another leader's data file into the one that is open (BACKLOG item J). Nothing here touches the screen or the open file: plan() works out what a merge would do,
 // summary() lists it as a categorized diff, and finish() builds the merged season once the leader has decided the real conflicts.
 // Rules (Mike, 2026-11-12):
@@ -79,7 +79,10 @@
     opts = opts || {}; mine = norm(mine); other = norm(other);
     // opts.base: the file as this copy opened it (the Drive save knows it exactly). opts.pc: also merge Planning Center fields (a Drive save must not lose an import done here).
     // opts.removals: a removal made in the other copy is a real edit and is applied (a Drive save: "other" is this very copy, and a night or mark deleted here was meant).
-    const { snap: base, shared } = opts.base ? { snap: opts.base, shared: 1 } : findBase(mine, other), { A, kept } = prepare(mine, other, base, opts);
+    const { snap, shared } = opts.base ? { snap: opts.base, shared: 1 } : findBase(mine, other);
+    // Calendar arrays compare as serialized values. Give the base the same field order as the saved sides.
+    const base = Array.isArray(snap.calendar) ? { ...snap, calendar: JSON.parse(Season.toJson({ calendar: snap.calendar })).calendar } : snap;
+    const { A, kept } = prepare(mine, other, base, opts);
     const al = alignPc(base, A, mine, { keepTheirs: !opts.pc });      // the Planning Center block goes whole from one side: this file's in a file merge, the newer import's in a Drive save
     const r = Season.merge3(base, al.ours, al.theirs, { now: opts.now, from: opts.from });      // result: this copy plus what the other file added
     const state = clone(r.season); state.history = clone(mine.history || []);
@@ -95,12 +98,13 @@
     return P;
   }
   // The merged season once the leader has decided: choices[conflict id] = { pick: 'mine' | 'other' | 'edit', value }. Every conflict needs a choice. One new History entry holds the whole merge.
-  function finish(P, choices) {
+  function finish(P, choices, calendar) {
     choices = choices || {}; const out = clone(P.state);
     P.conflicts.forEach(c => {
       const ch = choices[c.id]; if (!ch) throw new Error('Decide every conflict first.');
       if (ch.pick === 'other') setPath(out, c.p, c.other !== undefined, c.other); else if (ch.pick === 'edit') setPath(out, c.p, true, ch.value);
     });
+    if (calendar) out.calendar = clone(calendar);
     const e = Season.record(out, Season.snapshot(P.mine), { separate: true, now: P.now, prefix: 'Merged' });
     if (e) e.label = 'Merged' + (P.from ? ' (' + P.from + ')' : '') + ': ' + Season.labelOf(e.changes);
     return out;

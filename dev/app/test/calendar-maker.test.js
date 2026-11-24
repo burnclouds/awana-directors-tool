@@ -264,3 +264,317 @@ test('calendar comparison flags newly out-of-order quarters without duplicating 
   assert(impacts.blocks.some(row => row.date === '2026-10-21' && row.reasons['quarter would go backward']));
   assert.deepEqual(Safety.compare(s, invalid, invalid, '2026-09-01').blocks, []);
 });
+
+test('a missing night previews its records and quarter without touching either', () => {
+  const file = Season.blank('2040-41'), date = '2040-09-05';
+  file.attendance[date] = { a: { a: 1 }, b: { a: 1 } };
+  const preview = Safety.correctionImpact(file, [], [night(date, 'Q2')], date);
+  assert.equal(preview.length, 1);
+  assert.match(preview[0], /2040-09-05 · no row → Q2 · attendance \(2\)/);
+  assert.equal(file.calendar.length, 0);
+});
+
+test('a rollover sign-off notice permits Apply and the optional cutoff needs a reason', () => {
+  const s = Season.blank('2026-27');
+  const rows = [night('2026-05-13')], date = '2026-08-12';
+  s.config.carriedThrough = rows[0].Date;
+  s.progress = { child: { HG: { 'Rank.1': date } } };
+  const propose = choice => Safety.propose(s, rows, { ...october, ...choice }, '2026-08-10');
+  const pending = propose({});
+  assert.deepEqual(pending.cutoffChoice.dates, [date]);
+  assert.deepEqual(pending.blocks, []);
+  assert.equal(propose({ cutoffThrough: date, cutoffReason: '  ' }).cutoffReason, undefined);
+  const accepted = propose({ cutoffThrough: date, cutoffReason: 'Completed in the prior season' });
+  assert.deepEqual(accepted.blocks, []);
+  assert.equal(accepted.cutoffReason, 'Completed in the prior season');
+  assert.equal(s.config.carriedThrough, rows[0].Date);
+  s.attendance[date] = { child: { a: 1 } };
+  assert.equal(propose({ cutoffThrough: date, cutoffReason: 'Reviewed' }).cutoffChoice, undefined);
+});
+
+test('calendar review requires every date and preserves other merge decisions', () => {
+  const a = '2040-09-05', b = '2040-09-12', c = '2040-09-19';
+  const mine = { calendar: [night(a), night(b)] }, other = { calendar: [night(a, 'Q2'), night(c)] };
+  const merged = { calendar: other.calendar, config: { clubTitle: 'Reviewed title' } };
+  const dates = Safety.reviewDates(mine, other, [a, b].map(date => ({ date, reasons: { attendance: 1 } })));
+  assert.equal(Safety.reviewedCalendar(merged, dates, { [a]: 'mine' }), null);
+  assert.deepEqual(Safety.reviewedCalendar(merged, dates, { [a]: 'other', [b]: 'mine' }), [other.calendar[0], mine.calendar[1], other.calendar[1]]);
+  assert.deepEqual(Safety.reviewedCalendar(merged, dates, { [a]: 'mine', [b]: 'other' }), [mine.calendar[0], other.calendar[1]]);
+  assert.deepEqual(merged, { calendar: other.calendar, config: { clubTitle: 'Reviewed title' } });
+});
+
+const noteDate = '2040-09-05';
+test('calendar note counts individual children and games', () => {
+  const s = Season.blank('2040-41');
+  s.attendance[noteDate] = { 'kid-a': { a: 1 }, 'kid-b': { a: 1 } };
+  s.games[noteDate] = { Q1: { red: 1 } };
+  assert.deepEqual(Safety.noteImpact(s, noteDate), { recorded: true, children: ['kid-a', 'kid-b'], other: { games: 1 } });
+});
+
+test('an empty night has no note impact', () => {
+  assert.deepEqual(Safety.noteImpact(Season.blank('2040-41'), noteDate), { recorded: false, children: [], other: {} });
+});
+
+test('a sign-off alone counts as child activity', () => {
+  const s = Season.blank('2040-41');
+  s.progress = { 'kid-c': { HG: { 'Rank.1': noteDate } } };
+  assert.deepEqual(Safety.noteImpact(s, noteDate), { recorded: true, children: ['kid-c'], other: {} });
+});
+
+test('an adult award counts as other activity', () => {
+  const s = Season.blank('2040-41');
+  s.adults[noteDate] = { 'vol-a': { award: 1 } };
+  assert.deepEqual(Safety.noteImpact(s, noteDate), { recorded: true, children: [], other: { 'adult awards': 1 } });
+});
+
+test('a previous schedule flag alone has no note impact', () => {
+  const s = Season.blank('2040-41'), later = '2040-09-12';
+  s.calendar = [night(noteDate), night(later, 'Q2')];
+  s.attendance[later] = { 'kid-a': { a: 1 } };
+  assert.deepEqual(Safety.inspect(s, s.calendar, '2040-09-04').dates.get(noteDate), { 'previous schedule': 1 });
+  assert.equal(Safety.noteImpact(s, noteDate).recorded, false);
+});
+
+test('first calendar lists earlier sign-offs and allows Apply, while duplicate meetings block it', () => {
+  const s = Season.blank('2026-27');
+  s.progress = { child: { HG: { 'Rank.1': '2026-09-30' } } };
+  const proposal = Safety.propose(s, [], october, '2026-08-10');
+  assert.deepEqual(proposal.blocks, []);
+  assert.deepEqual(proposal.notices, [{ date: '2026-09-30', first: proposal.rows[0].Date, records: [{ kind: 'sign-offs', id: 'child', item: 'HG · Rank.1' }] }]);
+  const duplicate = Safety.propose(s, [proposal.rows[0], proposal.rows[0]], october, '2026-08-10');
+  assert(duplicate.blocks.some(b => b.reasons['multiple club night rows']));
+});
+
+for (const [section, kind, item] of [
+  ['given', 'award receipts', 'Award'],
+  ['received', 'book receipts', 'HG']
+]) {
+  test('first calendar allows Apply and lists earlier ' + kind, () => {
+    const s = Season.blank('2026-27'), date = '2026-09-30';
+    s[section] = { child: { [item]: date } };
+    const proposal = Safety.propose(s, [], october, '2026-08-10');
+    assert.deepEqual(proposal.blocks, []);
+    assert.deepEqual(proposal.notices, [{ date, first: october.first, records: [{ kind, id: 'child', item }] }]);
+    assert.equal(proposal.cutoffChoice, undefined);
+  });
+}
+
+test('invalid calendar rows still prevent a first calendar proposal', () => {
+  const s = Season.blank('2026-27');
+  assert.throws(() => Safety.propose(s, [night('2026-09-31')], october, '2026-08-10'), /invalid calendar dates/);
+});
+
+test('comparison blocks a date move onto another meeting and allows a same-date event', () => {
+  const s = Season.blank('2026-27'), date = '2026-10-07', today = '2026-08-10';
+  const rows = [night(date), night('2026-10-14')];
+  assert.deepEqual(Safety.compare(s, rows, [rows[0], night(date)], today).blocks, [
+    { date, reasons: { 'multiple club night rows': 2 } }
+  ]);
+  assert.deepEqual(Safety.compare(s, rows, [rows[0], night(date, 'Q1', { Type: 'Event' })], today).blocks, []);
+});
+
+test('calendar corrections list only reports whose output changes', () => {
+  const Reports = require('../reports.js');
+  require('../reports-season.js');
+  const s = Season.blank('2026-27'), event = { Date: '2026-10-07', Type: 'Event', Theme: 'Special event' };
+  const ctx = { master: { people: [] }, season: s, calendar: [night('2026-09-30'), event], settings: { quarter: 'Q1' }, today: '2026-08-10' };
+  assert.deepEqual(Reports.calendarChanges(ctx, ctx.calendar), []);
+  assert.deepEqual(Reports.calendarChanges(ctx, [ctx.calendar[0], { ...event, Date: '2026-10-08' }]), [
+    Reports.LIST.find(r => r.id === 'clubCalendar').title
+  ]);
+});
+
+test('a one-date calendar outside the usual weekday keeps the selected date', () => {
+  const date = '2026-10-01';
+  const proposal = Safety.propose(Season.blank('2026-27'), [], { ...october, first: date, last: date }, date);
+  assert.deepEqual(proposal.rows.map(row => row.Date), [date]);
+  assert.deepEqual(proposal.blocks, []);
+});
+
+test('correction preview lists activity and same-night sign-offs, and omits counts on schedule flags', () => {
+  const s = Season.blank('2026-27'), date = '2026-10-07';
+  s.attendance[date] = { child: { a: 1 } };
+  s.progress = { child: { HG: { 'Rank.1': date } } };
+  const [line] = Safety.correctionImpact(s, [night(date), night('2026-10-14')], [night('2026-10-14')], date);
+  assert.match(line, /attendance \(1\)/);
+  assert.match(line, /sign-offs \(1\)/);
+  assert.match(line, /previous schedule/);
+  assert.doesNotMatch(line, /(?:previous schedule|locked quarter) \(1\)/);
+});
+
+test('removing an existing first night lists the affected awards and allows Apply', () => {
+  const s = Season.blank('2026-27');
+  const first = '2026-10-07', next = '2026-10-14';
+  s.calendar = [night(first), night(next)];
+  s.given = { child: { Award: first } };
+  const before = Season.snapshot(s);
+  const result = Safety.compare(s, s.calendar, s.calendar.slice(1), '2026-10-01');
+  assert.deepEqual(result.blocks, []);
+  assert.deepEqual(result.notices, [{
+    date: first, first: next, records: [{ kind: 'award receipts', id: 'child', item: 'Award' }]
+  }]);
+  assert.deepEqual(Season.snapshot(s), before);
+});
+
+test('recorded closures preserve records and the season boundary while excluding attendance and granting grace', () => {
+  const s = Season.blank('2026-27');
+  const first = '2026-10-07', next = '2026-10-14', empty = '2026-10-21';
+  s.calendar = [night(first), night(next), night(empty)];
+  s.config.blueJewelWeeks = [2];
+  s.attendance = { [first]: { child: { a: 1 } }, [next]: { child: { a: 1 }, other: { a: 1 } } };
+  s.progress = { child: { HG: { 'Rank.1': first } } };
+  const before = Season.snapshot(s);
+  s.calendar = s.calendar.map(row => row.Date === next ? row : Calendar.markRecordedClosure(
+    row, Calendar.setState(row, 'cancelled'), Safety.noteImpact(s, row.Date).recorded
+  ));
+  const reloaded = Season.fromJson(Season.toJson(s));
+  assert.equal(Season.seasonStart(reloaded), first);
+  assert.equal(Season.firstNight(reloaded), next);
+  assert.equal(Season.totals(reloaded, 'child', reloaded.calendar).year.a, 1);
+  assert.equal(Season.totals(reloaded, 'other', reloaded.calendar).year.a, 1);
+  assert.deepEqual(Season.signsShown(reloaded, 'child', 'HG'), { 'Rank.1': first });
+  assert.deepEqual(reloaded.attendance, before.attendance);
+  assert.equal(reloaded.calendar[2]['Recorded Night'], undefined);
+  assert.deepEqual(Season.blueJewelRequirements(reloaded, reloaded.calendar), [1]);
+  assert.deepEqual(Season.blueJewels(reloaded, 'other', reloaded.calendar), [{ n: 1, threshold: 1, date: next }]);
+  const changes = Season.diff(before, s);
+  Season.applyChanges(s, changes, true);
+  assert.equal(Season.totals(s, 'child', s.calendar).year.a, 2);
+  assert.equal(s.calendar[0]['Recorded Night'], undefined);
+});
+
+test('a late recorded closure preserves earned jewel dates and dropped jewels', () => {
+  const s = Season.blank('2026-27');
+  const dates = ['02', '09', '16', '23', '30'].map(day => '2026-09-' + day);
+  s.calendar = dates.map(date => night(date));
+  s.config.blueJewelWeeks = [2, 4];
+  for (const row of s.calendar) Season.setMark(s, row.Date, 'child', 'a', true);
+  const last = s.calendar.at(-1);
+  s.calendar[s.calendar.length - 1] = Calendar.markRecordedClosure(last, Calendar.setState(last, 'cancelled'), true);
+  assert.deepEqual(Season.blueJewels(s, 'child', s.calendar), [
+    { n: 1, threshold: 2, date: '2026-09-09' },
+    { n: 2, threshold: 4, date: '2026-09-23' }
+  ]);
+  assert.deepEqual(Season.blueJewelRequirements(s, s.calendar, 'child'), [2, 4]);
+  const Model = require('../model.js'), Reports = require('../reports.js');
+  require('../reports-season.js');
+  const person = { [Model.X.ID]: 'child', [Model.C.ROOM]: 'Sparks', [Model.C.FIRST]: 'Test' };
+  Season.setProgress(s, 'child', 'HG', 'Rank.1', '2026-09-02');
+  const report = Reports.LIST.find(r => r.id === 'achievement').render({
+    master: { people: [person] }, calendar: s.calendar, season: s, opts: { group: 'Sparks', kid: 'child' }
+  });
+  assert.match(report, /1 · 2 nights<\/i><span class="v">09\/09\/26/);
+  assert.match(report, /2 · 4 nights<\/i><span class="v">09\/23\/26/);
+  s.blueDrops = { child: ['1|2026-09-09'] };
+  assert.deepEqual(Season.blueWingPlan(s, 'child', s.calendar).placed.map(j => j.n), [2]);
+});
+
+test('a leader drop survives earlier and later closures without changing its stored date', () => {
+  const s = Season.blank('2026-27');
+  const dates = ['2026-09-02', '2026-09-09', '2026-09-16', '2026-09-23', '2026-09-30', '2026-10-07'];
+  s.calendar = dates.map(date => night(date));
+  s.config.blueJewelWeeks = [2, 4];
+  for (const date of dates.slice(1, 5)) Season.setMark(s, date, 'child', 'a', true);
+  const close = index => {
+    const row = s.calendar[index];
+    Season.setMark(s, row.Date, 'other', 'a', true);
+    s.calendar[index] = Calendar.markRecordedClosure(row, Calendar.setState(row, 'cancelled'),
+      Safety.noteImpact(s, row.Date).recorded);
+  };
+  const dropped = Season.sparkJewels(s, 'child', s.calendar)[1];
+  assert.equal(dropped.date, dates[4]);
+  Season.dropBlue(s, 'child', { ...dropped, kind: 'earned', slot: dropped.n });
+  close(5);
+  assert.equal(Season.blueJewels(s, 'child', s.calendar)[1].date, dates[4]);
+  assert.deepEqual(Season.sparkJewels(s, 'child', s.calendar).map(j => [j.gem, j.date]), [[1, dates[2]]]);
+  close(0);
+  assert.equal(Season.blueJewels(s, 'child', s.calendar)[1].date, dates[3]);
+  const reloaded = Season.fromJson(Season.toJson(s));
+  assert.deepEqual(reloaded.blueDrops.child, ['2|2026-09-30']);
+  assert.deepEqual(Season.sparkJewels(reloaded, 'child', reloaded.calendar).map(j => [j.gem, j.date]), [[1, dates[1]]]);
+});
+
+test('grace begins after the closure and follows activity on the row date', () => {
+  const s = Season.blank('2026-27');
+  const [first, second, third] = ['2026-09-02', '2026-09-09', '2026-09-16'];
+  const original = night(first);
+  const closed = Calendar.markRecordedClosure(original, Calendar.setState(original, 'cancelled'), true);
+  s.calendar = [closed, night(second), night(third)];
+  s.config.blueJewelWeeks = [2];
+  Season.setMark(s, first, 'other', 'a', true);
+  Season.setMark(s, second, 'child', 'a', true);
+  Season.setMark(s, third, 'child', 'a', true);
+  assert.deepEqual(Season.blueJewels(s, 'child', s.calendar), [{ n: 1, threshold: 1, date: second }]);
+  const moved = { ...closed, Date: '2026-09-03' };
+  const movedCalendar = [moved, ...s.calendar.slice(1)];
+  const withoutMark = [{ ...moved, 'Recorded Night': '' }, ...s.calendar.slice(1)];
+  assert.deepEqual(Season.blueJewelRequirements(s, movedCalendar), Season.blueJewelRequirements(s, withoutMark));
+  assert.equal(Season.seasonStart({ ...s, calendar: movedCalendar }), Season.seasonStart({ ...s, calendar: withoutMark }));
+  assert.equal(Season.fromJson(Season.toJson(s)).calendar[0]['Recorded Night'], '0');
+  assert.equal(Calendar.load(Calendar.toCsv(s.calendar))[0]['Recorded Night'], '0');
+  Season.setMark(s, first, 'other', 'a', false);
+  assert.equal(Season.seasonStart(s), second);
+  assert.deepEqual(Season.blueJewels(s, 'child', s.calendar), [{ n: 1, threshold: 2, date: third }]);
+});
+
+test('volunteer attendance and dated notes alone do not qualify for grace', () => {
+  const s = Season.blank('2040-41'), Model = require('../model.js');
+  s.roster.people.adult = { v: { [Model.C.ROOM]: 'Volunteers' } };
+  Season.setMark(s, noteDate, 'adult', 'a', true);
+  s.flags.note = { date: noteDate };
+  assert.equal(Safety.noteImpact(s, noteDate).recorded, false);
+});
+
+test('protected reopenings still have blocks for the edit confirmation', () => {
+  const s = Season.blank('2040-41'), today = '2040-09-13';
+  const closed = Calendar.setState(night(noteDate), 'planned');
+  const future = night('2040-09-19');
+  s.config.teamPlan = { locked: { Q1: noteDate } };
+  const reopening = Safety.compare(s, [closed, future], [night(noteDate), future], today);
+  assert(reopening.blocks.some(b => b.date === noteDate && b.reasons['locked quarter']));
+  s.attendance[noteDate] = { child: { a: 1 } };
+  const event = { ...night(noteDate), Type: 'Event' };
+  const conversion = Safety.compare(s, [event, future], [night(noteDate), future], today);
+  assert(conversion.blocks.some(b => b.date === noteDate && b.reasons.attendance));
+});
+
+test('season start notice identifies each sign-off moved to an earlier year', () => {
+  const s = Season.blank('2040-41');
+  const rows = [night(noteDate), night('2040-09-12')];
+  s.progress = { child: { HG: { 'Rank.1': noteDate, 'Rank.2': noteDate } } };
+  const change = Safety.compare(s, rows, rows.slice(1), noteDate);
+  assert.match(Safety.noticeText(change.notices[0], () => 'Test Child'),
+    /starts on 2040-09-12.*earlier year.*Test Child · HG · Rank\.1.*Test Child · HG · Rank\.2/);
+});
+
+test('quarter dates follow recorded closures and preserve hand locks', () => {
+  const TeamPlan = require('../teamplan.js'), Reports = require('../reports.js');
+  const s = Season.blank('2040-41');
+  const past = night(noteDate), future = night('2040-09-19');
+  s.attendance[noteDate] = { child: { a: 1 } };
+  const closed = Calendar.markRecordedClosure(past, Calendar.setState(past, 'cancelled'), true);
+  const rows = [closed, future], today = '2040-09-12';
+  assert.equal(TeamPlan.stateOf(s, rows, 'Q1', today), 'locked');
+  assert.equal(Reports.firstNightOf(rows, 'Q1', s), noteDate);
+  assert.equal(Reports.nextQuarter(rows, today, 'Q1', s), 'Q2');
+  delete s.attendance[noteDate];
+  assert.equal(TeamPlan.stateOf(s, rows, 'Q1', today), 'ready');
+  assert.equal(Reports.firstNightOf(rows, 'Q1', s), future.Date);
+  TeamPlan.lock(s, 'Q1', today);
+  assert.equal(TeamPlan.stateOf(s, rows, 'Q1', today), 'locked');
+  assert.equal(TeamPlan.config(s).locked.Q1, today);
+});
+
+test('a jewel earned on the closure date keeps its original requirement and date', () => {
+  const s = Season.blank('2026-27');
+  const [first, second, third] = ['2026-09-02', '2026-09-09', '2026-09-16'];
+  const row = night(second);
+  s.calendar = [night(first), Calendar.markRecordedClosure(row, Calendar.setState(row, 'cancelled'), true), night(third)];
+  s.config.blueJewelWeeks = [2, 3];
+  for (const date of [first, second, third]) Season.setMark(s, date, 'child', 'a', true);
+  assert.deepEqual(Season.blueJewels(s, 'child', s.calendar), [
+    { n: 1, threshold: 2, date: second }, { n: 2, threshold: 2, date: third }
+  ]);
+  assert.deepEqual(Season.blueJewelRequirements(s, s.calendar, 'child'), [2, 2]);
+  assert.equal(Season.totals(s, 'child', s.calendar).year.a, 2);
+});

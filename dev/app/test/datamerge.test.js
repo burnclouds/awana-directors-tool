@@ -154,6 +154,28 @@ const imp = (x, asOf, tag) => {      // an import, as far as the data file shows
 };
 const forkDrive = (mineFn, otherFn) => { const base = start(), mine = clone(base), other = clone(base); if (mineFn) edit(mine, '2026-10-28T20:00:00Z', mineFn); if (otherFn) edit(other, '2026-10-28T20:05:00Z', otherFn); return { base: S.snapshot(base), mine, other }; };
 const drive = f => M.plan(f.mine, f.other, { base: f.base, pc: true, removals: true, from: 'this copy', now: '2026-10-28T21:00:00Z', names: id => 'Kid ' + id });
+test('Drive: calendar field order alone is unchanged, even when the other copy edits a value', () => {
+  const f = forkDrive(), Date = '2026-10-28';
+  f.base.calendar = [{ Date, Type: 'Club night', Quarter: 'Q1' }];
+  f.mine.calendar = [{ Date, Quarter: 'Q1', Type: 'Club night' }];
+  f.other.calendar = clone(f.mine.calendar);
+  const unchanged = drive(f);
+  assert.strictEqual(unchanged.conflicts.length, 0);
+  assert.strictEqual(unchanged.agreed, drive({ ...f, base: { ...f.base, calendar: f.mine.calendar } }).agreed);
+  f.other.calendar[0].Quarter = 'Q2';
+  const edited = drive(f);
+  assert.strictEqual(edited.conflicts.length, 0);
+  assert.strictEqual(M.finish(edited).calendar[0].Quarter, 'Q2');
+});
+test('Drive: competing calendar value changes still conflict with an unsorted base', () => {
+  const f = forkDrive(), Date = '2026-10-28';
+  f.base.calendar = [{ Date, Type: 'Club night', Quarter: 'Q1' }];
+  f.mine.calendar = [{ Date, Quarter: 'Q2', Type: 'Club night' }];
+  f.other.calendar = [{ Date, Quarter: 'Q3', Type: 'Club night' }];
+  const conflicts = drive(f).conflicts;
+  assert.strictEqual(conflicts.length, 1);
+  assert.deepStrictEqual(conflicts[0].p, ['calendar']);
+});
 const pcRows = Sm => cat(Sm, 'Roster and Planning Center fields').filter(r => /Planning Center data/.test(r.where));
 const rosterConflicts = P => P.conflicts.filter(c => c.p[0] === 'roster');
 test('a file merge keeps this file\'s Planning Center block whole, and says when the other file\'s is newer', () => {

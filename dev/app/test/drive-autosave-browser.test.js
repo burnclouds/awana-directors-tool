@@ -41,7 +41,7 @@ function newDrive() {
   d.part = body => { const m = /^--([^\r\n]+)\r\n/.exec(body), b = m[1], parts = body.split('--' + b).filter(x => x.trim() && x.trim() !== '--'); const cut = x => x.replace(/^\r\n/, '').replace(/\r\n$/, ''); return parts.map(x => { const t = cut(x), i = t.indexOf('\r\n\r\n'); return t.slice(i + 4); }); };
   return d;
 }
-const info = (d, id) => { const f = d.files[id], h = d.head(id); return { id, name: f.name, parents: f.parents, mimeType: f.mime, modifiedTime: h.modifiedTime, headRevisionId: h.id }; };
+const info = (d, id) => { const f = d.files[id], h = d.head(id); return { id, name: f.name, parents: f.parents, mimeType: f.mime, modifiedTime: h.modifiedTime, etag: JSON.stringify(h.id), title: f.name, headRevisionId: h.id }; };
 async function session(browser, base, d, opts) {
   opts = opts || {};
   const ctx = await browser.newContext({ acceptDownloads: true }), p = await ctx.newPage(), seen = { errors: [], dialogs: [], downloads: 0 };
@@ -56,10 +56,11 @@ async function session(browser, base, d, opts) {
     let m;
     if (d.refuseUpload && method === 'POST' && /upload\/drive\/v3\/files\?/.test(u)) return r.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: { code: 403, message: 'the app has no access to that folder' } }) });      // Google refuses the folder (the person has not confirmed it)
     if (method === 'POST' && /upload\/drive\/v3\/files\?/.test(u)) { const [meta, text] = d.part(r.request().postData()), id = 'N' + d.next++, j = JSON.parse(meta); d.put(id, j.name, text, j.parents); return json({ id, name: j.name, parents: j.parents, headRevisionId: 'R1' }); }
-    if (method === 'PATCH' && (m = /upload\/drive\/v3\/files\/([A-Za-z0-9]+)\?/.exec(u))) {
+    if (method === 'PUT' && (m = /upload\/drive\/v2\/files\/([A-Za-z0-9]+)\?/.exec(u))) {
       if (d.beforePatch) { const h = d.beforePatch; d.beforePatch = null; await h(m[1]); }
       if (d.delayPatchMs) await new Promise(r => setTimeout(r, d.delayPatchMs));
-      const [meta, text] = d.part(r.request().postData()), f = d.files[m[1]]; f.name = JSON.parse(meta).name; d.rev(m[1], text); return json(info(d, m[1]));
+      if (r.request().headers()['if-match'] !== JSON.stringify(d.head(m[1]).id)) return r.fulfill({ status: 412, body: '{}' });
+      const [meta, text] = d.part(r.request().postData()), f = d.files[m[1]]; f.name = JSON.parse(meta).title; d.rev(m[1], text); return json(info(d, m[1]));
     }
     if ((m = /files\/([A-Za-z0-9]+)\/revisions\/([A-Za-z0-9]+)(\?|$)/.exec(u))) {
       const rv = d.files[m[1]].revs.find(x => x.id === m[2]);
@@ -89,7 +90,7 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
   const press = async p => { await p.click('#btnSeasonSave'); if (await p.evaluate(() => App.testFiles().length)) await p.click('#btnSeasonSave'); };      // trusted clicks: a user gesture, as a person's tap is
   const auto = p => p.evaluate(() => App.autosave.set(true, 0.02));      // about 1.2 s
   const gone = p => p.evaluate(() => ({ dirty: App.dirty(), wait: App.driveSave.waiting && App.driveSave.waiting(), asks: window.__tokenAsks || 0 }));
-  const patches = d => d.calls.filter(c => /^PATCH .*upload/.test(c)).length;
+  const patches = d => d.calls.filter(c => /^PUT .*upload/.test(c)).length;
   const watchFlash = p => p.evaluate(() => { window.__flashes = []; new MutationObserver(() => { const f = document.getElementById('flash'); if (f && !f.hidden && /auto-save is waiting/.test(f.textContent)) window.__flashes.push(f.textContent); }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true }); });
 
   await test('the file is not shown as saved until Drive has confirmed the save', async () => {
@@ -116,7 +117,7 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
     assert(/auto-save is waiting\. Press Save to sign in/.test(await p.locator('#driveStatus').textContent()));
     assert.strictEqual(await p.evaluate(() => new Set(window.__flashes).size), 1, 'the banner is shown once per waiting spell');
     await p.evaluate(() => { window.__ttl = 3600; }); await press(p); await settle(p);
-    const g2 = await gone(p); assert.strictEqual(patches(d), n0 + 1, 'one PATCH'); assert(g2.asks >= asks0, 'a pressed save keeps its own 60 s rule: the 299 s token is still good for it'); assert.strictEqual(g2.dirty, false, 'clean'); assert.strictEqual(g2.wait, null, 'not waiting');
+    const g2 = await gone(p); assert.strictEqual(patches(d), n0 + 1, 'one PUT'); assert(g2.asks >= asks0, 'a pressed save keeps its own 60 s rule: the 299 s token is still good for it'); assert.strictEqual(g2.dirty, false, 'clean'); assert.strictEqual(g2.wait, null, 'not waiting');
     assert(/saved \d\d:\d\d/.test(await p.locator('#driveStatus').textContent())); assert.deepStrictEqual(seen.errors, []); await ctx.close();
   });
   await test('3.3 an automatic save that cannot reach Drive is quiet and tries again', async () => {
@@ -167,7 +168,7 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
     d.beforePatch = async () => { await mark(p, '2026-10-28', k[1], 'h'); };      // Y, made while the upload is in flight
     await save(p); await applyMerge(p); await settle(p); await p.waitForTimeout(500);
     assert.strictEqual(await p.evaluate(() => App.dirty()), true, 'the late edit is still unsaved'); let h = headAtt(d); assert(h[k[0]].h === 1 && h[k[2]].x === 1 && !(h[k[1]] && h[k[1]].h), 'Drive has B and X, not Y');
-    const from = d.calls.length; await save(p); await p.waitForFunction(() => !App.dirty(), null, { timeout: 8000 });
+    const from = d.calls.length; await save(p); await applyMerge(p); await p.waitForFunction(() => !App.dirty(), null, { timeout: 8000 });
     h = headAtt(d); assert(h[k[0]].h === 1, 'X'); assert(h[k[1]].h === 1, 'Y'); assert.deepStrictEqual(h[k[2]], B_MARK, 'B is still there');
     assert(gets(d, from) >= 1, 'Drive was read before the second upload'); assert.deepStrictEqual(await p.evaluate(i => App.season.attendance['2026-10-28'][i], k[2]), B_MARK, 'A\'s screen shows B');
     assert.deepStrictEqual(seen.errors, []); await ctx.close();
@@ -186,7 +187,7 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
     d.beforePatch = async () => { await mark(p, '2026-10-28', k[1], 'h'); };      // Y, in flight
     await save(p); await applyMerge(p); await settle(p); await p.waitForTimeout(500);
     await mark(p, '2026-10-28', k[0], 'a');      // Z, after the merged save that was edited over
-    await save(p); await p.waitForFunction(() => !App.dirty(), null, { timeout: 8000 });
+    await save(p); await applyMerge(p); await p.waitForFunction(() => !App.dirty(), null, { timeout: 8000 });
     const h = headAtt(d); assert(h[k[0]].h === 1 && h[k[0]].a === 1, 'X and Z'); assert(h[k[1]].h === 1, 'Y'); assert.deepStrictEqual(h[k[2]], B_MARK, 'B is still there');
     assert.deepStrictEqual(seen.errors, []); await ctx.close();
   });
@@ -199,7 +200,7 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
     await save(p); await applyMerge(p); await settle(p); h = headAtt(d);
     assert(h[k[0]].h === 1, 'X saved'); assert.deepStrictEqual(h[k[2]], B_MARK, 'B kept'); assert.deepStrictEqual(seen.errors, []); await ctx.close();
   });
-  await test('G a clash decided "Keep Drive\'s" is not asked again when someone saves in the gap; the merge screen shows once', async () => {
+  await test('G a clash decided "Keep Drive\'s" is not asked again when someone saves in the gap; the new revision gets a fresh summary', async () => {
     const d = fresh(), { p, seen, ctx } = await prep(d); await inplace(p); const k = await kids(p);
     { const t = JSON.parse(ORIG); t.handbooks = Object.assign({}, t.handbooks, { [k[2]]: 'HG' }); d.rev('F1', JSON.stringify(t)); }      // B gave k[2] the HG handbook and saved
     await p.evaluate(() => { const o = App.mergeScreen; window.__screens = 0; App.mergeScreen = function () { window.__screens++; return o.apply(this, arguments); }; });
@@ -207,8 +208,8 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
     d.beforePatch = async () => { const t = JSON.parse(d.text('F1')); t.attendance = t.attendance || {}; t.attendance['2026-10-28'] = t.attendance['2026-10-28'] || {}; t.attendance['2026-10-28'][k[1]] = { a: 1 }; d.rev('F1', JSON.stringify(t)); };      // B saves again in the gap, on another child
     await save(p); await p.waitForSelector('#mergeDlg[open]', { timeout: 8000 });
     const radios = await p.locator('#mergeDlg [data-mg="next"]').count();
-    await applyMerge(p, 'mine'); await settle(p); await p.waitForTimeout(500);
-    const h = headAtt(d); assert.strictEqual(await p.evaluate(() => window.__screens), 1, 'asked once (' + radios + ' conflict step)');
+    await applyMerge(p, 'mine'); await applyMerge(p, 'mine'); await settle(p); await p.waitForTimeout(500);
+    const h = headAtt(d); assert.strictEqual(await p.evaluate(() => window.__screens), 2, 'reviewed both revisions (' + radios + ' conflict step)');
     const hb = JSON.parse(d.text('F1')).handbooks; assert.strictEqual(hb[k[2]], 'HG', 'Drive\'s handbook was kept for the clash: ' + JSON.stringify(hb[k[2]]) + ' (conflict step buttons: ' + radios + ')'); assert.deepStrictEqual(h[k[1]], { a: 1 }, 'B\'s second save is kept too');
     assert.deepStrictEqual(seen.errors, []); await ctx.close();
   });
@@ -219,7 +220,7 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
     await save(p); await applyMerge(p); await settle(p); await p.waitForTimeout(500);
     await p.click('#btnUndo');      // takes Y back
     assert.strictEqual(await p.evaluate(i => !!(App.season.attendance['2026-10-28'][i] || {}).h, k[1]), false, 'Y is undone on screen');
-    await save(p); await p.waitForFunction(() => !App.dirty(), null, { timeout: 8000 });
+    await save(p); await applyMerge(p); await p.waitForFunction(() => !App.dirty(), null, { timeout: 8000 });
     const h = headAtt(d); assert(h[k[0]].h === 1, 'X is on Drive'); assert(!(h[k[1]] && h[k[1]].h), 'Y is not on Drive'); assert.deepStrictEqual(h[k[2]], B_MARK, 'B is still there');
     assert.deepStrictEqual(await p.evaluate(i => App.season.attendance['2026-10-28'][i], k[2]), B_MARK, 'A\'s screen shows B'); assert.deepStrictEqual(seen.errors, []); await ctx.close();
   });

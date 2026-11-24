@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-calendar-maker.js'] = '1.2.0';
+(this.AwanaVersions = this.AwanaVersions || {})['app-calendar-maker.js'] = '1.2.1';
 // Calendar maker owns a temporary form and preview. The live calendar changes only on Apply.
 (function () {
   const App = window.App, C = window.Calendar, S = window.Season, Safety = window.CalendarSafety;
@@ -61,7 +61,6 @@
 
   function inputs() {
     const f = $('calMakerForm').elements, day = Number(f.weekday.value), first = f.first.value, last = f.last.value;
-    if (C.weekday(first) !== day || C.weekday(last) !== day) throw new Error('Choose first and last dates that fall on ' + C.DAYS[day] + '.');
     return { day, first, last, tagline: f.tagline.value.trim(), themes: f.themes.value, events: f.events.checked, easterFlag: f.easter.checked,
       breaks: [...panel.querySelectorAll('[data-cal-break]')].map(row => ({
         name: row.querySelector('[data-name]').value.trim(), from: row.querySelector('[data-from]').value, to: row.querySelector('[data-to]').value
@@ -95,8 +94,14 @@
       previewList('Dates to add', result.added, d => d) + previewList('Existing dates kept', result.kept, reasons) +
       previewList('Weekly lessons affected', result.lessonChanges, lessonChange) +
       previewList('Earlier themes to copy', result.themeDates, d => d) + previewList('Earlier events to copy. Verify dates', result.eventDates, d => d) +
+      result.notices.map(n => '<p role="status">' + esc(Safety.noticeText(n, App.calendarChildName)) + '.</p>').join('') +
       previewList('Dates to review in the existing file', result.existing, r => r.date + ' · ' + r.reason) +
       previewList('Changes that would affect recorded activity or locked quarters', result.blocks, reasons) +
+      (result.cutoffChoice ? '<fieldset><legend>Carry earlier records into the closed season</legend><p>' +
+        esc(result.cutoffChoice.dates.join(', ')) + ' would become earlier-season records. Move the carried-through cutoff from ' +
+        esc(result.cutoffChoice.before) + ' to ' + esc(result.cutoffChoice.through) + ' to include them.</p>' +
+        '<label>Reason for adjusting the cutoff <input data-cutoff-reason value="' + esc(input.cutoffReason || '') + '"></label> ' +
+        '<button type="button" data-cutoff>Adjust cutoff</button> <button type="button" data-close>Cancel</button></fieldset>' : '') +
       '<details><summary>View proposed dates</summary><div class="scroll"><table class="roster"><thead><tr><th>Date</th><th>Quarter</th><th>Schedule</th></tr></thead><tbody>' +
       result.rows.map(r => '<tr><td>' + esc(r.Date) + '</td><td>' + esc(r.Quarter || '') + '</td><td>' +
         esc([r.Type === 'Event' ? 'Event' : C.isNight(r) ? 'Club night' : 'No club', r.Holiday, r.Theme].filter(Boolean).join(' · ')) +
@@ -114,11 +119,24 @@
     try { showPreview(inputs()); } catch (err) { showError(err); }
   });
   panel.addEventListener('input', e => {
+    if (e.target.hasAttribute('data-cutoff-reason')) {
+      preview.input.cutoffThrough = '';
+      preview.input.cutoffReason = '';
+      if (preview.result.cutoffReason) {
+        // Rebuild the visible preview before applying without the optional adjustment.
+        showPreview(preview.input);
+      }
+      return;
+    }
     if (!e.target.closest('#calMakerForm')) return;
     preview = undefined;
     $('calMakerPreview').hidden = true;
   });
   panel.addEventListener('change', async e => {
+    if (e.target.type === 'date' && S.isRealDate(e.target.value) &&
+        C.weekday(e.target.value) !== Number($('calMakerForm').elements.weekday.value)) {
+      App.flash(e.target.value + ' is outside the usual club schedule. A special event or a different meeting may be on that date.', 'info');
+    }
     if (e.target.name === 'themeFile') {
       const picked = e.target.files[0], current = file, box = e.target;
       if (picked) try {
@@ -137,7 +155,7 @@
     $('calMakerNotice').textContent = '';
     try { showPreview(Object.assign({}, preview.input, { starts })); }
     catch (err) {
-      e.target.value = preview.result.starts[e.target.dataset.start] || '';
+      panel.querySelector('[data-apply]').disabled = true;
       showError(err);
     }
   });
@@ -145,6 +163,13 @@
     const button = e.target.closest('button');
     if (!button) return;
     if (button.hasAttribute('data-close')) { close(); opener.focus(); return; }
+    if (button.hasAttribute('data-cutoff') && preview) {
+      const cutoffReason = panel.querySelector('[data-cutoff-reason]').value.trim();
+      if (!cutoffReason) { showError(new Error('Enter a reason for changing the cutoff.')); return; }
+      $('calMakerNotice').textContent = '';
+      showPreview(Object.assign({}, preview.input, { cutoffReason, cutoffThrough: preview.result.cutoffChoice.through }));
+      return;
+    }
     if (button.hasAttribute('data-apply')) {
       const saved = preview, opened = file;
       if (!saved) return;
@@ -153,17 +178,18 @@
         try {
           const fresh = makeProposal(saved.input);
           if (JSON.stringify(fresh) !== JSON.stringify(saved.result)) {
-            showPreview(saved.input);
+            showPreview(Object.assign({}, saved.input, { cutoffThrough: undefined }));
             $('calMakerNotice').textContent = 'The calendar or club records changed. Review the new preview before applying.';
             return;
           }
           if (fresh.blocks.length) return;
           const { day, breaks, easterFlag, tagline } = saved.input;
           const settings = { clubDay: day, breaks, easterFlag };
+          if (fresh.cutoffReason) settings.carriedThrough = fresh.cutoffChoice.through;
           if (tagline || opened.config.clubTagline !== undefined) settings.clubTagline = tagline;
           if (!opened.config.lastYearCalendar && fresh.archived.length) settings.lastYearCalendar = C.archive(fresh.archived);
           close();
-          if (App.applyCalendarProposal(fresh.rows, settings)) App.done('Calendar applied. Use Undo to restore the previous calendar.');
+          if (App.applyCalendarProposal(fresh.rows, settings, fresh.cutoffReason)) App.done('Calendar applied. Use Undo to restore the previous calendar.');
           else App.flash('The calendar already matches this preview.', 'info');
           opener.focus();
         } catch (err) { if (!panel.hidden) showError(err); }

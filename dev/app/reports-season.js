@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports-season.js'] = '1.37.2';
+(this.AwanaVersions = this.AwanaVersions || {})['reports-season.js'] = '1.37.3';
 // Print reports built from the season file. Added to Reports.LIST; ctx = { master, settings, calendar, season, opts }.
 // opts: group ('Sparks' | 'T&T' | 'Cubbies' | 'Puggles'), kid (Unique ID or ''), room.
 (function (root) {
@@ -125,10 +125,10 @@
       textRow('BR', 'Review Emblem', all.filter(k => shown[k] || nds.includes(k)).length + ' of ' + all.length + ' signed: every box in the band at left, reviews too', fillName(t.bookReview.awards[0], book, emblem));
     }
     if (g === 'Sparks') {      // Blue Jewels: four cells in two rows (earned from nights present; then Given)
-      const weeks = s.config.blueJewelWeeks || [], r1 = newRow('BJ'), r2 = newRow('BJ'); r1.name = '<td class="nm"><b>Blue Jewels</b></td>'; r2.name = '<td class="nm rvn">given</td>';
+      const weeks = Season.blueJewelRequirements(s, ctx.calendar || [], blank ? undefined : id), r1 = newRow('BJ'), r2 = newRow('BJ'); r1.name = '<td class="nm"><b>Blue Jewels</b></td>'; r2.name = '<td class="nm rvn">given</td>';
       r1.boxes = r2.boxes = '';
       [1, 2, 3, 4].forEach(n => { const j = jewels.find(x => x.n === n), nm = book + ' Blue Jewel ' + n, st = recState(L, nm);
-        r1.boxes += '<td class="bj"><i class="n">' + n + ' · ' + esc(String(weeks[n - 1] || '?')) + ' nights</i><span class="v">' + (j ? esc(mdyFull(j.date)) : '') + '</span></td>';
+        r1.boxes += '<td class="bj"><i class="n">' + n + ' · ' + esc(String(j?.threshold ?? weeks[n - 1] ?? '?')) + ' nights</i><span class="v">' + (j ? esc(mdyFull(j.date)) : '') + '</span></td>';
         r2.boxes += '<td class="so bg' + (st.state === 'earned' ? ' e' : '') + '"><i class="n">' + n + '</i><span class="ini"></span>' + LABELS + '<span class="dt">' + (st.state === 'given' ? esc(mdyFull(st.date)) : st.state === 'nodate' ? '✓' : '') + '</span></td>'; });
       rows.push(r1, r2);
     }

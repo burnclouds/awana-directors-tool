@@ -48,10 +48,10 @@
   }
 
   // ---------- states ----------
-  const firstNight = (calendar, q) => (Calendar.nights(calendar, q) || []).map(r => r.Date).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort()[0] || '';
+  const firstNight = (calendar, q, season) => calendar.filter(row => row.Quarter === q && Season.isQuarterNight(season, row)).map(r => r.Date).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort()[0] || '';
   // locked: locked by hand, or its first club night has come. ready: the next unlocked quarter, starting within READY_DAYS. projected: the rest.
   function stateOf(season, calendar, q, today) {
-    const i = qIndex(q), c = config(season), first = j => firstNight(calendar, QUARTERS[j]);
+    const i = qIndex(q), c = config(season), first = j => firstNight(calendar, QUARTERS[j], season);
     const locked = j => !!c.locked[QUARTERS[j]] || (!!first(j) && first(j) <= today);
     if (locked(i)) return 'locked';
     for (let j = 0; j < i; j++) if (!locked(j)) return 'projected';      // an earlier quarter is still open: this one is not next
@@ -66,7 +66,7 @@
   }
   function unlock(season, q, calendar, today) {
     qIndex(q);
-    const first = firstNight(calendar, q);
+    const first = firstNight(calendar, q, season);
     if (first && first <= today) throw new Error(q + ' has already started: edit its colors by hand.');
     if (season.config.teamPlan && isObj(season.config.teamPlan.locked)) delete season.config.teamPlan.locked[q];
     tidy(season);

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.13';
+(this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.15';
 (function () {
   const { C, X } = Model;
   const { esc } = Reports;
@@ -55,7 +55,7 @@
     teamColors: () => Season.teamOrder(App.season),      // the colors in the order set on the Options tab
     testFiles: () => [...testFiles], testGate: (btn, go) => testGate(btn, go),
     today, esc, touch: () => touch(), refresh: () => refresh(), openEdit: p => openEdit(p), knownRooms: () => knownRooms(), readFile, guardedSave, showTab: (n, s) => showTab(n, s),
-    openFiles: files => openFiles(files),
+    openFiles,
     // Optional (app-drive.js): when the person has chosen to save to Google Drive, data files (JSON) and slide images (PNG, ZIP) go there as a new file instead of being downloaded;
     // if that fails the file is downloaded as usual so nothing is lost.
     driveSave: null,
@@ -74,6 +74,7 @@
         let copied = false;
         const attempt = () => App.driveSave.go(final, text, type, opts).then(() => 'drive', err => {
           if (opts && opts.auto) throw err;
+          if (err.kind === 'calendar' || err.fileSwitched) return false;
           if (!copied) { local(); copied = true; }
           return App.ask.choose(App.driveSave.explain(err) + ' A copy is downloaded to this computer.', { title: 'Google Drive save', buttons: [{ id: 'again', label: 'Try again', primary: true }, { id: 'close', label: 'Close' }], cancel: 'close' })
             .then(id => id === 'again' ? attempt() : 'copy');
@@ -843,7 +844,7 @@
       renderPackColoringSheets(packNight);
     }
     $('dateBar').hidden = !(order || title || bundleOptions.has('quarter')); $('oOrder').hidden = !order; $('tWrap').hidden = !title;
-    if (!bundleQ) bundleQ = Reports.nextQuarter(calendar, today(), settings.quarter);
+    if (!bundleQ) bundleQ = Reports.nextQuarter(calendar, today(), settings.quarter, App.season);
     $('qWrap').hidden = !bundleOptions.has('quarter'); $('qLabel').textContent = 'Quarter to print'; syncQ();
     // A bundle marked perClass (the standard Class binder) takes its class from the Class picker, as its comment always said.
     $('oRoom').hidden = !perClass;
@@ -1408,10 +1409,10 @@
         '<td><button data-del="' + i + '">Delete</button></td></tr>').join('') + '</tbody></table>';
   }
   // Only the Calendar maker calls this after checking a fresh proposal inside commitScope.
-  App.applyCalendarProposal = (rows, settings) => {
+  App.applyCalendarProposal = (rows, settings, cutoffReason) => {
     calendar = rows;
     Object.assign(App.season.config, settings);
-    const changed = App.importChanged('Make calendar');
+    const changed = App.importChanged(cutoffReason ? 'Make calendar · carried through ' + settings.carriedThrough + ' · ' + cutoffReason : 'Make calendar');
     refresh();
     return changed;
   };
@@ -1507,33 +1508,150 @@
     if (impacts.blocks.length) throw new Error('This replacement affects recorded activity or locked quarters. Use Make calendar to keep those dates. ' + CalendarSafety.summary(impacts.blocks));
   }
   const calendarStructure = ['Date', 'Type', 'Quarter', 'State'];
-  function structuralCalendarEdit(index, field, row, apply) {
-    if (!App.season) { apply(); return; }
+  App.calendarChildName = id => {
+    const person = byId.get(id);
+    return person ? Model.fullName(person) || id : id;
+  };
+  let calendarNoticeTimer;
+  async function structuralCalendarEdit(index, field, row, apply) {
+    const noticeBox = $('calEditNotices');
+    clearTimeout(calendarNoticeTimer);
+    noticeBox.replaceChildren();
+    const addNotice = text => {
+      const line = document.createElement('p');
+      line.textContent = text;
+      noticeBox.appendChild(line);
+      clearTimeout(calendarNoticeTimer);
+      calendarNoticeTimer = setTimeout(() => noticeBox.replaceChildren(), 8000);
+    };
+    if (row && ['Date', 'Add'].includes(field) && (!Calendar.isNight(row) || Calendar.weekday(row.Date) !== clubDay())) {
+      addNotice(row.Date + ' is outside the usual club schedule. A special event or a different meeting may be on that date.');
+    }
+    const openFile = App.season, original = calendar[index];
+    const movedClosure = field === 'Date' && Calendar.isExcused(original);
+    if (movedClosure) delete row['Recorded Night'];
+    if (!openFile) { apply(); return; }
+    const stateEdit = field === 'State' || field === 'Type';
+    const noteImpact = () => CalendarSafety.noteImpact(openFile, row.Date);
+    const activity = (stateEdit || movedClosure) ? noteImpact() : null;
+    const sourceActivity = field === 'Date' ? CalendarSafety.noteImpact(openFile, original.Date) : null;
+    if (activity) Calendar.markRecordedClosure(original, row, activity.recorded);
     const candidate = calendar.slice();
     if (row) candidate[index] = row; else candidate.splice(index, 1);
     const lessons = Calendar.lessonChanges(calendar, candidate, App.season.config);
-    const finish = () => {
-      apply();
+    const finish = commit => {
+      if (commit) {
+        calendar = Calendar.sort(candidate);
+        App.importChanged(commit);
+        refresh();
+      } else apply();
+      showSeasonStartNotices();
       if (lessons.length && field !== 'Delete') App.flash(lessons.length + ' weekly lesson' + (lessons.length === 1 ? ' is' : 's are') + ' affected. Review Lessons by week.', 'info');
     };
-    const openFile = App.season, original = calendar[index];
-    const impact = () => CalendarSafety.compare(openFile, calendar, candidate, App.today()).blocks;
-    const blocks = impact();
-    if (!blocks.length) { finish(); return; }
-    renderCalendar();
-    if (field === 'Date' || field === 'Delete') {
-      App.flash('This calendar date is protected. Add a new row instead. ' + CalendarSafety.summary(blocks), 'warn');
+    const comparison = CalendarSafety.compare(openFile, calendar, candidate, App.today());
+    const duplicate = row && comparison.blocks.find(b => b.date === row.Date && b.reasons['multiple club night rows']);
+    if (duplicate && ['Date', 'Add'].includes(field)) {
+      renderCalendar();
+      App.flash('There is already a club night on ' + row.Date + '.', 'error');
       return;
     }
-    const before = JSON.stringify(calendar), initialImpact = JSON.stringify(blocks);
-    App.ask.confirm('This edit can affect scheduled nights and totals. ' + CalendarSafety.summary(blocks) + '. Apply it to this row?', {
-      title: 'Review this calendar edit', ok: 'Apply to this row', danger: true
-    }).then(ok => {
-      if (!ok || App.season !== openFile || calendar[index] !== original) return;
-      if (JSON.stringify(calendar) !== before || JSON.stringify(impact()) !== initialImpact) {
-        App.flash('The calendar or club records changed. Review the edit again.', 'warn'); return;
+    const name = id => {
+      const person = App.master?.people.find(p => p[X.ID] === id);
+      return person ? Model.fullName(person) || id : id;
+    };
+    const showSeasonStartNotices = () => comparison.notices.forEach(n => addNotice(CalendarSafety.noticeText(n, App.calendarChildName)));
+    const snapshot = () => JSON.stringify([calendar, Season.snapshot(openFile)]);
+    const recordedList = n => n.children.map(name).concat(Object.entries(n.other).map(([kind, count]) => kind + ' (' + count + ')'));
+    const excusing = (n, date) => {
+      const state = Calendar.stateOf(row);
+      const mark = field === 'Type' || state === 'event' ? row.Type : state === 'cancelled' ? 'Cancelled' : 'No club';
+      const locked = comparison.blocks.some(b => b.date === date && b.reasons['locked quarter']);
+      const children = n.children.length === 1 ? '1 child has' : n.children.length + ' children have';
+      return {
+        message: date + (original.Theme ? ' · ' + original.Theme : '') + ': ' +
+          children + ' recorded activity on this night. Marking it «' + mark +
+          '» excludes the night from totals. ' + (state === 'event'
+            ? 'It counts as a cancellation and gives grace to everyone from this date forward.'
+            : 'It lowers attendance award requirements reached after that date.') +
+          (locked ? ' The quarter lock will recalculate. Review Team Plan after marking the night.' : '') +
+          ' Every record stays on its original date.',
+        list: recordedList(n)
+      };
+    };
+    if (stateEdit && activity.recorded && Calendar.isExcused(row)) {
+      renderCalendar();
+      const before = snapshot(), date = row.Date;
+      const { message, list } = excusing(activity, date);
+      if (!await App.ask.confirm(message, { title: 'Mark night as a note', ok: 'Keep records and mark', list })) return;
+      App.commitScope(() => {
+        if (App.season !== openFile || snapshot() !== before ||
+            JSON.stringify(noteImpact()) !== JSON.stringify(activity)) {
+          App.flash('The calendar or club records changed. Review the correction again.', 'warn'); return;
+        }
+        finish('Calendar note · ' + date);
+      });
+      return;
+    }
+    if (stateEdit) {
+      const blocks = comparison.blocks;
+      if (!blocks.length) { finish(); return; }
+      renderCalendar();
+      const before = snapshot();
+      if (!await App.ask.confirm('This edit can affect scheduled nights and totals. ' + CalendarSafety.summary(blocks) + '. Apply it to this row?', {
+        title: 'Review this calendar edit', ok: 'Apply to this row', danger: true
+      })) return;
+      App.commitScope(() => {
+        if (App.season !== openFile || snapshot() !== before ||
+            JSON.stringify(CalendarSafety.compare(openFile, calendar, candidate, App.today()).blocks) !== JSON.stringify(blocks)) {
+          App.flash('The calendar or club records changed. Review the edit again.', 'warn'); return;
+        }
+        finish();
+      });
+      return;
+    }
+    const impact = comparison => CalendarSafety.correctionImpact(openFile, calendar, candidate, App.today(), comparison);
+    const affected = impact(comparison);
+    const first = Calendar.nights(calendar).filter(r => !Season.isRealDate(openFile.config.carriedThrough) ||
+      r.Date > openFile.config.carriedThrough).map(r => r.Date).sort()[0];
+    const planned = field === 'Delete' && Calendar.isNight(original) && first && first <= App.today() &&
+      original.Date > first && original.Date > App.today();
+    if (!affected.length && !planned && !sourceActivity?.recorded && !activity?.recorded) { finish(); return; }
+    renderCalendar();
+    const before = snapshot();
+    const description = [original, row].filter(Boolean).map(r => r.Date + ' (' + r.Quarter + ')').join(' → ');
+    const phrase = planned ? 'DELETE PLANNED NIGHT' : field === 'Delete' ? 'DELETE NIGHT' : field === 'Date' ? 'MOVE NIGHT' : '';
+    const warning = planned ? 'Deleting a future-planned night after the season has started is unusual. ' : '';
+    const moveNotes = [];
+    if (movedClosure && sourceActivity.recorded) {
+      moveNotes.push({
+        message: 'Moving this excused night changes the schedule used for attendance totals and award requirements.',
+        list: recordedList(sourceActivity)
+      });
+    }
+    if (movedClosure && activity.recorded) moveNotes.push(excusing(activity, row.Date));
+    const correction = warning + 'Correct the calendar row for ' + description +
+      (original?.Theme ? ' · ' + original.Theme : '') + '? Recorded entries stay on their original dates.';
+    if (!await App.ask.confirm([correction, ...moveNotes.map(note => note.message)].join('\n\n'), {
+      title: 'Review calendar correction', ok: 'Confirm correction', danger: true,
+      list: affected.concat(moveNotes.flatMap(note => note.list),
+        lessons.map(change => change.date + ' · ' + change.group + ' weekly lesson'))
+    })) return;
+    if (phrase) {
+      const reports = Reports.calendarChanges({ master, settings, calendar, rotation, season: openFile, today: App.today() }, candidate);
+      const reportMessage = reports.length
+        ? 'Review ' + (reports.length > 5 ? 'the ' + reports.length : 'the') + ' affected reports for ' + description + '.'
+        : 'Continue to confirm the correction for ' + description + '.';
+      if (!await App.ask.confirm(reportMessage, {
+        title: 'Review affected reports', ok: 'Continue', danger: true, list: reports
+      })) return;
+      if (!await App.ask.typed(phrase, { title: 'Confirm calendar correction', message: description,
+        ok: 'Apply correction', danger: true })) return;
+    }
+    App.commitScope(() => {
+      if (App.season !== openFile || snapshot() !== before || JSON.stringify(impact()) !== JSON.stringify(affected)) {
+        App.flash('The calendar or club records changed. Review the correction again.', 'warn'); return;
       }
-      finish();
+      finish('Correct calendar · ' + description);
     });
   }
   function commitCal(t) {
@@ -1579,13 +1697,26 @@
       App.done('Deleted ' + r.Date + (r.Theme ? ' ' + r.Theme : '') + ' from the calendar.');
     });
   });
-  $('btnCalAdd').addEventListener('click', () => {
+  $('btnCalAdd').addEventListener('click', async () => {
     const r = Calendar.blank(), last = calendar[calendar.length - 1];
     const start = new Date((last ? last.Date : today()) + 'T12:00:00Z');
     const offset = (clubDay() - start.getUTCDay() + 7) % 7;
     start.setUTCDate(start.getUTCDate() + (offset || (last ? 7 : 0)));
     r.Date = start.toISOString().slice(0, 10); r.Quarter = last ? last.Quarter : 'Q1';
-    calendar.push(r); calTouch(); renderCalendar();
+    const file = App.season;
+    if (file) {
+      const missing = CalendarSafety.compare(file, calendar, calendar, App.today()).existing
+        .filter(item => item.reason === 'activity missing from calendar');
+      if (missing.length) {
+        const values = await App.ask.form({ title: 'Add calendar date', ok: 'Review date',
+          message: 'Activity is missing a calendar row on ' + missing.map(item => item.date).join(', ') + '.',
+          fields: [{ name: 'date', type: 'date', label: 'Date', required: true, value: r.Date },
+            { name: 'quarter', type: 'select', label: 'Quarter', options: Calendar.QUARTERS.map(q => [q, q]), value: r.Quarter }] });
+        if (!values || file !== App.season || !Season.isRealDate(values.date)) return;
+        r.Date = values.date; r.Quarter = values.quarter;
+      }
+    }
+    structuralCalendarEdit(calendar.length, 'Add', r, () => { calendar.push(r); calTouch(); renderCalendar(); });
   });
   $('btnCalShift').addEventListener('click', () => {
     if (!calendar.length) return App.ask.alert('Load a calendar first.');
@@ -1628,10 +1759,16 @@
     if ((first.includes('Unique ID') || first.includes('Name')) && first.some(h => /^q[1-4]$|^colou?r$|^team$/i.test(h.trim()))) return 'colors';
     return '';
   }
-  function openFiles(files) { return App.commitScope ? App.commitScope(() => openFilesNow(files)) : openFilesNow(files); }
+  function openFiles(files, onSeasonOpened) {
+    const run = async () => {
+      const opened = await openFilesNow(files);
+      if (opened && onSeasonOpened) await onSeasonOpened(opened);
+    };
+    return App.commitScope ? App.commitScope(run) : run();
+  }
   async function openFilesNow(files) {
     const items = [];
-    for (const f of files) { const text = await f.text(); items.push({ name: f.name, text, kind: kindOf(text), lastModified: f.lastModified }); noteOpened(f.name, text, f.lastModified); markTest(f.name); }
+    for (const f of files) { const text = await f.text(); items.push({ file: f, name: f.name, text, kind: kindOf(text), lastModified: f.lastModified }); noteOpened(f.name, text, f.lastModified); markTest(f.name); }
     const order = ['season', 'master', 'pc', 'colors', 'calendar', 'rotation', 'progresspatch'], problems = [];
     items.sort((p, q) => order.indexOf(p.kind) - order.indexOf(q.kind));
     // Several data files picked at once: open the newest, and say so, instead of whichever the browser happens to list last.
@@ -1641,6 +1778,7 @@
       skipped.forEach(it => items.splice(items.indexOf(it), 1));
       problems.push('You picked ' + seasons.length + ' data files. Opened the newest, ' + keep.name + '. Not opened: ' + skipped.map(it => it.name).join(', ') + '.');
     }
+    let openedSeasonFile;
     for (const it of items) {
       try {
         if (it.kind === 'master') { if (master && App.dirty() && !(await App.ask.confirm('Discard unsaved changes and import the old master ' + it.name + '?', { title: 'Discard unsaved changes?', ok: 'Discard and import', danger: true }))) continue; setMaster(Model.loadMaster(it.text, today())); App.changed(); updateStatus(); }
@@ -1667,7 +1805,7 @@
           calendar = candidate; App.changed(); renderCalendar(); renderReport(); App.onRefresh.forEach(f => f());
         }
         else if (it.kind === 'rotation') problems.push(it.name + ': the nightly rotation is not tracked here any more, so this file was left out.');
-        else if (it.kind === 'season') { App.openedName = it.name; App.localHandle = null; await App.openSeason(it.text); }      // a new file: the next save asks where it goes
+        else if (it.kind === 'season') { App.openedName = it.name; App.localHandle = null; if (await App.openSeason(it.text)) openedSeasonFile = it.file; }      // a new file: the next save asks where it goes
         else if (it.kind === 'progresspatch') problems.push(it.name + ': importing a progress patch (from the photo-to-progress agent) was removed, so this file was left out.');
         else problems.push(it.name + ': not a file this app knows how to open.');
       } catch (err) { problems.push(it.name + ': ' + err.message); }
@@ -1675,6 +1813,7 @@
     if (problems.length) App.ask.alert(problems.join('\n'), { title: 'About the files you opened' });
     // After a merge, say if any handbook record uses a book that is not on the Options tab (the To do tab lists them for you to correct by hand).
     if (App.season && master) { const n = Check.scan({ master, season: App.season, calendar }).filter(f => f.area === 'Books' && f.id).length; if (n) App.flash(n + ' handbook or progress record' + (n === 1 ? '' : 's') + ' use a book that is not on the Options tab. See To do: Unrecognized book.', 'warn'); }
+    return openedSeasonFile;
   }
   $('btnImport').addEventListener('click', () => { if (App.importDefault && App.importDefault() === 'drive') App.importFromDrive(); else $('fileAny').click(); });      // the file picker, or Drive's when saving to Drive is on (app-drive.js)
   $('fileAny').addEventListener('change', e => { const files = [...e.target.files]; e.target.value = ''; return openFiles(files); });

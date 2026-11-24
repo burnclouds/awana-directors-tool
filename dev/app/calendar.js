@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.7.1';
+(this.AwanaVersions = this.AwanaVersions || {})['calendar.js'] = '1.7.2';
 // Club calendar: one row per club night or event. Stored as its own CSV so it can be rolled forward each year.
 (function (root) {
   const Csv = root.Csv || (typeof require !== 'undefined' ? require('./csv.js') : null);
@@ -8,7 +8,7 @@
   const GROUPS = ['Puggles', 'Cubbies', 'Sparks', 'T&T'], lessonCol = g => g + ' Lesson';
   const coloringCol = group => group + ' Coloring PDF';
   const coloringCols = GROUPS.map(coloringCol);
-  const extraCols = coloringCols.concat(['Start Time', 'End Time', 'Cancelled', 'No Club By Hand', 'Generated Break', 'Holiday']);
+  const extraCols = coloringCols.concat(['Start Time', 'End Time', 'Cancelled', 'No Club By Hand', 'Generated Break', 'Holiday', 'Recorded Night']);
   const TYPES = ['Club night', 'Event'];
   const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
 
@@ -27,6 +27,14 @@
   }
 
   const isNight = r => r.Type !== 'Event' && r['No Club'] !== '1';
+  // A closed row with recorded activity preserves the season boundary and grants attendance grace.
+  const isExcused = r => r['Recorded Night'] === '0' && !isNight(r);
+  const countsNight = r => isNight(r) || r['Recorded Night'] === '1';
+  function markRecordedClosure(previous, next, recorded) {
+    if (!isNight(next) && recorded && (countsNight(previous) || isExcused(previous))) next['Recorded Night'] = '0';
+    else if (isNight(next) || isExcused(next)) delete next['Recorded Night'];
+    return next;
+  }
   const stateOf = r => r.Type === 'Event' ? 'event' : isNight(r) ? 'meets' : r.Cancelled ? 'cancelled' : 'planned';
   function setState(row, state, reason) {
     if (row.Type === 'Event' || !['meets', 'planned', 'cancelled'].includes(state)) throw new Error('Choose Meets, No club or Cancelled for a club night.');
@@ -281,6 +289,6 @@
     }
     return { rows: sort(result), filled, events };
   }
-  const api = { COLS, GROUPS, lessonCol, coloringCol, coloringUrl, coloringSheets, tidy, lessonSettings, lessonSeries, numberItems, lessonsFor, lessonChanges, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, stateOf, setState, validTime, timeText, quartersIn, DAYS, weekday, dayName, offDay, offDays, recommendBreaks, generate, suggestQuarters, applyQuarters, archive, copyThemes };
+  const api = { COLS, GROUPS, lessonCol, coloringCol, coloringUrl, coloringSheets, tidy, lessonSettings, lessonSeries, numberItems, lessonsFor, lessonChanges, hasLessons, TYPES, QUARTERS, load, toCsv, nights, short, currentQuarter, shiftWeeks, blank, sort, isNight, isExcused, countsNight, markRecordedClosure, stateOf, setState, validTime, timeText, quartersIn, DAYS, weekday, dayName, offDay, offDays, recommendBreaks, generate, suggestQuarters, applyQuarters, archive, copyThemes };
   if (typeof module !== 'undefined') module.exports = api; else root.Calendar = api;
 })(this);

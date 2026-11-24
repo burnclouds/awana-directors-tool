@@ -17,7 +17,7 @@
   // A quarter that is not locked can be locked; one locked by hand (not one whose first night has passed) can be unlocked.
   function lockButton(ctx, q, state) {
     if (state !== 'locked') return '<br><button type="button" class="tglockbtn" data-tglock="' + q + '">Lock ' + q + '</button>';
-    const first = TeamPlan.firstNight(ctx.calendar, q);
+    const first = TeamPlan.firstNight(ctx.calendar, q, ctx.season);
     return TeamPlan.config(ctx.season).locked[q] && !(first && first <= ctx.today) ? '<br><button type="button" class="tglockbtn" data-tgunlock="' + q + '">Unlock ' + q + '</button>' : '';
   }
   function lock(q) {
@@ -57,7 +57,7 @@
     if (ui.scope === 'class') h += ' <label>Class <select id="tgClass">' + rooms.map(r => '<option' + (r === ui.cls ? ' selected' : '') + '>' + esc(r) + '</option>').join('') + '</select></label>';
     if (ui.scope === 'group') h += ' <label>Group <select id="tgGroup">' + GROUPS.map(g => '<option' + (g === ui.group ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select></label>';
     h += '</div>' + (action ? '<div class="tgbar">' + action + '</div>' : '') + (notes.length ? '<div class="tgbalance bad" role="status">' + notes.map(n => '<p><b>' + esc(n.q) + ', ' + esc(n.group) + ':</b> the teams are uneven (' + esc(n.sizes) + '). A recalculation cannot even them without repeating a color or moving a color you set by hand; change a cell yourself, or accept the warning above.</p>').join('') + '</div>' : '') + balanceHtml(ctx, groups, states) + '<div class="tglayout"><div class="tgmain"><div class="tgscroll scroll" tabindex="0" role="region" aria-label="The year grid: scrolls sideways and down"><table class="roster tg"><thead><tr><th scope="col">Name</th><th scope="col">Class</th>' +
-      Q.map((q, i) => '<th scope="col" data-q="' + q + '" class="tgh tgh-' + states[i] + '">' + q + ' &middot; ' + word[states[i]] + (states[i] !== 'locked' && TeamPlan.firstNight(ctx.calendar, q) ? '<br><small>starts ' + esc(md(TeamPlan.firstNight(ctx.calendar, q))) + '</small>' : '') + lockButton(ctx, q, states[i]) + (A.flagPlaceBtn ? ' ' + A.flagPlaceBtn({ level: 'team', quarter: q, group: scopeGroup }, 'color teams ' + q + (scopeGroup === 'All' ? '' : ' (' + scopeGroup + ')')) : '') + '</th>').join('') + '</tr></thead><tbody>';
+      Q.map((q, i) => '<th scope="col" data-q="' + q + '" class="tgh tgh-' + states[i] + '">' + q + ' &middot; ' + word[states[i]] + (states[i] !== 'locked' && TeamPlan.firstNight(ctx.calendar, q, ctx.season) ? '<br><small>starts ' + esc(md(TeamPlan.firstNight(ctx.calendar, q, ctx.season))) + '</small>' : '') + lockButton(ctx, q, states[i]) + (A.flagPlaceBtn ? ' ' + A.flagPlaceBtn({ level: 'team', quarter: q, group: scopeGroup }, 'color teams ' + q + (scopeGroup === 'All' ? '' : ' (' + scopeGroup + ')')) : '') + '</th>').join('') + '</tr></thead><tbody>';
     kids.forEach(p => {
       h += '<tr data-kid="' + esc(p[X.ID]) + '"><td><a href="#" data-person="' + esc(p[X.ID]) + '">' + esc(Model.eff(p, Model.C.FIRST)) + ' <span class="tgln">' + esc(Model.eff(p, Model.C.LAST)) + '</span></a></td><td>' + esc(Model.room(p)) + '</td>' + Q.map((q, i) => {
         const eff = Teams.effective(p, q, ctx.history && ctx.history(p)), v = states[i] === 'locked' ? eff.color : p['team:' + q] || '', pinned = states[i] !== 'locked' && !!v && TeamPlan.isPinned(ctx.master, season, p, q), who = esc(Model.fullName(p)), kid = esc(p[X.ID]);
@@ -164,7 +164,7 @@
   function move(btn) {
     const p = byId(btn.dataset.kid), q = btn.dataset.tgmove, dlg = document.getElementById('dlg'); if (!p || !dlg) return false;
     const ctx = { master: A.master, season: A.season, calendar: A.calendar, today: A.today(), history: A.teamHistory() }, id = String(p[X.ID]), now = Teams.endIn(p, q, ctx.history(p)), sug = TeamPlan.suggestMove(ctx, p, q);
-    const today = A.today(), dflt = A.quarterNow() === q ? today : TeamPlan.firstNight(A.calendar, q) || today, who = esc(Model.fullName(p));
+    const today = A.today(), dflt = A.quarterNow() === q ? today : TeamPlan.firstNight(A.calendar, q, A.season) || today, who = esc(Model.fullName(p));
     dlg.innerHTML = '<h3 style="margin-top:0">Change ' + q + ' team for ' + who + '</h3><p>' + esc(rateText(ctx, p)) + '</p>' + historyHtml(ctx, p) +
       '<p><b>Now:</b> ' + (now ? '<span class="team team-' + esc(now) + '">' + esc(now) + '</span>' : 'no color') + '</p>' +
       '<p id="tgMvSug">' + (sug.to ? '<b>Suggested:</b> <span class="team team-' + esc(sug.to) + '">' + esc(sug.to) + '</span> <button type="button" id="tgMvUse">Use the suggestion</button><br><span class="status">' + esc(sug.why) + '</span>' : '<span class="status">' + esc(sug.why) + ' Pick any color below; you will be warned, not stopped.</span>') + '</p>' +

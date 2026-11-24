@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.74.6';
+(this.AwanaVersions = this.AwanaVersions || {})['season.js'] = '1.74.7';
 // Season store: everything recorded during one club year, kept in one JSON file keyed by person ID
 // (attendance, games, awards, handbooks, section-by-section progress, the roster) plus the lists and templates they use.
 //
@@ -696,7 +696,7 @@
   const YEAR_BOUND = ['x_Uni_OrderedDate', 'x_Uni_SizeOrdered', 'x_Uni_ReceivedDate', 'x_Uni_GivenDate', 'x_Uni_GivenFlag', 'x_Uni_SizeGiven'];   // sizes verified and uniform notes carry over
 
   // ---------- calendar helpers ----------
-  const counted = rows => { const m = {}; rows.filter(r => r && Calendar.isNight(r)).forEach(r => { m[r.Date] = r.Quarter; }); return m; };
+  const counted = rows => { const m = {}; rows.filter(r => r && Calendar.countsNight(r)).forEach(r => { m[r.Date] = r.Quarter; }); return m; };
   const GROUPS = ['Puggles', 'Cubbies', 'Sparks', 'T&T'];
   const zero = () => ({ a: 0, h: 0, p: 0, x: 0 });
 
@@ -732,16 +732,90 @@
     });
     return out;
   }
-  function blueJewels(s, id, calRows) {
-    const out = []; let n = 0;
-    heldNights(s, calRows).forEach(d => {
-      const m = s.attendance[d][id];
-      if (!m || !m.a) return;
-      n++;
-      const i = s.config.blueJewelWeeks.indexOf(n);
-      if (i >= 0) out.push({ n: i + 1, threshold: n, date: d });
+  function classificationRecords(season, details, include = () => true) {
+    const dates = new Map();
+    const add = (date, kind, id, item) => {
+      if (!isRealDate(date) || !include(date)) return;
+      if (!dates.has(date)) dates.set(date, {});
+      if (details) {
+        if (!details.has(date)) details.set(date, []);
+        details.get(date).push({ kind, id, item });
+      }
+      const counts = dates.get(date);
+      counts[kind] = (counts[kind] || 0) + 1;
+    };
+    const progress = season.progress || {};
+    Object.entries(progress).forEach(([id, books]) => {
+      for (const book of Object.keys(books || {})) {
+        for (const [section, date] of Object.entries(signsShown(season, id, book))) {
+          add(date, 'sign-offs', id, book + ' · ' + section);
+        }
+      }
     });
-    return out;
+    const givenByChild = season.given || {};
+    Object.entries(givenByChild).forEach(([id, given]) => {
+      Object.entries(given || {}).forEach(([award, date]) => { if (!isGivenNoDate(season, id, award)) add(date, 'award receipts', id, award); });
+    });
+    const received = season.received || {};
+    Object.entries(received).forEach(([id, books]) => Object.keys(books || {}).forEach(book => add(receivedShown(season, id, book), 'book receipts', id, book)));
+    Object.entries(season.handbooks || {}).forEach(([id, text]) => add(parseHandbook(text).date, 'handbooks', id));
+    for (const section of ['blueOverrides', 'blueWings']) {
+      Object.entries(season[section] || {}).forEach(([id, list]) => { if (Array.isArray(list)) list.forEach(x => { if (x) { add(x.date, 'jewel placements', id); if (x.earned !== x.date) add(x.earned, 'jewel earnings', id); } }); });
+    }
+    Object.entries(season.blueDrops || {}).forEach(([id, list]) => { if (Array.isArray(list)) list.forEach(x => { if (typeof x === 'string') add(x.split('|')[1], 'dropped jewels', id); }); });
+    return dates;
+  }
+  function recordedNightActivity(s, date) {
+    const details = new Map();
+    classificationRecords(s, details, d => d === date);
+    const isChild = Model.childTestOf(s.roster);
+    const children = [...new Set([
+      ...(details.get(date) || []).map(record => record.id),
+      ...Object.keys(s.attendance?.[date] || {}),
+      ...Object.keys(s.awards?.[date] || {}),
+      ...Object.entries(s.teamMoves || {}).filter(([, moves]) =>
+        Array.isArray(moves) && moves.some(move => move?.from === date)).map(([id]) => id)
+    ])].filter(isChild);
+    const other = {};
+    const games = Object.keys(s.games?.[date] || {}).length;
+    if (games) other.games = games;
+    const adultAwards = Object.keys(s.adults?.[date] || {}).length;
+    if (adultAwards) other['adult awards'] = adultAwards;
+    return { recorded: children.length > 0 || games > 0 || adultAwards > 0, children, other };
+  }
+  const isRecordedClosure = (s, row) => !!s && Calendar.isExcused(row) && isRealDate(row.Date) &&
+    recordedNightActivity(s, row.Date).recorded;
+  const isQuarterNight = (s, row) => Calendar.countsNight(row) || isRecordedClosure(s, row);
+  const graceDates = (s, rows) => [...new Set(rows.filter(row => row && row.Date > (s.config.carriedThrough || '') &&
+    isRecordedClosure(s, row)).map(row => row.Date))].sort();
+  const reducedWeeks = (weeks, grace) => Math.max(1, weeks - grace);
+  function blueJewelRequirements(s, calRows, id) {
+    const dates = graceDates(s, calRows);
+    const earned = id == null ? [] : earnedBlueJewels(s, id, calRows, dates);
+    return s.config.blueJewelWeeks.map((weeks, i) =>
+      earned.find(jewel => jewel.n === i + 1)?.threshold ?? reducedWeeks(weeks, dates.length));
+  }
+  function earnedBlueJewels(s, id, calRows, dates) {
+    const earned = [], awarded = new Set();
+    let attended = 0, grace = 0;
+    const held = new Set(heldNights(s, calRows));
+    for (const date of [...new Set([...held, ...dates])].sort()) {
+      if (!s.attendance[date]?.[id]?.a) continue;
+      const count = attended + 1;
+      // Preserve a jewel earned on the closure date itself without counting that attendance on later dates.
+      if (held.has(date)) attended = count;
+      while (grace < dates.length && dates[grace] < date) grace++;
+      s.config.blueJewelWeeks.forEach((weeks, i) => {
+        const threshold = reducedWeeks(weeks, grace);
+        if (awarded.has(i) || count < threshold) return;
+        awarded.add(i);
+        earned.push({ n: i + 1, threshold, date });
+      });
+    }
+    return earned;
+  }
+  function blueJewels(s, id, calRows) {
+    return earnedBlueJewels(s, id, calRows, graceDates(s, calRows));
   }
 
   // ---------- Sparks Blue Jewels in the book's wings (core logic; no screen uses it yet) ----------
@@ -771,9 +845,9 @@
     const skipped = [];      // grants that could not take their slot (already filled by an earlier year's gem): reported, not placed
     ((s.blueOverrides || {})[id] || []).forEach(x => { if (used[x.book] === undefined) return; if (taken[x.book].has(x.n)) { skipped.push({ book: x.book, slot: x.n, date: x.date }); return; } used[x.book]++; taken[x.book].add(x.n); placed.push({ book: x.book, slot: x.n, n: x.n, threshold: null, earned: x.date, date: x.date, year, override: true, note: x.note || '' }); });
     const events = [];
-    // A dropped earned gem (blueDrops: "gem|date") is left out before placement, so it neither takes a slot nor is held.
-    const drops = new Set((s.blueDrops || {})[id] || []);
-    blueJewels(s, id, calRows).filter(j => !drops.has(j.n + '|' + j.date)).forEach(j => events.push({ type: 'gem', date: j.date, rank: 0, gem: j }));
+    // Stored drops retain their original earned date. Match by gem number so calendar corrections cannot undo a drop.
+    const drops = new Set(((s.blueDrops || {})[id] || []).map(key => String(key).split('|')[0]));
+    blueJewels(s, id, calRows).filter(j => !drops.has(String(j.n))).forEach(j => events.push({ type: 'gem', date: j.date, rank: 0, gem: j }));
     fin.filter(b => !b.before && b.date).forEach(b => events.push({ type: 'finish', date: b.date, rank: 1, book: b.book }));
     events.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.rank - b.rank);      // a gem on the night a book is finished goes into that book first
     events.forEach(e => {
@@ -792,7 +866,7 @@
 
   // What the screens show: the Sparks Blue Jewels placed in a book's wings this club year (and overrides), as { n (slot in that book, 1-4), book, date (the day earned), override, note }.
   // n is the slot in the book's wings (1-4); gem is the gem's own number (its night count, 1-4), used to drop it.
-  function sparkJewels(s, id, calRows) { return blueWingPlan(s, id, calRows).placed.map(x => ({ n: x.slot, gem: x.n, book: x.book, date: x.earned, placedDate: x.date, override: !!x.override, note: x.note || '' })); }
+  function sparkJewels(s, id, calRows) { return blueWingPlan(s, id, calRows).placed.map(x => ({ n: x.slot, gem: x.n, book: x.book, date: x.earned, threshold: x.threshold, placedDate: x.date, override: !!x.override, note: x.note || '' })); }
   // Hand grant (leaders): a Sparks Blue Jewel for slot n of a book, with the day it was earned and a note. It takes that slot and is never dropped at year end.
   function grantBlue(s, id, book, slot, date, note) {
     if (!Sparks(s, book)) throw new Error('Only Sparks books have Blue Jewels.');
@@ -1408,7 +1482,13 @@
   // The first day that belongs to THIS season, the "cut" every earlier-years rule uses. Normally the first club night on the calendar. A new season carries progress and awards forward (newSeason) and also the old
   // calendar until it is replaced, so config.carriedThrough (the closed year's last night, written once by newSeason) holds the cut back to the day after it: nothing carried is ever this season's work.
   const dayAfter = d => { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + 1); return t.toISOString().slice(0, 10); };
-  const seasonStart = s => { const f = firstNight(s), t = (s.config || {}).carriedThrough; return typeof t === 'string' && isRealDate(t) && (!f || f <= t) ? dayAfter(t) : f; };
+  function seasonStart(s) {
+    // Recorded closures preserve the existing classification of awards and sign-offs.
+    const closed = (s.calendar || []).filter(r => r && isRecordedClosure(s, r)).map(r => r.Date);
+    const f = [firstNight(s), ...closed].filter(Boolean).sort()[0] || '';
+    const t = (s.config || {}).carriedThrough;
+    return isRealDate(t) && (!f || f <= t) ? dayAfter(t) : f;
+  }
   // Progress sections signed off in this season (a sign-off dated before the cut was carried from an earlier year); counted by the Awana store points.
   function sectionsThisSeason(s, id) {
     const cut = seasonStart(s); let n = 0;
@@ -1675,7 +1755,7 @@
     const keep = items.reduce((best, it) => (!best || cmp(keys.get(it), keys.get(best)) > 0 ? it : best), null);
     return { keep, skipped: items.filter(it => it !== keep) };
   }
-  const api = { SECTIONS, KNOWN_TOP, nightStatus, volunteerNights, volunteerExpected, addAbsence, clearAbsenceNights, clearAbsence, absenceList, FLAG_LEVELS, FLAG_NO_KID, shiftDates, freshenFake, FORMAT, VERSION, fileName, MARKS, QUARTERS, TEAMS, blank, toJson, fromJson, isRealDate, badDates, guessDate, dateClashes, fixDates, newSeason, turnoutCounts, addPastYear, addEarlierYear, seasonStart, sectionsThisSeason, defaultYear, setMark, hasNight, heldNights, newest, totals, blueJewels,
+  const api = { SECTIONS, KNOWN_TOP, nightStatus, volunteerNights, volunteerExpected, addAbsence, clearAbsenceNights, clearAbsence, absenceList, FLAG_LEVELS, FLAG_NO_KID, shiftDates, freshenFake, FORMAT, VERSION, fileName, MARKS, QUARTERS, TEAMS, blank, toJson, fromJson, isRealDate, badDates, guessDate, dateClashes, fixDates, newSeason, turnoutCounts, addPastYear, addEarlierYear, seasonStart, sectionsThisSeason, defaultYear, setMark, hasNight, heldNights, newest, totals, classificationRecords, recordedNightActivity, isQuarterNight, blueJewelRequirements, blueJewels,
     booksStarted, toHandOut, jewelWaitsForWing, addFlagReply, orphanHandbook, setHandbook, noDateBookKids, oddballs, fixOddball, readableCopy, setFlagReply, removeFlagReply, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, progressTabBooks, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
     setProgress, addExtraSheet, blueWingPlan, sparkJewels, heldGems, grantBlue, dropBlue, isAnnNoDate, setAnnNoDate, noDateSigns, isSignNoDate, signShown, signsShown, unsignedIn, markSignsNoDate, baseAward, jewelName, awardLabel, childBook, sparksCurrent, receivedOf, receivedShown, isReceivedNoDate, setReceived, completedBlocks, finishedBooks, bookStatus, bookTabStatus, completionAwards, setBookDone, reviewsDoneBefore, setReviewsDone, suggestedAwards, firstNight, pastYearAwards, markPastYearsGiven, counted,
     normDriveDirs, isGivenNoDate, givenShown, isHeld, setHold, addFlag, setFlagNote, clearFlag, setFlagHidden, isFlagHidden, todoNotes, notAnAward, NOT_AWARDS, upgradeNotAwards, setBugStatus, addBugReply, removeBugReply, bugThread, bugStatusOf, BUG_STATUS, BUG_BY, noteList, bugList, flagList, flagsOf, flagsAt, flagsAtPlace, renameAward, snapshot, diff, merge3, applyChanges, record, labelOf, at, replayDiff, reconcile, tag, restoreTo, compare, kindOf, describe, MERGE_MINUTES };

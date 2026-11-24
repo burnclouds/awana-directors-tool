@@ -40,7 +40,7 @@ function newDrive() {
   d.part = body => { const m = /^--([^\r\n]+)\r\n/.exec(body), b = m[1], parts = body.split('--' + b).filter(x => x.trim() && x.trim() !== '--'); const cut = x => x.replace(/^\r\n/, '').replace(/\r\n$/, ''); return parts.map(x => { const t = cut(x), i = t.indexOf('\r\n\r\n'); return t.slice(i + 4); }); };
   return d;
 }
-const info = (d, id) => { const f = d.files[id], h = d.head(id); return { id, name: f.name, parents: f.parents, mimeType: f.mime, modifiedTime: h.modifiedTime, headRevisionId: h.id }; };
+const info = (d, id) => { const f = d.files[id], h = d.head(id); return { id, name: f.name, parents: f.parents, mimeType: f.mime, modifiedTime: h.modifiedTime, etag: JSON.stringify(h.id), title: f.name, headRevisionId: h.id }; };
 async function session(browser, base, d, opts) {
   opts = opts || {};
   const ctx = await browser.newContext({ acceptDownloads: true }), p = await ctx.newPage(), seen = { errors: [], dialogs: [], downloads: 0 };
@@ -53,10 +53,11 @@ async function session(browser, base, d, opts) {
     d.calls.push(method + ' ' + u.replace(/^https:\/\/[^/]+/, ''));
     let m;
     if (method === 'POST' && /upload\/drive\/v3\/files\?/.test(u)) { const [meta, text] = d.part(r.request().postData()), id = 'N' + d.next++, j = JSON.parse(meta); d.put(id, j.name, text, j.parents); return json({ id, name: j.name, parents: j.parents, headRevisionId: 'R1' }); }
-    if (method === 'PATCH' && (m = /upload\/drive\/v3\/files\/([A-Za-z0-9]+)\?/.exec(u))) {
-      if (d.failPatch) { d.failPatch = false; return r.fulfill({ status: 503, contentType: 'application/json', body: '{"error":{"message":"Backend Error"}}' }); }      // N9 point 9: Google is busy once; nothing is written
+    if (method === 'PUT' && (m = /upload\/drive\/v2\/files\/([A-Za-z0-9]+)\?/.exec(u))) {
+      if (d.failPatch) { d.failPatch = false; return r.fulfill({ status: 429, contentType: 'application/json', body: '{"error":{"message":"Backend Error"}}' }); }      // N9 point 9: Google is busy once; nothing is written
       if (d.beforePatch) { const h = d.beforePatch; d.beforePatch = null; h(m[1]); }
-      const [meta, text] = d.part(r.request().postData()), f = d.files[m[1]]; f.name = JSON.parse(meta).name; d.rev(m[1], text); return json(info(d, m[1]));
+      if (r.request().headers()['if-match'] !== JSON.stringify(d.head(m[1]).id)) return r.fulfill({ status: 412, body: '{}' });
+      const [meta, text] = d.part(r.request().postData()), f = d.files[m[1]]; f.name = JSON.parse(meta).title; d.rev(m[1], text); return json(info(d, m[1]));
     }
     if ((m = /files\/([A-Za-z0-9]+)\/revisions\/([A-Za-z0-9]+)(\?|$)/.exec(u))) {
       const rv = d.files[m[1]].revs.find(x => x.id === m[2]);
@@ -86,11 +87,11 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
 
   await test('one file in place is the default (plan item 1): a save updates the opened file and creates no new one', async () => {
     const d = fresh(), { p, seen, ctx } = await prep(d); const k = await kids(p); await mark(p, '2026-10-28', k[0], 'h'); await save(p); await settle(p);
-    assert(!d.calls.some(c => /^POST/.test(c)), d.calls.join('\n')); assert.strictEqual(d.calls.filter(c => /^PATCH .*upload/.test(c)).length, 1); assert.deepStrictEqual(seen.errors, []); await ctx.close();
+    assert(!d.calls.some(c => /^POST/.test(c)), d.calls.join('\n')); assert.strictEqual(d.calls.filter(c => /^PUT .*upload/.test(c)).length, 1); assert.deepStrictEqual(seen.errors, []); await ctx.close();
   });
-  await test('in place, nobody else: the opened file is updated (one PATCH, no new file), keeps its name, and the first save pins a version', async () => {
+  await test('in place, nobody else: the opened file is updated (one PUT, no new file), keeps its name, and the first save pins a version', async () => {
     const d = fresh(), { p, seen, ctx } = await prep(d); await inplace(p); const k = await kids(p); await mark(p, '2026-10-28', k[0], 'h'); await save(p); await settle(p);
-    assert(!d.calls.some(c => /^POST/.test(c)), d.calls.join('\n')); assert.strictEqual(d.calls.filter(c => /^PATCH .*upload/.test(c)).length, 1);
+    assert(!d.calls.some(c => /^POST/.test(c)), d.calls.join('\n')); assert.strictEqual(d.calls.filter(c => /^PUT .*upload/.test(c)).length, 1);
     assert.strictEqual(d.files.F1.revs.length, 2, 'the old content is still there as a revision'); assert.strictEqual(d.files.F1.revs[0].text, ORIG);
     assert.strictEqual(d.files.F1.name, DATA, 'the file keeps the name it was opened with');
     assert(JSON.parse(d.text('F1')).attendance['2026-10-28'][k[0]].h === 1, 'the new content is the file');
@@ -123,7 +124,9 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
   await test('a save fails (busy), someone else saves, then saving again merges: the merge screen shows both and their revision is kept', async () => {
     // Try again is the same save as pressing Save again, so this presses Save again after the failure.
     const d = fresh(), { p, seen, ctx } = await prep(d); await inplace(p); const k = await kids(p), theirs = JSON.parse(ORIG);
-    d.failPatch = true; await mark(p, '2026-10-28', k[0], 'h'); await save(p); await p.waitForTimeout(800);
+    d.failPatch = true; await mark(p, '2026-10-28', k[0], 'h');
+    const [download] = await Promise.all([p.waitForEvent('download'), save(p)]);
+    await download.path();
     assert.strictEqual(JSON.parse(d.text('F1')).attendance?.['2026-10-28']?.[k[0]], undefined, 'the busy save wrote nothing to Drive');
     assert.strictEqual(seen.downloads, 1, 'one copy downloaded on the failure');
     theirs.attendance = theirs.attendance || {}; theirs.attendance['2026-10-28'] = theirs.attendance['2026-10-28'] || {}; theirs.attendance['2026-10-28'][k[2]] = { a: 1, x: 1 }; d.rev('F1', JSON.stringify(theirs));
@@ -133,7 +136,7 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
     const file = JSON.parse(d.text('F1')); assert.strictEqual(file.attendance['2026-10-28'][k[0]].h, 1, 'ours'); assert.deepStrictEqual(file.attendance['2026-10-28'][k[2]], { a: 1, x: 1 }, 'theirs, never overwritten');
     assert(d.files.F1.revs.length >= 3, 'their revision is kept'); assert.deepStrictEqual(seen.errors, []); await ctx.close();
   });
-  await test('someone saves in the gap between the check and the write: the next look at the revisions finds it and merges again, and their revision is never lost', async () => {
+  await test('someone saves in the gap between the check and the write: the conditional write fails and merges again, and their revision is never lost', async () => {
     const d = fresh(), { p, seen, ctx } = await prep(d); await inplace(p); const k = await kids(p), theirs = JSON.parse(ORIG);
     theirs.attendance = theirs.attendance || {}; theirs.attendance['2026-10-28'] = theirs.attendance['2026-10-28'] || {}; theirs.attendance['2026-10-28'][k[2]] = { a: 1 };
     d.beforePatch = id => d.rev(id, JSON.stringify(theirs));
@@ -141,6 +144,44 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
     const file = JSON.parse(d.text('F1')); assert.strictEqual(file.attendance['2026-10-28'][k[0]].h, 1); assert.deepStrictEqual(file.attendance['2026-10-28'][k[2]], { a: 1 }, 'the one who saved in the gap still has their change');
     assert(d.files.F1.revs.some(r => !((JSON.parse(r.text).attendance || {})['2026-10-28'] || {})[k[0]]) && d.files.F1.revs.some(r => ((JSON.parse(r.text).attendance || {})['2026-10-28'] || {})[k[2]]), 'their revision is still in the list');
     assert.deepStrictEqual(seen.errors, []); await ctx.close();
+  });
+  await test('a calendar conflict arriving during autosave can be reviewed, exported and saved', async () => {
+    const d = fresh(), date = '2040-09-05', base = JSON.parse(ORIG);
+    base.calendar.push({ Date: date, Type: 'Club night', Quarter: 'Q4' });
+    d.put('F1', DATA, JSON.stringify(base));
+    const { p, ctx } = await prep(d);
+    const [child] = await kids(p);
+    await p.evaluate(day => App.commitScope(() => {
+      App.calendar.splice(App.calendar.findIndex(row => row.Date === day), 1);
+      App.importChanged('Edit calendar');
+    }), date);
+    d.beforePatch = id => {
+      const head = JSON.parse(d.text(id));
+      head.attendance[date] = { [child]: { a: 1 } };
+      d.rev(id, JSON.stringify(head));
+    };
+    assert.equal(await p.evaluate(() => App.saveNow({ auto: true })), false);
+    assert.equal(d.files.F1.revs.length, 2);
+    const calls = d.calls.length;
+    assert.equal(await p.evaluate(() => App.saveNow({ auto: true })), false);
+    assert.equal(d.calls.length, calls);
+    await p.click('#driveCalendarReview');
+    await applyMerge(p);
+    await p.waitForSelector('#calendarReview[open]');
+    assert.equal(await p.isDisabled('#calendarReview [data-apply]'), true);
+    const download = p.waitForEvent('download');
+    await p.click('#calendarReview [data-export]');
+    await download;
+    assert.equal(await p.isVisible('#calendarReview'), true);
+    assert.equal(d.files.F1.revs.length, 2);
+    for (const select of await p.locator('#calendarReview select').all()) await select.selectOption('other');
+    await p.click('#calendarReview [data-apply]');
+    await settle(p);
+    const saved = JSON.parse(d.text('F1'));
+    assert.equal(d.files.F1.revs.length, 3);
+    assert(saved.calendar.some(row => row.Date === date));
+    assert.deepEqual(saved.attendance[date][child], { a: 1 });
+    await ctx.close();
   });
   const clash = async (pick, cancel) => {
     const d = fresh(), { p, seen, ctx } = await prep(d); await inplace(p); const k = await kids(p), theirs = JSON.parse(ORIG);
@@ -170,7 +211,7 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
     const d = fresh(), s = await session(browser, base, d, { acceptConfirm: true }); await openF(s.p, ['F1', 'F2']);      // F1 was opened from Drive; then a different file is opened from the computer
     await inplace(s.p); const other = JSON.parse(ORIG); other.year = '2025-26'; fs.writeFileSync(path.join(require('os').tmpdir(), 'awana-2025-26-TEST-20250101-000000.json'), JSON.stringify(other));
     await s.p.setInputFiles('#fileAny', [path.join(require('os').tmpdir(), 'awana-2025-26-TEST-20250101-000000.json')]); await s.p.waitForFunction(() => App.season && App.season.year === '2025-26', null, { timeout: 8000 }); const k = await kids(s.p); await mark(s.p, '2026-10-28', k[0], 'h'); await save(s.p); await settle(s.p);
-    assert(d.calls.some(c => /^POST/.test(c)) && !d.calls.some(c => /^PATCH .*upload/.test(c))); assert.strictEqual(d.files.F1.revs.length, 1, 'the Drive file the app had opened earlier was not written'); await s.ctx.close();
+    assert(d.calls.some(c => /^POST/.test(c)) && !d.calls.some(c => /^PUT .*upload/.test(c))); assert.strictEqual(d.files.F1.revs.length, 1, 'the Drive file the app had opened earlier was not written'); await s.ctx.close();
   });
   await test('opening a second data file after the first means the first is no longer the file this season belongs to', async () => {
     const d = fresh(); d.put('F3', 'awana-2026-27-TEST-20261001-000000.json', ORIG); const { p, ctx } = await prep(d); await inplace(p);
@@ -293,15 +334,15 @@ const kids = p => p.evaluate(() => Object.keys(App.season.roster.people).slice(0
     await p.route(/\/index\.html/, async r => { const res = await r.fetch(); let body = await res.text(); if (offer) body = body.replace(/(name="app-version" content=")[^"]*/, '$19.9.9'); await r.fulfill({ response: res, body }); });
     await mark(p, '2026-10-28', k[0], 'h'); offer = true; await p.evaluate(() => App.updates.check()); await p.waitForSelector('#updateBar:not([hidden])');
     const nav = p.waitForNavigation({ timeout: 10000 }); await p.click('#updateNow'); await nav; await p.waitForFunction(() => App.season && document.querySelector('meta[name="app-version"]').content === '9.9.9', null, { timeout: 10000 }); await p.waitForTimeout(600);
-    assert(d.calls.some(c => /^PATCH .*upload/.test(c)) && !d.calls.some(c => /^POST/.test(c)), 'the unsaved mark was saved into the Drive file first: ' + d.calls.filter(c => /^(PATCH|POST)/.test(c)).join(' | ')); assert.strictEqual(JSON.parse(d.text('F1')).attendance['2026-10-28'][k[0]].h, 1);
+    assert(d.calls.some(c => /^PUT .*upload/.test(c)) && !d.calls.some(c => /^POST/.test(c)), 'the unsaved mark was saved into the Drive file first: ' + d.calls.filter(c => /^(PUT|POST)/.test(c)).join(' | ')); assert.strictEqual(JSON.parse(d.text('F1')).attendance['2026-10-28'][k[0]].h, 1);
     const st = await p.evaluate(() => [App.driveInfo().save, App.driveStyle.get(), App.dirty()]); assert.deepStrictEqual(st, [true, 'inplace', false], 'saving still goes to Drive, in place, and nothing is unsaved: ' + st.join());
-    const patches = () => d.calls.filter(c => /^PATCH .*upload/.test(c)).length, before = patches(); await mark(p, '2026-10-28', k[1], 'h'); await save(p); await p.waitForTimeout(900);
+    const patches = () => d.calls.filter(c => /^PUT .*upload/.test(c)).length, before = patches(); await mark(p, '2026-10-28', k[1], 'h'); await save(p); await p.waitForTimeout(900);
     assert.strictEqual(patches(), before + 1, 'the next save updated the same Drive file'); assert(!d.calls.some(c => /^POST/.test(c)), 'and did not make a new one'); assert.strictEqual(JSON.parse(d.text('F1')).attendance['2026-10-28'][k[1]].h, 1); await ctx.close();
   });
   await test('a copy cannot save over a Drive file from a newer format (R17: an older copy meeting a version 6 file takes this same path)', async () => {
     const d = fresh(), { p, seen, ctx } = await prep(d); await inplace(p); const k = await kids(p), newer = JSON.parse(ORIG); newer.version = 99; d.rev('F1', JSON.stringify(newer)); const head = d.text('F1');
     await mark(p, '2026-10-28', k[0], 'h'); await save(p); await p.waitForTimeout(1500);
-    assert.strictEqual(d.calls.filter(c => /^PATCH .*upload/.test(c)).length, 0, 'nothing was written to Drive: ' + d.calls.join(' | ')); assert.strictEqual(d.text('F1'), head, 'Drive still holds the newer file untouched');
+    assert.strictEqual(d.calls.filter(c => /^PUT .*upload/.test(c)).length, 0, 'nothing was written to Drive: ' + d.calls.join(' | ')); assert.strictEqual(d.text('F1'), head, 'Drive still holds the newer file untouched');
     assert.strictEqual(await p.evaluate(() => App.dirty()), true, 'the open file is still unsaved'); assert(seen.dialogs.some(m => /newer version/.test(m)), 'the person is told why: ' + seen.dialogs.join(' | ')); await ctx.close();
   });
   await test('a Drive save after an import here, while someone else saved attendance: Drive holds their marks and this copy\'s whole export record (R17)', async () => {

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.26.4';
+(this.AwanaVersions = this.AwanaVersions || {})['reports.js'] = '1.26.5';
 // Print reports. Each render(ctx) returns HTML; ctx = { master, settings, opts }.
 (function (root) {
   const M = root.Model || (typeof require !== 'undefined' ? require('./model.js') : null);
@@ -412,16 +412,16 @@
     return out; };
   const bundlesOf = season => season && Array.isArray(season.config && season.config.bundles) && season.config.bundles.length ? season.config.bundles.map(tidyBundle) : DEFAULT_BUNDLES();
   // The night the quarter's sheets are "as of": its first club night on the calendar (a team move or one-night exception later in the quarter does not change a binder page printed before it starts).
-  const firstNightOf = (calendar, q) => ((calendar || []).filter(r => Cal.isNight(r) && r.Quarter === q).map(r => r.Date).sort()[0]) || '';
+  const firstNightOf = (calendar, q, season) => ((calendar || []).filter(r => Season.isQuarterNight(season, r) && r.Quarter === q).map(r => r.Date).sort()[0]) || '';
   // The quarter after the one we are in; before the first night, Q1; after Q4's start, Q4.
-  function nextQuarter(calendar, today, current) {
-    const Q = ['Q1', 'Q2', 'Q3', 'Q4'], row = (calendar || []).filter(r => Cal.isNight(r) && r.Date <= today).sort((a, b) => a.Date < b.Date ? -1 : 1).pop();
+  function nextQuarter(calendar, today, current, season) {
+    const Q = ['Q1', 'Q2', 'Q3', 'Q4'], row = (calendar || []).filter(r => Season.isQuarterNight(season, r) && r.Date <= today).sort((a, b) => a.Date < b.Date ? -1 : 1).pop();
     const q = row && row.Quarter ? row.Quarter : (calendar || []).length ? '' : current;
     return q ? Q[Math.min(3, Q.indexOf(q) + 1)] : 'Q1';
   }
   function runBundle(ctx, bundle, quarter) {
     // Before the quarter starts its pages are "as of its first night"; once it has started they show the color each child plays now (a move later in the quarter must not print on a binder reprinted mid-quarter).
-    const first = firstNightOf(ctx.calendar, quarter), todayStr = ctx.today || new Date().toLocaleDateString('en-CA');
+    const first = firstNightOf(ctx.calendar, quarter, ctx.season), todayStr = ctx.today || new Date().toLocaleDateString('en-CA');
     const settings = Object.assign({}, ctx.settings, { quarter }), date = first && todayStr < first ? first : '', out = [];
     // "Planning Center data as of" goes only under the pages that carry Planning Center contact and medical data (the same pages as a single report), not under attendance sheets or team lists.
     const CONTACT = ['binderClass', 'binderAll', 'volunteers', 'photos'], asOf = html => ctx.master && ctx.master.pcAsOf ? html.replace(/<\/h2>/g, '</h2><p class="sub asof">Planning Center data as of ' + esc(ctx.master.pcAsOf) + '</p>') : html;
@@ -429,6 +429,23 @@
       const h = def.render(Object.assign({}, ctx, { settings, opts: Object.assign({}, ctx.opts, { room: it.room || '', group: it.group || (def.opts && def.opts.includes('groupAll') ? '' : ctx.opts.group), date, asOfFirst: !!date, blanks: it.blanks || 0, books: it.books || '' }) })); out.push(CONTACT.includes(def.id) ? asOf(h) : h); });
     return out.join('');
   }
-  const api = { LIST, DEFAULT_BUNDLES, bundlesOf, runBundle, nextQuarter, firstNightOf, esc, NIGHTS_PER_PAGE, rowsFor, TEAM_COLORS, kids, roomsOf, nightDates, uniformRows, uniformHead, UNI_HEAD, table };
+  function calendarChanges(ctx, candidate) {
+    const calendar = Cal.sort(candidate.slice());
+    const after = { ...ctx, calendar, season: { ...ctx.season, calendar } };
+    const before = { ...ctx, season: { ...ctx.season, calendar: ctx.calendar } };
+    return LIST.filter(report => {
+      if (report.hidden || (!ctx.master && report.requiresRoster !== false)) return false;
+      const options = report.opts || [];
+      const quarters = options.includes('quarter') ? Cal.QUARTERS : [ctx.settings.quarter];
+      const groups = options.includes('group') ? Cal.GROUPS : [''];
+      return quarters.some(quarter => groups.some(group => {
+        const settings = { ...ctx.settings, quarter };
+        const opts = { group, lessons: true, books: 'all' };
+        return report.render({ ...before, settings, opts }) !== report.render({ ...after, settings, opts });
+      }));
+    }).map(report => report.title);
+  }
+
+  const api = { LIST, DEFAULT_BUNDLES, bundlesOf, runBundle, nextQuarter, firstNightOf, calendarChanges, esc, NIGHTS_PER_PAGE, rowsFor, TEAM_COLORS, kids, roomsOf, nightDates, uniformRows, uniformHead, UNI_HEAD, table };
   if (typeof module !== 'undefined') module.exports = api; else root.Reports = api;
 })(this);

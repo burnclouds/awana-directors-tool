@@ -143,7 +143,7 @@
   const past = { n: null, kids: 0 };
   function pastHtml() {
     if (!App.season) return '';
-    const cut = Season.firstNight(App.season), shown = cut ? new Date(cut + 'T12:00').toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+    const cut = Season.seasonStart(App.season), shown = cut ? new Date(cut + 'T12:00').toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' }) : '';
     return '<section class="pcard" id="optPastYears"><h3>Earlier years</h3><p class="status">Progress sheets from earlier club years are entered with their real dates. An award finished before this season\'s first club night' + (shown ? ' (' + shown + ')' : '') + ' belongs to an earlier year. ' +
       'This marks all of those <b>given, with no date</b> (the child has them; the day is not shown or printed anywhere), (so the Achievement Record shows them). Earlier-year awards are never offered to announce, marked or not. Awards already given, and this year\'s, are not touched. Undo takes it back.</p>' +
       (!cut ? '<p class="status">Add this year\'s club nights to the Calendar first: the first one is where this season starts.</p>' :

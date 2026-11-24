@@ -1,9 +1,9 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-drive.js'] = '1.20.3';
+(this.AwanaVersions = this.AwanaVersions || {})['app-drive.js'] = '1.20.5';
 // Google Drive buttons (optional). Stays completely inactive unless drive-config.js has a client ID and API key: then there is no button,
 // no Google script is loaded and every file is opened and saved locally exactly as before.
 (function () {
   const App = window.App, cfg = window.AwanaDriveConfig, esc = App.esc, $ = id => document.getElementById(id);
-  const D = window.Drive && cfg ? Drive.create(cfg) : null;
+  const D = window.Drive && cfg ? Drive.create(cfg, { onStorageUnavailable: message => App.flash(message, 'warn') }) : null;
   if (!D || !D.configured()) return;
 
   // Two folders: the club files folder (where the picker opens and where data files are saved: one place for both) and where slide images go. They live in the DATA FILE (config.driveDirs),
@@ -20,23 +20,31 @@
   // An automatic save never asks (no sign-in window, no folder picker, no alert, no download): it waits quietly, says so, and tries again at the next interval (R11).
   // It starts only with at least this much sign-in time left, so the token cannot run out in the middle of the 4 to 8 calls an in-place save makes.
   const AUTO_MARGIN_MS = 300000;
-  const waitText = w => w.kind === 'signin' ? 'auto-save is waiting. Press Save to sign in to Google again.' : w.kind === 'folder' ? 'auto-save is waiting for a folder. Press Save to choose one.' : 'auto-save could not save at ' + w.at + (w.msg ? ' (' + w.msg + ')' : '') + '. It will try again.';
+  const waitText = w => w.kind === 'check' ? 'a save needs checking. Reopen the file from Drive.' : w.kind === 'calendar' ? 'Save paused for calendar review.' : w.kind === 'signin' ? 'auto-save is waiting. Press Save to sign in to Google again.' : w.kind === 'folder' ? 'auto-save is waiting for a folder. Press Save to choose one.' : 'auto-save could not save at ' + w.at + (w.msg ? ' (' + w.msg + ')' : '') + '. It will try again.';
   const st = { wait: null, opened: null, save: false, last: '', style: 'inplace', keep: '',cand: null, cur: null, q: Promise.resolve() };      // saving to Drive starts off each visit: signing in needs a click, which "Open from Drive" or the checkbox provides
   // With no file open there is nowhere to keep the choice: it lasts until a file is opened (or the page is closed).
   const setStyle = v => { st.style = v === 'inplace' ? 'inplace' : 'dated'; if (App.season) { App.season.config.saveStyleDrive = st.style; App.commitScope(() => App.changed()); } label(); };
   App.driveSettingsLoaded = () => { st.style = fileCfg().saveStyleDrive === 'dated' ? 'dated' : 'inplace'; st.keep = cleanName(fileCfg().driveKeepName || ''); label(); };
   const cleanName = v => { const n = String(v || '').replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/\s+/g, ' ').trim(); return n && !/\.json$/i.test(n) ? n + '.json' : n; };
   const setKeep = v => { st.keep = cleanName(v); if (App.season) { if (st.keep) App.season.config.driveKeepName = st.keep; else delete App.season.config.driveKeepName; App.commitScope(() => App.changed()); } };
+  const reviewButton = document.createElement('button');
+  reviewButton.id = 'driveCalendarReview'; reviewButton.type = 'button';
+  reviewButton.textContent = 'Save paused · Review calendar';
+  reviewButton.onclick = () => App.saveNow();
+  $('saveSplit').after(reviewButton);
   const hhmm = () => new Date().toTimeString().slice(0, 5);
   // An automatic save that could not go on: remember why, show it on the status line, and say it once per waiting spell as a banner (not an alert).
   const wait = (kind, msg) => { const first = !st.wait || st.wait.kind !== kind; st.wait = { kind, at: hhmm(), msg: msg || '' }; label(); if (first) App.flash(waitText(st.wait), 'info'); };
+  const calendarBlocked = () => Object.assign(new Error('Save paused for calendar review.'), { kind: 'calendar', auto: true });
   const waitErr = kind => { wait(kind); return Object.assign(new Error(kind === 'signin' ? 'sign-in needed' : 'no Drive folder was chosen'), { auto: true }); };
   // The blue save button says where the file is going: Download data file normally, Save to Google Drive while saving to Drive is on (its tooltip says whether that is a new dated file or an update).
   const label = () => {
     const b = $('btnSeasonSave'), s = $('driveStatus');
+    if (st.wait?.kind === 'calendar' && st.cur?.season !== App.season) st.wait = null;
     b.textContent = st.save ? 'Save to Google Drive' : 'Download data file';
     b.title = st.save ? (st.style === 'inplace' ? 'Updates the Drive file in place (and merges in changes others saved since you opened it)' : 'Saves a new dated file to Google Drive; older files stay as backups') : '';
     s.hidden = !st.save; s.textContent = st.save ? 'Google Drive' + (st.wait ? ': ' + waitText(st.wait) : st.last ? ': ' + st.last : '') : '';
+    reviewButton.hidden = !(st.save && st.style === 'inplace' && st.cur?.season === App.season && st.cur?.review);
     const im = $('btnImport'); im.textContent = st.save ? 'Import from Drive\u2026' : 'Import\u2026';
     im.title = st.save ? 'Imports from Google Drive (saving to Drive is on). The arrow chooses this computer instead.' : 'Import a data file, a Planning Center export, or a calendar, rotation or colors CSV from this computer. Planning Center changes are shown for review first.';
   };
@@ -48,6 +56,9 @@
     box.style.setProperty('--savedms', App.driveSavedMs + 'ms'); box.classList.add('saved'); savedTimer = setTimeout(() => box.classList.remove('saved'), App.driveSavedMs + 100);
   }
   $('saveMenuBtn').hidden = false; $('saveMenuBtn').parentElement.classList.add('on'); $('importMenuBtn').hidden = false; $('importMenuBtn').parentElement.classList.add('on'); $('splashDriveRow').hidden = false; label();      // the save button gets its menu only when Drive is set up; without it the button is just Download data file
+  App.onRefresh.push(label);
+  const unreadable = D.unreadableWarnings();
+  if (unreadable.length) App.flash(unreadable.join(' '), 'warn');
   const fileDirs = () => (App.season && App.season.config && App.season.config.driveDirs) || {};
   const dirOf = kind => (kind === 'slides' ? fileDirs().slides : fileDirs().club) || null, sharedOf = kind => !!dirOf(kind);      // Season.fromJson has folded an older file's open / data folders into club (R18)
   const dirId = kind => (dirOf(kind) && dirOf(kind).id) || (kind === 'slides' ? ((dirOf('club') && dirOf('club').id) || st.opened) : st.opened) || null;
@@ -78,18 +89,44 @@
   const rememberLast = f => { try { localStorage.setItem(LAST_KEY, JSON.stringify({ id: f.id, name: f.name })); } catch (e) { /* storage blocked */ } };
   const lastFile = () => { try { const v = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); return v && v.id && v.name ? v : null; } catch (e) { return null; } };
   // Load the picked Drive files (the same for the picker and the remembered file). The data file is remembered after a successful open.
-  async function openPicks(picks) {
+  function openPicks(picks) { return queue(() => openPicksRun(picks)); }
+  async function openPicksRun(picks) {
     const files = [], datas = []; let folder = null;
     for (const p of picks) {
       const f = await D.read(p.id);
-      files.push({ name: f.name, lastModified: f.lastModified, text: async () => f.text });
-      if (/\.json$/i.test(f.name)) { datas.push({ id: f.id || p.id, name: f.name, rev: f.revision || '', text: f.text }); if (f.parents[0]) folder = f.parents[0]; }
+      const file = { name: f.name, lastModified: f.lastModified, text: async () => f.text };
+      files.push(file);
+      if (/\.json$/i.test(f.name)) {
+        datas.push({ id: f.id || p.id, name: f.name, rev: f.revision || '', text: f.text, file });
+        if (f.parents[0]) folder = f.parents[0];
+      }
     }
     st.cand = datas.length === 1 ? datas[0] : null;      // one data file: it may be updated in place later, if the season that opens is really this file's (lineage())
-    await App.openFiles(files);
+    await App.openFiles(files, async opened => {
+      const data = datas.find(d => d.file === opened);
+      if (data) await verifyOpenedSave(data);
+    });
     if (folder) st.opened = folder;
     st.save = true; label();
-    const data = picks.find(p => /\.json$/i.test(p.name)); if (data) rememberLast(data);
+  }
+  async function verifyOpenedSave(data) {
+    rememberLast(data);
+    try {
+      const displaced = await D.verifyReopened(data.id, data.name);
+      if (displaced === null) return;
+      st.last = 'checked the earlier save of ' + data.name;
+      if (st.wait?.kind === 'check') st.wait = null;
+      label();
+      if (displaced.length) {
+        App.ask.alert('Checked the earlier save of ' + data.name +
+          '. An earlier revision was overwritten and is now kept in Drive’s version history.', {
+          title: 'Google Drive save checked',
+          list: displaced.map(r => 'Revision ' + r.id + (r.modifiedTime ? ' · ' + r.modifiedTime : ''))
+        });
+      } else App.flash('Checked the earlier Drive save of ' + data.name + '.', 'info');
+    } catch (err) {
+      App.ask.alert('The earlier Drive save of ' + data.name + ' still needs checking. ' + err.message, { title: 'Google Drive' });
+    }
   }
   // Pick a folder for one kind. The picker opens beside the current one with it ticked. confirm = the saved folder was refused, so ask this person to confirm it.
   async function chooseDir(kind, confirm) {
@@ -122,59 +159,89 @@
   async function saveInPlace(c, dated, text, opts) {
     const name = st.keep || c.name || dated;      // keep the Drive file's own name unless one was typed on Options; the dated name is only the last resort
     const seq0 = opts && opts.seq !== undefined ? opts.seq : App.editSeq(), editedSince = () => App.editSeq() !== seq0;      // edits made since the text was taken (the counter, not App.dirty(): the file is marked saved only after Drive answers)
-    const ours = App.season; let body = text, basedOn = c.rev, merged = null, choices = {}, approved = false;
+    const ours = App.season, local = Season.fromJson(text);
+    let body = text, merged = null, choices = c.review?.choices || {}, fingerprints = c.review?.fingerprints || {};
+    let approved = c.review?.approved;
+    const ensureOpen = () => {
+      if (App.season !== ours) throw Object.assign(new Error('The open file changed.'), { fileSwitched: true });
+    };
     // A save you pressed shows the merge screen (the same summary and conflict choices as File > Merge a data file): what is on Drive is "mine" there, this copy is "other", and what is saved is Drive's file plus this copy's changes.
     // The automatic save has nobody to ask, so it keeps the old rule: what is already on Drive stays, and what clashed is listed afterwards.
     const interactive = !(opts && opts.auto) && !!App.mergeScreen && !!window.DataMerge;
     // Each pass starts again from ours and the newest remote content; a second pass (someone saved in the gap) reuses the decisions already made and asks again only about something new.
-    const acceptMerge = (mine, other) => {
+    const acceptMerge = async (mine, other, revision, plan) => {
+      ensureOpen();
       const impacts = CalendarSafety.mergeConflicts(mine, other, merged.season, App.today());
       if (impacts.length) {
-        const error = new Error('The merged calendar would affect activity on ' + CalendarSafety.summary(impacts) + '. Review the dates and save again.');
-        error.kind = 'calendar';
-        throw error;
+        const key = JSON.stringify([text, revision, choices, impacts]);
+        if (c.review?.key !== key) c.review = { key, picks: {} };
+        Object.assign(c.review, { choices, fingerprints, approved });
+        st.wait = { kind: 'calendar', at: hhmm() }; label();
+        if (!interactive) throw calendarBlocked();
+        if (!c.review.rows) {
+          c.review.rows = await App.reviewCalendar(mine, other, merged.season, impacts, 'Drive’s', c.review.picks);
+          if (!c.review.rows) throw calendarBlocked();
+          return null; // Re-read the head and rebuild the merge after the leader decides.
+        }
+        merged.season = DataMerge.finish(plan, choices, c.review.rows);
       }
-      body = Season.toJson(merged.season);
+      return Season.toJson(merged.season);
     };
-    const merge = async (remote, onlyRemerge) => {
+    const merge = async (remote, revision, repair) => {
+      const base = repair ? Season.snapshot(Season.fromJson(repair.base)) : c.base;
+      const incoming = repair ? Season.fromJson(repair.local) : local;
+      if (!interactive && !opts?.auto) throw new Error('The Drive merge summary could not open. Reopen the app to review this save.');
       if (!interactive) {      // the Planning Center block (the export record, its columns, "as of" and every person's values) goes whole from one side, never mixed (R17)
-        const theirs = Season.fromJson(remote), al = window.DataMerge && DataMerge.alignPc ? DataMerge.alignPc(c.base, ours, theirs) : { ours, theirs };
-        merged = Season.merge3(c.base, al.ours, al.theirs, { from: 'another save' });
-        acceptMerge(al.ours, al.theirs);
-        return;
+        const theirs = Season.fromJson(remote), al = window.DataMerge && DataMerge.alignPc ? DataMerge.alignPc(base, incoming, theirs) : { ours: incoming, theirs };
+        merged = Season.merge3(base, al.ours, al.theirs, { from: 'another save' });
+        return acceptMerge(al.ours, al.theirs, revision);
       }
-      const P = DataMerge.plan(Season.fromJson(remote), Season.fromJson(text), Object.assign({ base: c.base, pc: true, removals: true, from: 'this copy' }, App.mergeNames(ours)));
-      if (onlyRemerge && !P.conflicts.length) approved = true;      // nobody else saved: this only brings back what you already approved once, so there is nothing to ask
-      if (!approved || P.conflicts.some(x => !choices[x.id])) {
+      const P = DataMerge.plan(Season.fromJson(remote), incoming, Object.assign({ base, pc: true, removals: true, from: 'this copy' }, App.mergeNames(ours)));
+      for (const conflict of P.conflicts) {
+        const fingerprint = JSON.stringify(conflict);
+        if (fingerprints[conflict.id] !== fingerprint) delete choices[conflict.id];
+        fingerprints[conflict.id] = fingerprint;
+      }
+      const planKey = JSON.stringify([revision, P.state, P.conflicts, P.applied, P.agreed, P.blanks, P.kept, P.pc]);
+      if (approved !== planKey || P.conflicts.some(x => !choices[x.id])) {
         const r = await App.mergeScreen(P, { name: 'Google Drive', title: 'Someone else saved this file on Google Drive: merge their changes with yours', intro: 'Nothing is saved to Drive until you press Save to Drive. "Drive" below is what is saved there now; "my copy" is what you have open.',
           applyLabel: 'Save to Drive', mineLabel: 'Keep Drive’s', otherLabel: 'Use my copy’s', allMineLabel: 'Keep all Drive’s', allOtherLabel: 'Use all of my copy’s', choices });
         if (!r) { const e = new Error('the merge with the changes on Drive was cancelled'); e.cancelled = true; throw e; }
-        choices = r.choices; approved = true;
+        choices = r.choices; approved = planKey;
       }
       merged = { season: DataMerge.finish(P, choices), conflicts: [], decided: P.conflicts.length, counts: DataMerge.summary(P, P.conflicts.length ? choices : undefined).counts };
-      acceptMerge(P.mine, P.other);
+      return acceptMerge(P.other, P.mine, revision, P);
     };
-    const now = await D.head(c.id);
-    // c.remerge: the last save merged in someone else's changes but was edited over, so this copy still lacks them. Merge again even when nobody has saved since (R7).
-    if (c.remerge || now.headRevisionId !== c.rev) { const r = await D.read(c.id); await merge(r.text, c.remerge && now.headRevisionId === c.rev); basedOn = r.revision; }       // someone saved since this copy opened or last saved
-    let up = await D.update(c.id, name, body, 'application/json'), revs = null;
-    // There is a small gap between the check and the write, so look at what Drive holds: the revision just before ours must be the one we built on (or our own earlier write). If not, someone saved in that gap; their revision is still there.
-    for (let i = 0; i < 4; i++) {
-      revs = await D.revisions(c.id);
-      const at = revs.findIndex(x => x.id === up.headRevisionId), prev = at > 0 ? revs[at - 1] : null;
-      if (!prev || prev.id === basedOn) break;
-      if (i === 3) throw new Error('the file keeps changing under you (someone else is saving at the same time). Try again in a moment.');
-      await merge(await D.readRevision(c.id, prev.id));
-      basedOn = up.headRevisionId;      // the write before the next one is this one of ours: anything else in between is someone else's
-      up = await D.update(c.id, name, body, 'application/json');
-    }
+    const up = await D.updateMerged(c.id, name, async (revision, recovered, repair) => {
+      if (recovered !== undefined || c.remerge || revision !== c.rev) {
+        const remote = recovered ?? await D.readContent(c.id, revision);
+        ensureOpen();
+        body = await merge(remote, revision, repair);
+      }
+      ensureOpen();
+      return body;
+    }, text);
+    delete c.review;
+    if (App.season !== ours) return up;
     c.rev = up.headRevisionId || c.rev; c.name = up.name || name;
     // Drive drops versions nobody pinned after 30 days (or 100 newer ones): keep one from every few days (pinDays, a club setting; 0 = never) so older ones stay reachable.
     try {
-      const days = pinDays(), kept = revs ? revs.filter(x => x.keepForever).map(x => Date.parse(x.modifiedTime) || 0) : [];
+      const days = pinDays(), revs = days ? await D.revisions(c.id) : [];
+      const kept = revs.filter(x => x.keepForever).map(x => Date.parse(x.modifiedTime) || 0);
       if (days && up.headRevisionId && (!kept.length || Date.now() - Math.max(...kept) > days * 86400000)) await D.pin(c.id, up.headRevisionId);
     } catch (e) { /* the save worked; pinning is an extra */ }
-    st.wait = null; st.last = 'saved ' + hhmm(); label(); flashSaved();
+    if (App.season !== ours) return up;
+    st.wait = null; st.last = 'saved ' + hhmm() + (up.recovered ? ' (checked the earlier save)' : ''); label(); flashSaved();
+    if (up.savedBody !== undefined && up.savedBody !== body) {
+      if (!editedSince()) App.openSeason(up.savedBody, { refresh: true });
+      if (!editedSince() && App.seasonSource?.text === up.savedBody) {
+        c.season = App.season; c.year = App.season.year;
+        c.base = Season.snapshot(Season.fromJson(up.savedBody)); c.remerge = false;
+      } else {
+        c.base = Season.snapshot(Season.fromJson(text)); c.remerge = true;
+      }
+      return up;
+    }
     if (!merged) { c.base = Season.snapshot(Season.fromJson(body)); c.remerge = false; return up; }
     let said = 'Saved. Someone else had saved this file since you opened it, so their changes were merged with yours.';
     if (merged.counts) said += ' Added ' + merged.counts.Added + ', changed ' + merged.counts.Changed + ', ' + merged.counts.Review + ' to review' + (merged.decided ? ', ' + merged.decided + ' decided by you' : '') + '.';
@@ -195,6 +262,9 @@
   // Data files and slide images go to their own folders. If Google refuses a folder (this person has not confirmed it yet), ask once.
   async function goRun(name, text, type, opts) {
       const auto = !!(opts && opts.auto);
+      if (auto && st.cur?.review && st.cur.season === App.season && st.style === 'inplace' && /json/.test(type || '')) {
+        throw calendarBlocked();
+      }
       if (auto && !D.connected(AUTO_MARGIN_MS)) throw waitErr('signin');      // no D.* call is made, so no sign-in window can open
       const kind = /json/.test(type || '') ? 'data' : 'slides', where = kind === 'data' ? 'club' : 'slides';      // everything that is not a data file (slides, ZIPs, CSV exports) goes in the second folder
       if (kind === 'data' && st.style === 'inplace') { const c = lineage(); if (c) { await saveInPlace(c, name, text, opts); return; } }
@@ -217,9 +287,10 @@
   // N9 point 9: one plain sentence for each kind of failure, shown with Try again. The raw text stays in the log (err.message).
   const explain = err => {
     const msg = String((err && err.message) || ''), kind = (err && err.kind) || (/keeps changing/.test(msg) ? 'changing' : 'other');
+    if (kind === 'pending' || kind === 'lagging') return msg;
     if (kind === 'signin') return 'Google asked you to sign in again. Press Try again to sign in; your changes are still here.';
-    if (kind === 'busy') return 'Google Drive is busy right now (it said ' + ((err && err.status) || 'busy') + '). Nothing was changed on Drive. Press Try again in a moment.';
-    if (kind === 'offline') return 'This computer could not reach Google Drive. Check the connection, then press Try again. Nothing was changed on Drive.';
+    if (kind === 'busy') return 'Google Drive is busy right now (it said ' + ((err && err.status) || 'busy') + ').' + (err.pendingWrite ? '' : ' Nothing was changed on Drive.') + ' Press Try again in a moment.';
+    if (kind === 'offline') return 'This computer could not reach Google Drive. Check the connection, then press Try again.' + (err.pendingWrite ? '' : ' Nothing was changed on Drive.');
     if (kind === 'folder') return 'Google Drive will not let this app save to that folder. Choose the folder again, then press Try again.';
     if (kind === 'calendar') return msg;
     if (kind === 'changing') return 'Someone else is saving the same file right now. Wait a minute and press Try again; their changes will be merged with yours.';
@@ -229,15 +300,25 @@
     explain,
     active: () => st.save,
     waiting: () => st.wait ? { kind: st.wait.kind, at: st.wait.at } : null,
-    go: (name, text, type, opts) => queue(async () => {
-      // N36: a small floppy icon beside the save button shows while a save runs and fades when it ends (success or error).
-      // The save button's label turns into the floppy icon while a save runs (style.css: #btnSeasonSave.saving); its text stays for screen readers.
-      const flop = on => { const b = document.getElementById('btnSeasonSave'); if (!b) return; b.classList.toggle('saving', on); if (on) b.setAttribute('aria-busy', 'true'); else b.removeAttribute('aria-busy'); };
-      flop(true);
-      try { return await goRun(name, text, type, opts); }
-      catch (err) { if (opts && opts.auto && !err.auto) wait('error', err.message); throw err; }
-      finally { flop(false); }      // any failure of an automatic save is quiet: it is shown on the status line and tried again
-    }),
+    go: (name, text, type, opts) => {
+      const file = App.season;
+      return queue(async () => {
+        if (file !== App.season) throw Object.assign(new Error('The open file changed.'), { fileSwitched: true });
+        // N36: a small floppy icon beside the save button shows while a save runs and fades when it ends (success or error).
+        // The save button's label turns into the floppy icon while a save runs (style.css: #btnSeasonSave.saving); its text stays for screen readers.
+        const flop = on => { const b = document.getElementById('btnSeasonSave'); if (!b) return; b.classList.toggle('saving', on); if (on) b.setAttribute('aria-busy', 'true'); else b.removeAttribute('aria-busy'); };
+        flop(true);
+        try { return await goRun(name, text, type, opts); }
+        catch (err) {
+          if (file === App.season) {
+            if (err.kind === 'pending') wait('check', err.message);
+            else if (opts?.auto && !err.auto) wait('error', err.message);
+          }
+          throw err;
+        }
+        finally { flop(false); }      // any failure of an automatic save is quiet: it is shown on the status line and tried again
+      });
+    },
   };
   // For the Options tab: the same settings as this dialog.
   App.driveInfo = () => ({ save: st.save, connected: D.connected(), club: dirOf('club'), slides: dirOf('slides'), clubShared: sharedOf('club'), slidesShared: sharedOf('slides'), style: st.style, keepName: st.keep, pinDays: pinDays(), inPlace: !!lineage() });
