@@ -34,6 +34,16 @@ Follow the existing vanilla JavaScript style: two-space indentation, semicolons,
 - **Record Codex usage separately from context.** At each checkpoint, the owner pastes the latest `/status` output, and the handoff note records the five-hour window (only if the plan shows one) and weekly usage with a timestamp and reset times. Mark unavailable or stale readings explicitly. Claude cannot read Codex’s live counters or conversation, so plan from the handoff note. Pause and checkpoint as the five-hour window approaches its limit. At **90% weekly usage (10% remaining)**, stop work: update the handoff note, commit a local checkpoint if the owner has asked for commits, and stop.
 - **Commits and pushes:** Commit only when the owner asks. Never push.
 
+## Model Selection
+
+- **Codex, default:** GPT Sol at Low effort for routine implementation, test fixes, and mechanical edits.
+- **Codex, complex work:** GPT Astra at Medium effort for complex code implementation and detailed code review.
+- **Claude Sonnet:** most management tasks, including planning coordination, handoff updates, and task specs.
+- **Claude Haiku:** documentation tasks.
+- **Claude Opus:** large-scale review (cross-branch, data safety, security, and release review) and UX/UI recommendations.
+
+Use the cheapest model that fits the task. Escalate to a stronger model when a task fails twice or touches data safety, security, or privacy. Record any model change in the handoff note.
+
 ## Changes & Data Safety
 
 Recent commits use concise, feature-led subjects, often with a work-item tag or release number (for example, `N57: ...`). PRs should describe user-visible changes, list tests and build commands run, link related backlog items when applicable, and include screenshots for meaningful UI changes. Mention generated `deploy/` updates.
