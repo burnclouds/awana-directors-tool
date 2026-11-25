@@ -55,7 +55,7 @@ for f in "$build/source/"*.js "$build/source/"*.html; do
   else changed=y      # a new script or page
   fi
 done
-if [ -n "$stale" ]; then echo "STOP: changed but the version number was not bumped:$stale"; exit 1; fi
+if [ -n "$stale" ]; then if [ -n "$playtest_suffix" ]; then echo "NOTE (playtest build only, live root unchanged): version not bumped:$stale"; else echo "STOP: changed but the version number was not bumped:$stale"; exit 1; fi; fi
 # Every check below runs on the build and the source files BEFORE anything in deploy/ is written, so a refused build leaves deploy/ exactly as it was.
 bad=$(find "$build/app" -type f ! \( -name '*.js' -o -name '*.html' -o -name '*.css' -o -name manifest.json -o -name 'icon*.png' -o -name icon.svg \))      # the web app manifest and its icons are allowed (PWA)
 if [ -n "$bad" ]; then echo "STOP: non-code files in the build (deploy/ was not touched):"; echo "$bad"; exit 1; fi
