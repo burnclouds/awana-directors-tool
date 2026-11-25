@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['reports-season.js'] = '1.37.2';
+(this.AwanaVersions = this.AwanaVersions || {})['reports-season.js'] = '1.37.3';
 // Print reports built from the season file. Added to Reports.LIST; ctx = { master, settings, calendar, season, opts }.
 // opts: group ('Sparks' | 'T&T' | 'Cubbies' | 'Puggles'), kid (Unique ID or ''), room.
 (function (root) {
@@ -280,10 +280,10 @@
     if (!season) return need;
     const bookName = c => ((season.config.books || {})[c] || {}).name || c;
     return sheet('Handbooks by book' + (opts && opts.noBook ? ' (and who has not received one)' : ''), GROUPS.map(g => {
-      const kids = inGroup(master, g), c = Season.handbookCounts(season, kids.map(idOf));
+      const kids = inGroup(master, g), c = Season.handbookCounts(season, kids.map(idOf), g);
       let h = '<h3>' + esc(g) + ' (' + kids.length + ')</h3>' + R.table(['Book', 'Children'], Object.keys(c).sort().map(k => [esc(k), c[k]]));
       if (opts && opts.noBook) {
-        const missing = kids.map(p => { const code = Season.childBook(season, idOf(p)); return { p, code, why: !code ? 'No book yet' : !Season.receivedOf(season, idOf(p), code) ? bookName(code) + ': no date received' : '' }; }).filter(x => x.why);
+        const missing = kids.map(p => { const code = Season.childBook(season, idOf(p), g); return { p, code, why: !code ? 'No book yet' : !Season.receivedOf(season, idOf(p), code) ? bookName(code) + ': no date received' : '' }; }).filter(x => x.why);
         h += '<h4>Not received a book (' + missing.length + ')</h4>' + (missing.length ? R.table(['Name', 'Class', 'Why'], missing.map(x => [esc(M.fullName(x.p)), esc(M.room(x.p)), esc(x.why)])) : '<p class="status">Everyone in ' + esc(g) + ' has received a book.</p>');
       }
       return h;
