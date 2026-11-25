@@ -13,8 +13,9 @@ permissions:
   id-token: write
 
 concurrency:
+  # A deploy in progress is never cancelled by a newer push: the newer one waits and then publishes.
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   # N9.1: the node tests run first and must pass before the site is published (a failing test stops the deploy). Gate turned on 2026-11-19 after the first green run on GitHub.
@@ -53,8 +54,43 @@ jobs:
             echo "- Built from: $(sed -n 's/.*name="app-source" content="\([^"]*\)".*/\1/p' deploy/app/index.html | head -1)"
             echo "- Node tests (test job): $TESTS"
           } >> "$GITHUB_STEP_SUMMARY"
+      # Each attempt has its own artifact name, so a rerun can never find two uploads with the same name.
       - uses: actions/upload-pages-artifact@v3
         with:
           path: deploy
+          name: github-pages-${{ github.run_attempt }}
+      # GitHub's Pages service fails intermittently ("Fetching artifact metadata failed"). Try the deploy again with the same upload, not a new one.
       - id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
+      - name: Wait before retrying the deploy
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 60
+      - id: deployment_retry_1
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
+      - name: Wait before the last retry
+        if: steps.deployment.outcome == 'failure' && steps.deployment_retry_1.outcome == 'failure'
+        run: sleep 180
+      - id: deployment_retry_2
+        if: steps.deployment.outcome == 'failure' && steps.deployment_retry_1.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
+      # The page URL comes from whichever attempt succeeded.
+      - name: Check the deploy succeeded
+        if: always()
+        env:
+          A: ${{ steps.deployment.outcome }}
+          B: ${{ steps.deployment_retry_1.outcome }}
+          C: ${{ steps.deployment_retry_2.outcome }}
+        run: |
+          echo "attempts: first=$A retry1=$B retry2=$C"
+          if [ "$A" = success ] || [ "$B" = success ] || [ "$C" = success ]; then exit 0; fi
+          echo "Deploy failed on all attempts. Upload is kept; start a fresh run, not a rerun." >&2
+          exit 1
