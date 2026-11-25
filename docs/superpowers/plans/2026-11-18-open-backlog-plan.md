@@ -8,7 +8,7 @@ Every claim marked *(run)* was checked on 2026-11-18 on the invented TEST club (
 
 Source state: branch `public`, `dev/app/index.html` `app-version` **1.51.15h** (committed `cb0544f`, not deployed; live is 1.51.15g). `app-build` still reads `2026-11-17` on 1.51.15h *(read, index.html 7)*: set the real date at the next bump. File versions now: `reports.js` 1.19.0, `reports-season.js` 1.34.0, `app.js` 1.74.0, `app-person.js` 1.25.1, `app-update.js` 1.6.0, `app-tools.js` 1.7.0, `season.js` 1.68.1, `validate.js` 1.14.0, `datamerge.js` 1.1.5, `calendar.js` 1.2.0.
 
-Test setup for every step: memory `awana-app-test-setup` (`NODE_PATH=/home/burnclouds/awana-test-tools/node_modules`, `NODE_OPTIONS="--require $PWD/test/lib/pw-dialog-compat.js"`, run from `dev/app`). Targeted tests while building; the full sweep only before a commit and only after asking Mike.
+Test setup for every step: memory `awana-app-test-setup` (`NODE_PATH=~/awana-test-tools/node_modules`, `NODE_OPTIONS="--require $PWD/test/lib/pw-dialog-compat.js"`, run from `dev/app`). Targeted tests while building; the full sweep only before a commit and only after asking Mike.
 
 ---
 
@@ -357,7 +357,7 @@ S8 (flag Go after reload), S9 (Save bar in landscape; the dark strip), S10 (flag
 
 Source state *(read, run)*: `deploy/` and `dev/app` hold the same versions (1.51.16, build 2026-11-18). File versions now: `reports.js` 1.22.0, `reports-season.js` 1.35.0, `season.js` 1.71.0, `app-season.js` 1.97.0, `app.js` 1.75.0, `app-todo.js` 1.22.0, `app-person.js` 1.26.0, `catalog.js` 1.16.1, `validate.js` 1.17.0, `check.js` 1.3.3. "Each changed .js gets its own bump above what deploy/ holds" means the numbers in section P2-5.
 
-*(run)* = checked on 2026-11-18 in Chromium (Playwright, TEST club, through `test/lib/app-page.js`). *(read)* = read in the code at the file and line given. Test setup: memory `awana-app-test-setup` (`NODE_PATH=/home/burnclouds/awana-test-tools/node_modules`, `NODE_OPTIONS="--require $PWD/test/lib/pw-dialog-compat.js"`, run from `dev/app`).
+*(run)* = checked on 2026-11-18 in Chromium (Playwright, TEST club, through `test/lib/app-page.js`). *(read)* = read in the code at the file and line given. Test setup: memory `awana-app-test-setup` (`NODE_PATH=~/awana-test-tools/node_modules`, `NODE_OPTIONS="--require $PWD/test/lib/pw-dialog-compat.js"`, run from `dev/app`).
 
 ## P2-1. Where the BACKLOG text is wrong (read this first)
 

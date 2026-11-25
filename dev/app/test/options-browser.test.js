@@ -47,6 +47,12 @@ const server = http.createServer((req, res) => {
   });
   await test('the books table has a This year tick for Cubbies and T&T books (one per group), none for Sparks books', async () => {
     const { page } = await open(); await tab(page, 'options'); await page.waitForTimeout(150);
+    await page.evaluate(() => { App.season.config.books.AS.group = 'Cubbies'; delete App.season.config.books.HC.group; App.tabs.options(); });
+    assert.deepStrictEqual(await page.$$eval('table.books tr[data-code="AS"], table.books tr[data-code="HC"]', r => r.map(x => x.dataset.code)), ['AS', 'HC']);
+    assert.strictEqual(await page.locator('#optBooksTop h3 .info').count(), 1);
+    const help = await page.evaluate(() => Info.get('options.books').html);
+    assert.match(help, /<b>code<\/b>/);
+    assert.match(help, /This year/);
     const rows = await page.$$eval('table.books tbody tr', r => r.map(x => ({ code: x.dataset.code, tick: !!x.querySelector('[data-yb]') })));
     assert.deepStrictEqual(rows.filter(r => r.tick).map(r => r.code).sort(), ['AS', 'AoG', 'DoG', 'EoG', 'GiA', 'HC'], JSON.stringify(rows));      // the nine standard books assert(rows.filter(r => ['HG', 'WR', 'SS'].includes(r.code)).every(r => !r.tick));
     await page.check('[data-yb="AoG"]'); await page.waitForTimeout(150); await page.check('[data-yb="HC"]'); await page.waitForTimeout(150);

@@ -1,4 +1,4 @@
-(this.AwanaVersions = this.AwanaVersions || {})['app-options.js'] = '1.23.1';
+(this.AwanaVersions = this.AwanaVersions || {})['app-options.js'] = '1.23.2';
 // Options tab: the list of books, the club settings in one place (including the team color order, this year's T&T book, game points, the store settings and the Drive folders), and the data checks. Changes to the books are held as a draft like the other record-editing tabs (Apply changes / Discard).
 // The club settings here are the same settings as on the Reports and Calendar tabs (this tab changes those controls), so nothing is stored twice.
 (function () {
@@ -16,8 +16,9 @@
     '<input type="checkbox" data-yb="' + esc(c) + '"' + (Season.yearBook(App.season, g) === c ? ' checked' : '') + ' aria-label="' + esc(c) + ' is this year\'s ' + esc(g) + ' book" title="This year\'s ' + esc(g) + ' book: offered to a ' + esc(g) + ' child with no handbook yet">';
   function booksHtml() {
     if (!App.season) return '<p class="status">Open or start a data file first: the list of books is kept in it.</p>';
-    const b = books(), codes = Object.keys(b).sort((x, y) => (b[x].group || '').localeCompare(b[y].group || '') || x.localeCompare(y));
-    const problems = Check.bookList(b), bad = new Set(problems.map(p => p.code)), std = Catalog.defaultConfig().books, groupOf = c => b[c].group || (std[c] || {}).group;      // an older file's book list may lack the group or the spelling: the standard list fills in what is shown
+    const b = books(), groupOf = c => Season.bookGroup(App.season, c) || '';
+    const codes = Object.keys(b).sort((x, y) => groupOf(x).localeCompare(groupOf(y)) || x.localeCompare(y));
+    const problems = Check.bookList(b), bad = new Set(problems.map(p => p.code));
     return '<p class="status">These are the books the app recognizes. A handbook code typed anywhere (Person, Progress, a CSV merge) is matched on its code, in any capitals (AOG finds AoG); a code that is not here is listed on the To do tab as <i>Unrecognized book</i> for you to fix by hand. ' +
       '<b>This year</b> marks the one book Cubbies, or T&amp;T, are all working in: a child in that group with no handbook on file is offered it in the Handbook box (on the Person tab and its Progress sheet), with a one-tap button; nothing is saved until it is pressed. Sparks have one too only if the club uses the All Together method (see Club settings below); by default they work through HG, WR and SS in turn. Pick again each new year. ' +
       'Press <b>Apply changes</b> (under the tabs) to keep your edits.</p>' + (msg.text ? '<p class="' + (msg.level === 'error' ? 'bad' : 'status') + '" role="alert">' + esc(msg.text) + '</p>' : '') +
@@ -195,7 +196,7 @@
   function render() {
     const el = $('optionsWrap'); if (!el) return;
     if (!App.master) { el.innerHTML = '<p class="status">Load a roster first (Import&hellip;).</p>' + updatesHtml() + driveHtml(); return; }      // the Google Drive card is about this browser, so it is here even with nothing open
-    el.innerHTML = '<section class="pcard" id="optBooksTop"><h3>Books' + Info.html('options.books') + '' + Info.html('options.thisyear') + '</h3>' + booksHtml() + tntOrderHtml() + '</section><section class="pcard"><h3>Club settings' + Info.html('options.clubnight') + '</h3>' + settingsHtml() + '</section><section class="pcard"><h3>Awana store points</h3>' + storeHtml() + '</section>' + bundlesHtml() + pastHtml() + newSeasonHtml() + updatesHtml() + bugsHtml() + startHtml() + driveHtml() + '<section class="pcard" id="optChecks"><h3>Data checks' + Info.html('tools.checks') + '</h3>' + checksHtml() + '</section>';
+    el.innerHTML = '<section class="pcard" id="optBooksTop"><h3>Books' + Info.html('options.books') + '</h3>' + booksHtml() + tntOrderHtml() + '</section><section class="pcard"><h3>Club settings' + Info.html('options.clubnight') + '</h3>' + settingsHtml() + '</section><section class="pcard"><h3>Awana store points</h3>' + storeHtml() + '</section>' + bundlesHtml() + pastHtml() + newSeasonHtml() + updatesHtml() + bugsHtml() + startHtml() + driveHtml() + '<section class="pcard" id="optChecks"><h3>Data checks' + Info.html('tools.checks') + '</h3>' + checksHtml() + '</section>';
     decorate(el);
   }
   // UX-29: every section is a clearly separated card with a heading bar, and a sticky index at the top moves focus to the section you pick (a "Go to section" list on a phone). Validate and Debug are the index's last entry.
