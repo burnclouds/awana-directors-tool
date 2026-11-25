@@ -30,3 +30,6 @@ node_modules/
 # Real children's data. No test needs it any more (the four real-file tests run on dev/test-data) and the folder was moved out of the project on 2026-11-14 (to ~/awana-real-data-private).
 # The entry stays as a guard: if a folder with this name is ever put back, git ignores the whole folder by name, whatever the file types.
 dev/test-inputs-REAL-DATA-do-not-commit/
+
+# Owner's offline task inbox for Claude and Codex. Kept local: entries may name real people.
+BACKLOG-add.md

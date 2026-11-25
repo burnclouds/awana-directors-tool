@@ -2,7 +2,7 @@
 # Build the live or playtest app locally, with only code, app assets and invented demo files.
 set -e
 cd "$(dirname "$0")"
-branch=$(git rev-parse --abbrev-ref HEAD)
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)      # a copy with no git (a test copy) builds the live channel
 channel=live
 target=deploy
 if [ "$branch" = playtest ]; then
@@ -80,7 +80,7 @@ mkdir -p "$target/app"
 rsync -a --delete "$build/app/" "$target/app/"
 stamp "$build/source/index.html" > "$target/app/index.html"
 if [ "$channel" = live ]; then
-  git diff --name-only HEAD -- dev/app > "$build/changed"
+  git diff --name-only HEAD -- dev/app > "$build/changed" 2>/dev/null || : > "$build/changed"      # outside a git checkout (a test copy) there is no HEAD to compare with
   source_changes=clean
   while IFS= read -r f; do
     case "$f" in
@@ -122,6 +122,6 @@ cache_prefix=awana-shell-
 [ "$channel" = live ] || cache_prefix=awana-playtest-shell-
 sed -e "s|awana-shell-|$cache_prefix|g" -e "s|__RELEASE__|$rel|" -e "s|__SHELL__|$json|" dev/app/sw.js > "$target/app/sw.js"
 bad=$(find "$target" -path "$target/playtest" -prune -o -type f ! -path "$target/app/try/*" ! \( -name '*.js' -o -name '*.html' -o -name '*.css' -o -name manifest.json -o -name 'icon*.png' -o -name icon.svg \) -print)      # the web app manifest and its icons are allowed (PWA)
-bad="$bad$(find "$target/app/try" -type f ! \( -name '*TEST*.json' -o -name '*TEST*.csv' -o -name manifest.json \))"
+[ -d "$target/app/try" ] && bad="$bad$(find "$target/app/try" -type f ! \( -name '*TEST*.json' -o -name '*TEST*.csv' -o -name manifest.json \))"
 if [ -n "$bad" ]; then echo "STOP: non-code files in deploy/:"; echo "$bad"; exit 1; fi
 echo "$target/ refreshed:"; find "$target" -path "$target/playtest" -prune -o -type f -print | sort

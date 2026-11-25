@@ -1,0 +1,879 @@
+:root { color-scheme:light; --ink:#1b1f24; --mute:#667; --line:#d5d9de; --bg:#f6f7f9; --accent:#1f5fbf; --onaccent:#fff; --warn:#b45309;
+  --panel:#fff; --head:#eef1f5; --soft:#f5f6f8; --rowline:#cfd5dc; --off:#fafafa; --offtxt:#6b6b6b; --link:#1f5fbf; --bad:#a00; --okfg:#176b2c; --okbg:#eef8ee; --okline:#b6d7a8; --donebg:#dcefdc; --doneline:#8fc28f; --donecell:#eef8ee;      /* N58: a completed Progress section is clearly shaded in light mode too, and so are its date boxes */
+  --warnbg:#fff3cd; --warntxt:#7a5a00; --chipbg:#e8f0fe; --addbg:#e3f4e7; --addline:#2f9e4f; --delbg:#fde8e8; --delline:#c0392b; --chgbg:#fff3cd; --chgline:#d49b00; --dangerline:#d9a0a0; --shadow:rgba(0,0,0,.08); --grid:#333; }
+/* Dark mode follows the device setting. Reports stay on white "paper" (see #report .sheet) and printing is always light. */
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme:dark; --ink:#e4e7ec; --mute:#98a2b0; --line:#3a424e; --bg:#12161b; --accent:#6ea8fe; --onaccent:#0a1b33; --warn:#f2a65a;
+    --panel:#1c2128; --head:#262d37; --soft:#1a1f26; --rowline:#2b323c; --off:#171b21; --offtxt:#7b8594; --link:#8ab8ff; --bad:#ff8a8a; --okfg:#6fd48a; --okbg:#1b2d22; --okline:#2f5a3c; --donebg:#1b2d22; --doneline:#2f5a3c; --donecell:#1c2128;
+    --warnbg:#3a3015; --warntxt:#f0d27a; --chipbg:#22324d; --addbg:#17301f; --addline:#3fae63; --delbg:#3a1c1c; --delline:#e0675a; --chgbg:#3a3015; --chgline:#d8a824; --dangerline:#7a4040; --shadow:rgba(0,0,0,.5); --grid:#566070; }
+}
+* { box-sizing: border-box; }
+[hidden] { display:none !important; }      /* the hidden attribute always wins (UX-01, CR-06): .bar, .bar label (phone), .qpills and i.info set display, so hidden Reports controls used to draw anyway */
+body { margin:0; font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; color:var(--ink); background:var(--bg); }
+.top { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; justify-content:space-between; padding:6px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+.top h1 { font-size:18px; margin:0; }
+.actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; flex:1 1 auto; justify-content:flex-start; }
+.btn, button { font:inherit; padding:6px 12px; border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:6px; cursor:pointer; }
+.btn:hover, button:hover { border-color:var(--accent); }
+button.primary { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
+.status { color:var(--mute); }
+.status.dirty { color:var(--warn); font-weight:600; } .status.nudge { font-weight:800; text-decoration:underline; }
+.tabmenu { display:none; } .tabgrp { display:contents; } .grphead { display:none; }
+.tabs { display:flex; gap:4px; padding:8px 16px 0; background:var(--panel); border-bottom:1px solid var(--line); }
+.tabs button { border-bottom:none; border-radius:6px 6px 0 0; }
+.tabs button.on { background:var(--bg); font-weight:600; }
+main { padding:12px 16px; } main:focus { outline:none; }
+.skiplink { position:absolute; left:8px; top:-60px; z-index:1000; padding:10px 14px; background:var(--card, #fff); color:var(--link, #0b57d0); border:2px solid currentColor; border-radius:6px; font-weight:600; }
+.skiplink:focus { top:8px; }      /* UX-21: visible only while it has the keyboard; Enter moves focus to the page content, past the top bar and tabs */
+@media print { .skiplink { display:none; } }
+table.roster tr.notheld td { color:var(--offtxt); }      /* CR-12: a night no child was marked on is listed but not counted */
+a[data-person] { color:var(--link); }      /* UX-30: a child's name link is the theme link colour everywhere (it was the browser's default blue on Attendance and To do); .chip and a.ver are not links in the reading sense and keep their own colours */
+.bar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; }
+.bar .grow { flex:1; }
+/* The Reports bar (report choice and the Print button) stays at the top while the report scrolls beneath it. */
+#tab-reports > .rhead { position:sticky; top:0; z-index:20; background:var(--panel); padding:8px 0 0; margin-bottom:0; border-bottom:1px solid var(--line); }
+#tab-reports > .rhead > .bar { margin-bottom:0; }
+.rsubs { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 6px; } .rsubs button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }      /* like .subtabs, but a separate class: the Color team games code wires every .subtabs button */
+/* Only the page scrolls up and down: a box never has a scroll bar of its own beside the page's. A box wider than the screen scrolls sideways (app.js adds .wide then; until then sticky table headers follow the page). */
+.scroll { overflow-x:clip; overflow-y:visible; background:var(--panel); border:1px solid var(--line); border-radius:6px; }
+.scroll.wide { overflow-x:auto; overflow-y:hidden; }      /* y hidden: a box that scrolls sideways must never grow an up-and-down bar of its own (its sideways bar would otherwise cause one) */
+table.roster { border-collapse:collapse; width:100%; }
+table.roster th { position:sticky; top:0; z-index:2; background:var(--head); text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+section.sheet.strips > h2 { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }      /* N27: the hand-out pages print with no heading; the name stays in the page for Choose pages */
+#uniWrap table.roster th { z-index:40; }      /* N25: the Uniforms date boxes and their Today buttons no longer slide over the column headings when the list scrolls (not yet checked by eye) */
+#uniWrap table.roster td input, #uniWrap table.roster td .todaybtn, #uniWrap table.roster td select { position:relative; z-index:1; }
+table.roster td { padding:3px 8px; border-bottom:1px solid var(--rowline); white-space:nowrap; }
+dialog table.roster td, #optDriveCard table.roster td { white-space:normal; overflow-wrap:anywhere; } dialog table.roster td:last-child, #optDriveCard table.roster td:last-child { white-space:nowrap; }      /* a long folder name wraps instead of pushing the buttons out of the dialog */
+table.roster tr.off td { color:var(--offtxt); background:var(--off); }
+table.roster tr.vol td:first-child { border-left:3px solid #9ab; }
+table.roster input[type=text], table.roster select { font:inherit; padding:2px 4px; border:1px solid transparent; background:transparent; border-radius:4px; max-width:200px; }
+@media (hover:none) { table.roster input[type=text], table.roster select { border-color:var(--line); background:var(--panel); } }     /* no hover on a touch screen: show that the cells are boxes you can type in */
+table.roster input[type=text]:hover, table.roster select:hover, table.roster input[type=text]:focus, table.roster select:focus { border-color:var(--line); background:var(--panel); }
+.ovmark { color:var(--warn); }
+.prose { max-width:760px; background:var(--panel); padding:8px 20px 16px; border:1px solid var(--line); border-radius:6px; }
+code { background:var(--head); padding:0 4px; border-radius:3px; }
+
+.modal-wrap { position:fixed; inset:0; background:rgba(0,0,0,.4); display:flex; align-items:flex-start; justify-content:center; padding:30px 12px; overflow:auto; z-index:10; }
+.modal-wrap[hidden] { display:none; }
+.modal { background:var(--panel); color:var(--ink); border-radius:8px; padding:16px 20px; max-width:620px; width:100%; }
+.modal.wide { max-width:980px; }
+.modal h3 { margin:14px 0 6px; }
+.modal table { border-collapse:collapse; width:100%; margin-bottom:6px; }
+.modal td, .modal th { border-bottom:1px solid var(--rowline); padding:3px 6px; text-align:left; vertical-align:top; }
+.chg b { color:var(--warn); }
+.chg.minor { color:var(--mute); }
+dialog { background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:16px 20px; width:min(720px,94vw); max-height:90vh; overflow:auto; }
+dialog::backdrop { background:rgba(0,0,0,.4); }
+@media (max-width: 760px) { #oRoomSel { min-height:44px; } }      /* N4: the Class picker is the phone's main control for the Progress sheets */
+#busy { width:min(360px, calc(100vw - 32px)); text-align:center; } #busy p { margin:0; font-size:16px; }      /* N4: the "Drawing N progress sheets" pop-up */
+.fields { display:grid; grid-template-columns:230px 1fr auto; gap:4px 8px; align-items:center; }
+.fields label { color:var(--mute); font-size:12px; overflow-wrap:anywhere; }
+.fields input, .fields textarea { width:100%; font:inherit; color:var(--ink); background:var(--panel); padding:3px 6px; border:1px solid var(--line); border-radius:4px; }
+.fields.lists { grid-template-columns:1fr; gap:12px; align-items:start; } .fields.lists label { display:flex; flex-direction:column; gap:3px; } .awgroup { display:grid; grid-template-columns:2fr 1fr; gap:8px; align-items:start; }
+.fields .ov input, .fields .ov textarea { border-color:var(--warn); background:var(--warnbg); }
+.dlgbtns { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+/* The app's own pop-up (app-ask.js, UX-20): same look as #dlg; messages keep their line breaks; fields stack with their error under them; a danger button is red; the Undo message sits at the bottom. */
+#ask.askdlg { width:min(480px,94vw); } .askmsg { white-space:pre-line; margin:8px 0; } .asklist { max-height:40vh; overflow:auto; margin:6px 0 6px 18px; padding:0; }
+.askfield { display:flex; flex-direction:column; gap:4px; margin:10px 0 0; } .askfield input, .askfield select, .askfield textarea { width:100%; box-sizing:border-box; } .askerr { color:var(--bad); font-size:13px; min-height:0; }
+.askdlg button.danger { background:var(--bad); border-color:var(--bad); color:#fff; }
+.doneflash { position:fixed; left:50%; transform:translateX(-50%); bottom:16px; z-index:900; display:flex; align-items:center; gap:10px; max-width:calc(100vw - 16px); } .doneflash button { min-height:36px; } .doneflash[hidden] { display:none; }
+@media (max-width: 760px) { #ask.askdlg { width:calc(100vw - 16px); max-width:none; margin:auto 8px 8px; max-height:90vh; } #ask .dlgbtns { flex-direction:column-reverse; position:sticky; bottom:0; background:var(--panel); padding-top:8px; } #ask .dlgbtns button { min-height:44px; width:100%; } .askfield input, .askfield select, .askfield textarea { font-size:16px; min-height:44px; } .doneflash button { min-height:44px; } }
+@media print { #ask, .doneflash { display:none; } }
+
+/* ---------- report sheets (screen) ---------- */
+#report .sheet { color-scheme:light; --grid:#333; --ink:#1b1f24; --mute:#667; --line:#d5d9de; --panel:#fff; --head:#eef1f5; --soft:#f5f6f8; --rowline:#cfd5dc; --bad:#a00; --okfg:#176b2c; --link:#1f5fbf; --warn:#b45309;
+  color:#1b1f24; background:#fff; border:1px solid var(--line); margin:0 0 14px; padding:18px 22px; }
+#report h2 { font-size:16px; margin:0 0 8px; }
+#report h3 { font-size:14px; margin:12px 0 4px; }
+#report .sub { color:var(--mute); margin:0 0 8px; font-size:12px; }
+table.grid { border-collapse:collapse; width:100%; }
+table.grid th, table.grid td { border:1px solid #888; padding:2px 6px; text-align:left; vertical-align:top; }
+table.grid th { background:#f0f0f0; }
+table.grid.wrap td { white-space:normal; }
+#report table.uniform-tracking { table-layout:fixed; overflow-wrap:anywhere; }
+@media print { #report table.uniform-tracking td { height:.28in; } }
+#report .sheet.incident { font-size:11pt; }
+.incident-fields { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.15in; }
+.incident-fields > div, .incident-writing { break-inside:avoid; }
+.incident-line { height:0.28in; border-bottom:1px solid #777; }
+.incident-writing { margin:0.16in 0; }
+.none { color:var(--offtxt); font-style:italic; }      /* UX-30: #999 on white was 2.85:1; --offtxt is now 5.3:1 light and about 4.6:1 dark */
+.empty { color:var(--mute); }
+.team { display:inline-block; padding:0 8px; border-radius:3px; color:#1b1f24; }
+select.teamsel { border-radius:12px; padding:1px 8px; font-weight:600; }
+select.teamsel.team { border:1px solid rgba(0,0,0,.25); color:#1b1f24; }
+select.teamsel.team-Red { background-color:#ea9999; } select.teamsel.team-Blue { background-color:#6d9eeb; } select.teamsel.team-Green { background-color:#b6d7a8; } select.teamsel.team-Yellow { background-color:#ffe599; }
+.team-Red { background:#ea9999; } .team-Blue { background:#6d9eeb; } .team-Green { background:#b6d7a8; } .team-Yellow { background:#ffe599; }
+table.att { border-collapse:collapse; width:100%; table-layout:fixed; }
+table.att th, table.att td { border:1px solid var(--grid); height:1.55em; padding:0 3px; text-align:center; font-size:12px; }
+table.att th { background:var(--panel); }
+table.att .name { width:11%; text-align:left; font-size:13px; line-height:1.1; white-space:normal; overflow-wrap:anywhere; }      /* left-aligned; a long name shrinks (td.name.long / .xlong, set in reports.js) and, past that, wraps: never cut with an ellipsis (B7) */
+table.att td.num { text-align:right; padding:0 4px 0 0; font-size:10px; color:#444; }      /* N50: the row number, small and grey, so the name and the boxes keep the room */
+table.att td.name.long { font-size:11px; } table.att td.name.xlong { font-size:10px; }
+table.att .teamcol { width:6%; font-size:12px; }
+/* Every attendance column (the four marks of every week) shares the rest of the width equally. */
+table.att th.mark, table.att td.chk { width:auto; }
+table.att th.date { border-left:2px solid #000; font-size:12px; }
+table.att th.mark { height:5.6em; padding:0; font-weight:normal; }
+.rot { display:inline-block; writing-mode:vertical-rl; transform:rotate(180deg); white-space:nowrap; font-size:11px; }
+
+table.uni td { vertical-align:middle; }
+table.uni input[type=text] { width:110px; font:inherit; padding:2px 4px; border:1px solid var(--line); border-radius:4px; }
+table.uni td.sm input { width:70px; }
+table.uni input[type=date] { font:inherit; padding:2px 4px; border:1px solid var(--line); border-radius:4px; width:140px; } .baddate { border-color:var(--warn) !important; background:var(--warnbg) !important; }
+.redwarn { border:6px solid #b00020; max-width:720px; }
+.redwarn h2 { margin:0 0 8px; padding:12px 14px; background:#b00020; color:#fff; font-size:26px; line-height:1.15; }
+.redwarn .lnk { display:inline-block; margin:6px 0 10px; font-size:18px; font-weight:700; color:#b00020; }
+.redwarn ul { margin:6px 0 10px; padding-left:20px; }
+
+.months { columns:2; column-gap:28px; }
+.month { break-inside:avoid; margin-bottom:10px; }
+.month h3 { margin:0 0 3px; border-bottom:1px solid #888; }
+.night { padding:1px 0; break-inside:avoid; }
+.night .d { display:inline-block; min-width:2.6em; font-weight:700; }
+.night.event { font-weight:600; }
+.night .note { margin-left:2.6em; color:var(--mute); font-size:12px; }
+.qend { margin:3px 0; padding:1px 0; text-align:center; font-style:italic; border-top:1px dashed #888; border-bottom:1px dashed #888; }
+table.rotgrid td, table.rotgrid th { text-align:center; vertical-align:middle; }
+table.rotgrid td.time { font-weight:700; white-space:nowrap; }
+table.rotgrid textarea, #rotWrap textarea { width:100%; min-width:120px; font:inherit; border:1px solid var(--line); border-radius:4px; }
+
+@page land { size: 11in 8.5in; margin: 0.4in; }
+@page port { size: 8.5in 11in; margin: 0.5in; }
+/* Paper: letter. Attendance and other landscape sheets print landscape; progress and other portrait sheets print portrait. */
+/* No static `page:` on .sheet.landscape / .sheet.portrait: a named page on the first sheet makes Chromium print a blank page before it (found by printing every report to a real PDF).
+   setPageStyle() (app.js) sets the default @page to the first sheet's orientation and names only the other orientation. */
+@media print {
+  :root { color-scheme:light; --grid:#333; --ink:#1b1f24; --mute:#667; --line:#d5d9de; --bg:#fff; --panel:#fff; --head:#eef1f5; --soft:#f5f6f8; --rowline:#cfd5dc; --bad:#a00; --okfg:#176b2c; --link:#1f5fbf; --warn:#b45309; }
+  body { background:#fff; color:#1b1f24; }
+  .colsbar, .exbtns, .helpsearch, #helpResults, i.info, .infobox, .flagpop, #flagLayer, #infoTip, .top, .tabs, .tabmenu, .trailbar, .noprint, #tab-roster, #tab-help, .modal-wrap, #splash, dialog { display:none !important; }
+  main { padding:0; }
+  html, body { height:auto; overflow:visible; display:block; }
+  main { overflow:visible; }
+  #report .sheet { border:none; margin:0; padding:0; break-after:page; }
+  #report .sheet:last-child { break-after:auto; }
+  #report .sheet.att { padding-top:0.45in; }      /* N11: 0.4in page margin + 0.45in = 0.85in clear at the top of the attendance sheet for a three-hole punch */
+  #pagePick, #report .sheet button, #report .sheet .flagrow, #report .sheet .flagnote { display:none !important; }      /* screen-only controls: the page ticks, Hide / Flag / Today buttons */
+  #report .sheet .pblock, #report .sheet .prow, #report .sheet .achild { break-inside:avoid; }
+  table.grid tr { break-inside:avoid; }
+  #report h1, #report h2, #report h3, #report h4, #report caption { break-after:avoid; }      /* N37 F1: a heading never ends a page with its table on the next */
+  #report table tr { break-inside:avoid; }      /* N37 F1: a table row is never split across two pages */
+  #report .sheet.emptysheet { display:none; }      /* N37 F13: a page that only says there is nothing to show is not printed */
+  #report .sheet p.sub:has(> .noprint:only-child) { display:none; }      /* N37 F9, F10: a subtitle that is only screen help leaves no empty line on paper */
+  /* One child per printed page (progress sheets, also inside binders). The break is on the wrapper, because each sheet is its own :last-child. */
+  #report .onepage { break-inside:avoid; }
+  #report .onepage { break-after:page; }      /* after, not before: a break before the first ticked sheet, behind an unticked one, prints a blank page */
+  #report .onepage > .sheet { break-after:auto; }
+  #report:has(> .onepage:first-child) .onepage > .sheet.portrait { page:auto; }      /* a report that opens with progress sheets is all portrait, which setPageStyle() already sets for the paper; a named page on its first (or first ticked) sheet prints a blank page before it */
+  #report .onepage:has(> .sheet.skip) { display:none; }
+  #report .sheet.rec { padding:0; }
+  #report .sheet.notes .nblock { break-inside:avoid; }
+  #report .sheet.notes > h2, #report .sheet.notes > p.sub { display:none; }      /* the notes pages print only the blocks; the title stays on screen and in Choose pages */
+  #report .sheet.rec h2 { margin:0; }
+  .rec .rv, .rec .tag, .rec .band { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .team, .team-Red, .team-Blue, .team-Green, .team-Yellow, table.att td[class*="team-"] { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+}
+
+/* The printed progress sheet (recordSheet in reports-season.js; BACKLOG T6). Sizes are in inches so the screen and the paper agree; black 0.75pt rules, nothing carries meaning in a tint. */
+#report .sheet.rec { color:#000; font-family:Arial,Helvetica,sans-serif; }
+#report .sheet.rec h2 { font-size:14pt; font-weight:700; margin:0 0 3px; line-height:1.1; }
+#report .rhead { width:7in; margin:0 0 4px; }      /* the PAPER header only: the Reports toolbar is `#tab-reports > .rhead` and must not be 7in wide (UX-02) */ .rhead .r2 { display:flex; justify-content:space-between; font-size:9pt; line-height:1.3; } .rhead .r2 .pr { text-align:right; }
+.rhead .rc { display:inline-block; min-width:0.8in; border-bottom:0.75pt solid #000; } .rhead .r3 { font-size:7.5pt; line-height:1.2; }
+table.rec { table-layout:fixed; border-collapse:collapse; width:7in; border:0; margin:0; }
+table.rec td { border:0; padding:0; font-size:8pt; line-height:1; color:#000; overflow:hidden; position:relative; vertical-align:middle; text-align:left; background:none; }
+table.rec td.so, table.rec td.an, table.rec td.gv, table.rec td.bj, table.rec td.txt, table.rec td.band, table.rec td.br, table.rec td.nm.bx { border:0.75pt solid #000; }
+table.rec td.br { border-left:0; }
+table.rec td.nm { padding:0 2px; } table.rec td.nm b { font-size:7.5pt; } table.rec td.rvn { font-size:7.5pt; }
+table.rec td.txt { padding:0 4px; font-size:7pt; border-style:dotted; }
+table.rec .n { position:absolute; left:2px; top:1px; font:normal 6.5pt/1 Arial,Helvetica,sans-serif; }
+table.rec .lbi, table.rec .lbd { position:absolute; font:normal 6pt/1 Arial,Helvetica,sans-serif; color:#666; }      /* N56: 6pt medium-grey captions in every box */
+table.rec .lbi { left:2px; bottom:1px; } table.rec .lbd { left:calc(0.38in + 2px); top:1px; }
+table.rec .ini { position:absolute; left:0; top:0; bottom:0; width:0.38in; border-right:0.75pt dotted #000; }
+table.rec .dt { position:absolute; left:0.38in; right:0; bottom:2px; text-align:center; font-size:8pt; line-height:1; }      /* 8pt so a full mm/dd/yy date has room in its box */
+table.rec td.rv { background:#e2e2e2; } table.rec td.so, table.rec td.gv, table.rec td.bj { overflow:visible; }
+table.rec td.bj .v { position:absolute; right:3px; bottom:2px; font-size:9pt; } table.rec td.bj .n { font-size:6.5pt; }
+table.rec td.an { padding:1px 3px; } table.rec td.an span { display:block; font-size:8pt; line-height:1; } table.rec td.an.lg span { font-size:7pt; } table.rec td.an.g { font-weight:700; } table.rec td.an.e { font-weight:700; }
+table.rec td.an.e, table.rec td.gv.e, table.rec td.so.e { border-width:2pt; }
+table.rec .tag { display:block; width:fit-content; margin-top:1px; background:#000; color:#fff; font:normal 6pt/1 Arial,Helvetica,sans-serif; padding:1px 2px; }
+table.rec td.gv .v { position:absolute; right:2px; bottom:2px; font-size:8pt; line-height:1; }
+table.rec td.gv.gd { } table.rec td.gv .n { font-size:6.5pt; }
+table.rec td.band .bt { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; writing-mode:vertical-rl; transform:rotate(180deg); font-size:6pt; line-height:1; white-space:nowrap; overflow:hidden; font-weight:700; }
+
+/* color teams tab */
+.banner { background:var(--okbg); border:1px solid var(--okline); border-radius:6px; padding:8px 12px; }
+.bad { color:var(--bad); }
+.ok { color:var(--okfg); font-weight:600; }
+
+/* season tabs */
+table.att td.chk, table.att th { text-align:center; } table.att td.chk input { width:20px; height:20px; }
+/* the whole cell is the target: a tap near the box ticks it */
+table.att td.chk { padding:0; } table.att td.chk label { display:flex; align-items:center; justify-content:center; min-height:30px; cursor:pointer; }
+table.att th .sh { display:none; }
+table.att td.yr { color:var(--mute); text-align:center; }
+.chip { display:inline-block; background:var(--chipbg); border-radius:10px; padding:1px 8px; margin:1px 3px 1px 0; font-size:13px; }
+.chip a { text-decoration:none; color:var(--bad); font-weight:700; }
+a.chip.due { background:var(--warnbg); text-decoration:none; color:var(--warntxt); }
+.pblock { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; border:1px solid var(--line); border-radius:6px; padding:6px 10px; margin:6px 0; }
+.pblock.done { background:var(--donebg); border-color:var(--doneline); } .pblock.done input[type=date] { background:var(--donecell); }
+.plabel { min-width:130px; font-weight:600; } .previews .pblock > .plabel { min-width:170px; } .previews > .plabel { display:block; margin-top:10px; } .pitem { font-size:12px; display:flex; flex-direction:column; } .pitem input { width:128px; }
+.pawards { margin-left:auto; color:var(--mute); font-size:13px; }
+.booktabs { display:flex; flex-wrap:wrap; gap:8px 10px; margin:12px 0 8px; } .booktabs button { padding:6px 14px; }      /* room between the tabs (the colors made them run together), and for the outline of the one being looked at */
+/* Book tabs (app-season.js tabState): blue = the book in work, red = started and not finished and not the current book, green = finished, inverted green = finished with the Book Review.
+   The tab being looked at is outlined (not filled), so it is never mistaken for the blue of the current book. */
+.booktabs button.st-cur { background:#1f4e79; color:#fff; border-color:#1f4e79; } .booktabs button.st-open { background:#b3261e; color:#fff; border-color:#b3261e; } .booktabs button.st-done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+.booktabs button.st-rev { background:#e8f5e9; color:#1b5e20; border:2px solid #2e7d32; font-weight:600; } .booktabs button.on { outline:3px solid var(--ink); outline-offset:2px; } .booktabs .bkmark { margin-left:2px; font-weight:700; }
+.booktabs button.st-cur .curdot, .booktabs button.st-open .curdot, .booktabs button.st-done .curdot { color:#fff; }
+table.slide td { font-size:20px; padding:8px 10px; }
+.arow { display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; border-bottom:1px solid var(--line); padding:5px 0; page-break-inside:avoid; }
+.alabel { width:110px; font-weight:700; font-size:13px; } .aaward { margin-left:auto; display:flex; align-items:center; gap:10px; font-size:12px; } .aw { display:inline-flex; align-items:center; gap:6px; } .awn { text-align:right; }
+.abox { display:inline-flex; flex-direction:column; min-width:54px; border:1px solid var(--line); border-radius:3px; padding:1px 4px; font-size:10px; }
+.abox i { font-style:normal; color:var(--mute); } .abox b { font-size:11px; min-height:13px; } .abox.done { background:var(--okbg); }
+.ahead { margin:0 0 4px; }
+.arev { display:inline-flex; align-items:center; gap:4px; margin-left:8px; padding-left:8px; border-left:1px dashed var(--line); } .arevl { font-size:10px; color:var(--mute); margin-right:2px; }
+@media print { .arow { padding:2px 0; gap:2px 5px; } .alabel { width:96px; font-size:12px; } .abox { min-width:46px; padding:0 3px; } .abox b { min-height:12px; } #report .sheet h2 { margin:0 0 2px; font-size:16px; } #report .sheet p.sub { margin:0 0 4px; } }
+table.roster.att { width:auto; min-width:520px; } table.roster.att td:nth-child(2), table.roster.att th:nth-child(2) { text-align:left; padding-right:24px; }      /* the on-screen night tables only (N8: unscoped, this also hit the printed attendance sheet: second heading left-aligned, narrow tables) */
+table.awards select[data-pick], table.games select { max-width:210px; }
+.gamecols { display:grid; grid-template-columns:1fr; gap:20px; }      /* Sparks and T&T side by side on a wide screen, stacked on a narrow one */
+@media (min-width:1000px) { .gamecols { grid-template-columns:1fr 1fr; align-items:start; } }
+.gamegrp h4 { margin:14px 0 6px; }
+@media (max-width: 760px) { #gamesWrap select[data-f], #gameDate { min-height:44px; font-size:16px; } #gamesWrap table.games th, #gamesWrap table.games td { padding:4px 2px; } #gamesWrap table.games th { font-size:13px; } #gamesWrap { padding-left:8px !important; padding-right:8px !important; } }      /* R12: the score boxes and the night picker are 44px with 16px text on a phone (iOS does not zoom) */
+
+/* print fit: the rotation grid must fit one landscape page; phone numbers stay on one line */
+table.rotgrid { table-layout:fixed; width:100%; font-size:9pt; } table.rotgrid td, table.rotgrid th { padding:2px 3px; overflow-wrap:anywhere; }
+.nw { white-space:nowrap; }
+
+/* history */
+.hlist { list-style:none; margin:4px 0 14px; padding:0; }
+.hlist li { padding:3px 8px; margin:2px 0; border-left:4px solid; border-radius:3px; }
+.h-add { background:var(--addbg); border-color:var(--addline); } .h-del { background:var(--delbg); border-color:var(--delline); } .h-chg { background:var(--chgbg); border-color:var(--chgline); }
+.hlist .mk { display:inline-block; width:1.2em; font-weight:700; }
+td.h-add, td.h-del, td.h-chg { border-left:none; }
+td small { color:var(--mute); }
+button.danger { color:var(--bad); border-color:var(--dangerline); } button.danger:disabled { color:var(--mute); border-color:var(--line); cursor:default; }
+.hpick { display:inline-flex; gap:6px; align-items:center; }
+#hFrom, #hTo { max-width:36ch; }
+#tab-help .prose { max-width:1200px; }
+table.roster td.dow-off { background:var(--warnbg); font-weight:600; color:var(--warntxt); }
+.status.warn { color:var(--warntxt); font-weight:600; }
+a.ver { font-size:11px; font-weight:400; color:var(--mute); text-decoration:none; margin-left:6px; }
+a.ver:hover { text-decoration:underline; }
+.v-bad { color:var(--bad); }
+#debugWrap table.roster { width:auto; min-width:480px; }
+#splash { position:fixed; inset:0; background:var(--soft); z-index:20; display:flex; align-items:center; justify-content:center; padding:20px; }
+#splash[hidden] { display:none; }
+body:has(#splash:not([hidden])) .tabwrap, body:has(#splash:not([hidden])) header.top { visibility:hidden; }      /* on a phone the sticky tab bar (z-index 31) painted over the opening screen (z-index 20) and hid its intro text (R22); a tab menu is of no use before a file is open */
+.splash-card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:24px 32px; max-width:560px; width:100%; box-shadow:0 4px 24px var(--shadow); }
+.splash-card h2 { margin-top:0; }
+.splash-need { padding-left:20px; } .splash-need li { margin:8px 0; } .splash-need .status { display:block; }
+.btn.big { font-size:16px; padding:10px 22px; }
+button.linklike { background:none; border:none; color:var(--link); padding:0; cursor:pointer; text-decoration:underline; }
+.manual h2 { margin-top:28px; } .manual h3 { margin-top:18px; }
+.manual nav.toc { background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:8px 18px; margin:12px 0; }
+.manual nav.toc ol { columns:2; margin:6px 0; } .manual nav.toc ul.toctabs { margin:2px 0 6px; padding-left:18px; font-size:13px; list-style:none; } .manual nav.toc li { break-inside:avoid; }
+.tabgroup { margin:18px 0 0; padding-top:6px; border-top:1px solid var(--line); color:var(--mute); text-transform:uppercase; font-size:12px; letter-spacing:.05em; }
+details.example { margin:10px 0; border:1px solid var(--line); border-radius:6px; background:var(--panel); } details.example > summary { cursor:pointer; padding:8px 12px; } details.example[open] > summary { border-bottom:1px solid var(--line); } details.example > p, details.example > pre, details.example > .exbtns { margin:8px 12px; }
+details.example pre { padding:8px 10px; background:var(--soft); border:1px solid var(--line); border-radius:4px; font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; overflow-x:auto; white-space:pre; } .exbtns button { margin-right:6px; }
+.helpsearch { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:12px 0 6px; } .helpsearch input[type=search] { flex:1 1 280px; max-width:520px; padding:6px 10px; font:inherit; }
+#helpResults { margin:4px 0 12px; padding:6px 12px; background:var(--soft); border:1px solid var(--line); border-radius:6px; } #helpResults ol { margin:0; padding:0; list-style:none; } #helpResults li { margin:0; border-bottom:1px solid var(--line); } #helpResults li:last-child { border:0; }
+#helpResults a { display:block; padding:5px 2px; text-decoration:none; color:var(--ink); } #helpResults a:hover, #helpResults a:focus-visible { background:var(--head); } .hcrumb { display:block; font-size:11px; color:var(--mute); } .hsnip { display:block; font-size:13px; }
+mark, mark.hit { background:#ffe599; color:#1b1f24; border-radius:2px; padding:0 1px; }
+.manual a { color:var(--link); }
+
+/* handbook boxes (Progress and Person tabs) */
+.hbbox { display:inline-flex; flex-wrap:wrap; gap:8px 14px; align-items:flex-start; } .hbrow { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:flex-end; }
+
+/* person tab */
+.pcard { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 14px 10px; margin:0 0 12px; }
+.pcard h3 { margin:4px 0 6px; font-size:15px; }
+details.pcard > summary { cursor:pointer; }
+.pgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:8px 14px; }
+.pf { display:flex; flex-direction:column; gap:2px; font-size:13px; color:var(--mute); }
+.pf input[type=text], .pf input[type=date], .pf select, .pf textarea { font:inherit; color:var(--ink); background:var(--panel); padding:4px 6px; border:1px solid var(--line); border-radius:4px; width:100%; }
+.pf.chk { flex-direction:row; align-items:center; gap:6px; color:var(--ink); } .pf.wide { grid-column:1/-1; }
+.pscroll { overflow-x:auto; overflow-y:hidden; } .peawards tr.st-held td { opacity:.7; } .peawards tr.st-given td:last-child { font-weight:600; }
+@media print { #tab-person { display:none !important; } }
+/* Printed reports carry no app header or tab bar (no blank cover page). */
+@media print { header.top, .tabs, #draftBar, #testBanner { display:none !important; } }
+/* Emergency lists: portrait, compact rows and cells so more children fit on a page. 12px (9pt): a leader may read this page in an emergency (B7). */
+table.grid.emerg { table-layout:fixed; } table.grid.emerg .nw.nm { white-space:normal; overflow-wrap:anywhere; }      /* N15: fixed columns (set in reports.js); a long name wraps inside its column, a phone number stays whole */
+@media print { #report table.emerg td, #report table.emerg th { padding:2px 4px; font-size:12px; line-height:1.2; } #report table.emerg { margin:0; } }
+/* Statistics on paper: the screen boxes clip sideways (overflow-x: clip) and the cells never wrap, so a wide table ran off the page ("Pattern" column, 1,015px on a 704px sheet). On paper the boxes show everything and the cells wrap (B4). */
+@media print { #report .sheet.stats .scroll { overflow:visible; border:0; border-radius:0; } #report .sheet.stats table.roster { table-layout:auto; width:100%; }
+  #report .sheet.stats table.roster th, #report .sheet.stats table.roster td { white-space:normal; overflow-wrap:anywhere; padding:2px 4px; font-size:11px; line-height:1.2; } #report .sheet.stats table.roster th { position:static; } }
+/* The color-team sheet: one page per group, compact rows. */
+/* N53: the coaches color teams list: color blocks in two columns, name left and class right, the printed date at the right end of the title line */
+.teamcols { column-count:2; column-gap:0.4in; } .teamblock { break-inside:avoid; margin:0 0 8px; } .teamhead { padding:3px 0; border-bottom:1px solid #999; } .teamrow { display:flex; justify-content:space-between; gap:8px; padding:1px 2px; border-bottom:1px solid #ddd; font-size:12px; line-height:1.25; } .teamrow > span:last-child { white-space:nowrap; text-align:right; }
+.sheet h2[data-right] { display:flex; justify-content:space-between; align-items:baseline; gap:12px; } .sheet h2[data-right]::after { content:attr(data-right); font-size:11px; font-weight:400; color:#555; white-space:nowrap; }
+@media (max-width:600px) { .teamcols { column-count:1; } }
+@media print { #report .teamlist td { padding:1px 4px; font-size:11px; line-height:1.2; } #report .teamlist tr.colorhead td { padding-top:6px; background:none; } }
+@media print { input[type=date][data-blank-print] { color:transparent !important; border-color:transparent !important; } input[type=date][data-blank-print]::-webkit-calendar-picker-indicator { display:none !important; } }
+
+/* to do tab */
+.badge:not(:empty) { display:inline-block; min-width:18px; padding:0 5px; margin-left:4px; border-radius:9px; background:#b45309; color:#fff; font-size:12px; line-height:18px; text-align:center; }
+.warnline { color:var(--warntxt); } td.wrap { white-space:normal; max-width:560px; }
+table.roster td.wrap { white-space:normal; overflow-wrap:anywhere; min-width:260px; }      /* table.roster td (nowrap) is more specific than td.wrap, so a long message ran under the link beside it */
+.flagcard table.roster { width:100%; } .flagcard table.roster td.wrap { max-width:none; } .flagcard table.roster td:nth-child(2) { white-space:normal; overflow-wrap:anywhere; }      /* To do notes: the note and the Where place take the width left over and wrap, so a long note or place never pushes Added, Go and Clear off the card */
+@media print { #tab-todo { display:none !important; } }
+.tabs { flex-wrap:wrap; } .tabs button { white-space:nowrap; } select[data-room] { min-width:170px; }
+
+/* test data banner and armed download buttons */
+.testbanner { background:#b00020; color:#fff; font-weight:700; padding:8px 16px; text-align:center; position:sticky; top:0; z-index:30; }
+#testBanner button { margin-left:10px; font-weight:400; }
+.splash-try { margin-top:18px; }
+/* statistics */
+.stgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:8px 0 12px; }
+.stat { border:1px solid var(--line); border-radius:8px; padding:8px 12px; }
+.stat b { display:block; font-size:22px; line-height:1.2; } .stat span { color:var(--mute); font-size:12px; }
+.sbar { display:inline-block; height:10px; background:var(--accent); border-radius:3px; vertical-align:middle; min-width:1px; }
+td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+@media print { #tab-stats, #tab-store { display:none !important; } }
+button.armed { background:#b00020; color:#fff; border-color:#b00020; }
+@media print { .testbanner { display:none !important; } }
+
+/* ---------- phones and narrow windows ---------- */
+@media (max-width: 760px) {
+  body { font-size:15px; }
+  main { padding:8px; }
+  .top { padding:8px 10px; gap:6px; } .top h1 { font-size:16px; }
+  .actions { gap:6px; width:100%; }
+  /* the tab strip becomes a menu: one button showing the current tab, and the list drops down under it */
+  .tabmenu { display:flex; align-items:center; gap:8px; width:100%; min-height:44px; padding:8px 12px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:var(--panel); font-size:16px; font-weight:600; text-align:left; }
+  .tabmenu #tabMenuLabel { flex:1; } .tabmenu .tmicon { font-size:20px; } .tabmenu .tmcaret { color:var(--mute); }
+  .tabmenu[aria-expanded=true] .tmcaret { transform:rotate(180deg); }
+  /* the menu stays at the top of the screen while you scroll; the open list drops over the page and scrolls on its own if it is taller than the screen */
+  .tabwrap { position:sticky; top:0; z-index:31; }
+  .tabs { position:absolute; left:0; right:0; top:100%; max-height:calc(100vh - 56px); max-height:calc(100dvh - 56px); overflow-y:auto; border-bottom:1px solid var(--line); box-shadow:0 8px 16px var(--shadow); }
+  .draftbar { top:45px; }
+  .tabs { display:none; flex-direction:column; flex-wrap:nowrap; gap:0; padding:4px 8px 8px; }
+  .tabs.open { display:flex; }
+  /* four groups, one open at a time: tap a heading to open it */
+  .tabgrp { display:block; } .grphead { display:flex; align-items:center; gap:8px; min-height:44px; padding:8px 12px; font-size:16px; font-weight:700; color:var(--mute); border-bottom:1px solid var(--rowline); cursor:pointer; }
+  .grphead .tmcaret { margin-left:auto; } .tabgrp.open > .grphead .tmcaret { transform:rotate(180deg); } .tabgrp.open > .grphead .badge { display:none; }
+  .tabgrp:not(.open) > button { display:none; } .tabgrp.open > button { display:block; width:100%; padding-left:24px; }
+  .tabs button { min-height:44px; padding:8px 12px; border:0; border-bottom:1px solid var(--rowline); border-radius:0; background:transparent; text-align:left; font-size:16px; }
+  .tabs button.on { background:var(--bg); border-left:4px solid var(--accent); font-weight:700; }
+  /* the To do cards: no sideways scrolling, each row wraps */
+  #todoWrap { padding:8px !important; }
+  .pcard h3 { display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; }
+  .pcard table.roster, .pcard table.roster tbody, .pcard table.roster tr { display:block; width:100%; }
+  .pcard table.roster thead { display:none; }
+  .pcard table.roster tr { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; padding:6px 0; border-bottom:1px solid var(--rowline); }
+  .pcard table.roster td { display:block; padding:0; border:0; white-space:normal; }
+  .pcard table.roster td.wrap { flex:1 1 100%; order:5; min-width:0; overflow-wrap:anywhere; }
+  .btn, button, select { min-height:38px; }
+  input[type=text], input[type=date], input[type=number], input[type=search], textarea, select { font-size:16px; }
+  input[type=checkbox] { width:22px; height:22px; }
+  .bar { gap:6px; } .bar label { display:flex; flex-direction:column; gap:2px; min-width:0; } .bar select { max-width:100%; }
+  /* the top bar is one slim row: Undo, Redo, Download, a dot for unsaved changes, then (scrolling sideways) the rest */
+  .top { flex-wrap:nowrap; } .top h1 { display:none; }
+  .actions { flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 20px),transparent); mask-image:linear-gradient(to right,#000 calc(100% - 20px),transparent); padding-right:16px; }      /* the fade at the right edge says there is more to scroll to */
+  .actions > * { order:5; flex:0 0 auto; white-space:nowrap; }
+  #saveSplit { order:1; } #btnUndo { order:2; } #btnRedo { order:3; } #seasonStatus { order:1; }      /* Download first: it is the end-of-night save and must never be the clipped button. The unsaved words come right after it (R12), where they can be read without scrolling; they are hidden while the file is clean. */
+  #status { display:none; }
+  /* Unsaved work is said in words (R12), not by a colored dot alone: the same orange chip as on a computer. A clean file shows nothing here (the (i) has the details). Overdue (.nudge) stays bold and underlined, so it differs in shape and not only color. */
+  #seasonStatus:not(.dirty) { display:none; } #seasonStatus.dirty { font-size:13px; font-weight:600; color:var(--warn); white-space:nowrap; } #seasonStatus.nudge { font-weight:700; text-decoration:underline; }
+  /* club night: Night and Room side by side, the two buttons below them, then the table */
+  #attendBar label { flex:1 1 150px; } #attendBar select { width:100%; } #attendBar button { flex:1 1 140px; } #btnNewSeason, #attendBar .grow, #attendBar label.hold { display:none; }
+  #attendBar { margin-bottom:4px; }
+  table.att, table.roster.att { width:100%; min-width:0; table-layout:auto; }      /* N8 scoping: the on-screen night table is table.roster.att, so the phone rule must match it too */ table.att td:nth-child(2), table.att th:nth-child(2) { padding-right:4px; padding-left:4px; white-space:normal; }
+  table.att th, table.att td { font-size:13px; padding:0 2px; }
+  table.att th .lg { display:none; } table.att th .sh { display:inline; } table.att th { font-size:11px; }
+  table.att td.chk label { min-height:44px; min-width:34px; } table.att td.chk input { width:32px; height:32px; }
+  .scroll { overflow-x:auto; overflow-y:hidden; }
+  /* a wide table scrolls inside its box: the shadows at each edge show that more is hidden (they vanish at the end of the scroll) */
+  .scroll, .pscroll { background:linear-gradient(to right,var(--panel) 30%,transparent) left center/24px 100% local no-repeat, linear-gradient(to left,var(--panel) 30%,transparent) right center/24px 100% local no-repeat, linear-gradient(to right,var(--shadow),transparent) left center/10px 100% scroll no-repeat, linear-gradient(to left,var(--shadow),transparent) right center/10px 100% scroll no-repeat, var(--panel); }
+  #progressWrap select, #progressWrap input[type=date], #progressWrap .bar button, #progressWrap .todaybtn { min-height:44px; }      /* the Progress sheet lives in #progressWrap (the old #tab-progress is gone); pinned by test/touch-targets-browser.test.js */
+  .prfoot { display:flex; gap:8px; margin-top:12px; } .prfoot button { flex:1; min-height:48px; font-size:16px; font-weight:600; }
+  .fields { grid-template-columns:1fr; } .awgroup { grid-template-columns:1fr; }
+  dialog { width:96vw; padding:12px; max-height:94vh; }
+  .modal-wrap { padding:8px; } .modal { padding:12px; }
+  .pgrid { grid-template-columns:1fr; } .pcard { padding:8px 10px; }
+  .months, .manual nav.toc ol { columns:1; }
+  .prose { padding:6px 12px 12px; }
+  #report .sheet { padding:10px; overflow-x:auto; }
+  .splash-card { padding:16px; } #splash { padding:10px; align-items:flex-start; overflow:auto; }
+  .testbanner { padding:6px 10px; font-size:13px; } .tbfiles { display:none; } #testBanner button { display:block; margin:6px auto 0; } #testBanner button[hidden] { display:none; }
+  .stgrid { grid-template-columns:repeat(2,1fr); } .stat b { font-size:20px; }
+  .pblock { padding:6px; } .plabel { min-width:0; width:100%; } .pitem input { width:110px; }
+  .arow { gap:4px; } .alabel { width:100%; } .aaward { margin-left:0; }
+  td.wrap { max-width:none; min-width:200px; }
+  .hpick { display:flex; flex-wrap:wrap; width:100%; } .hpick select, #hFrom, #hTo { max-width:100%; min-width:0; }
+  .dlgbtns { flex-wrap:wrap; } .hbbox, .hbrow { gap:6px 10px; }
+  table.rotgrid { font-size:11pt; }
+}
+
+/* Participation / Extra distribution: four bands that also differ by pattern, so they can be told apart without color */
+.mu { display:inline-block; height:12px; vertical-align:middle; } .mulegend .mu { width:18px; border-radius:2px; }
+.mubar { display:flex; width:160px; height:12px; border:1px solid var(--line); border-radius:3px; overflow:hidden; background:var(--soft); }
+.mu-all { background:var(--accent); } .mu-most { background:var(--accent); opacity:.55; } .mu-some { background:var(--warn); } .mu-none { background:repeating-linear-gradient(45deg,var(--line) 0 3px,transparent 3px 6px); }
+
+/* Draft bar: edits on the record-editing tabs wait here until Apply */
+.draftbar { position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:8px 10px; align-items:center; padding:8px 16px; background:var(--soft); border-bottom:1px solid var(--line); color:var(--mute); }
+.draftbar.pending, .draftbar.pcneedonly { background:var(--warnbg); color:var(--warntxt); border-bottom-color:var(--chgline); }
+.draftbar .pcneed { color:var(--warntxt); } .pcx { margin-left:8px; padding:0 7px; line-height:1.3; font-size:16px; border:1px solid currentColor; background:transparent; color:inherit; border-radius:4px; cursor:pointer; } .draftbar .pcneed a { color:inherit; text-decoration:underline; }
+.draftbar .dtext { flex:1 1 260px; } .draftbar button:disabled { opacity:.5; cursor:default; }
+.draftbar .dlist { flex:1 1 100%; } .draftbar .dlist ul { margin:4px 0 0; padding-left:20px; }
+label.hold { font-size:13px; color:var(--mute); display:inline-flex; gap:6px; align-items:center; }
+.draftbar[hidden] { display:none; }
+
+/* Person tab opened from a To do item: the fields that still need attention */
+.attn { outline:2px solid var(--warn); outline-offset:2px; background:var(--warnbg); border-radius:6px; padding:2px 6px; }
+button.attn { padding:6px 12px; }
+.attnbanner { border-color:var(--chgline); background:var(--chgbg); } .attnbanner ul { margin:4px 0 8px; padding-left:20px; }
+
+/* Progress: one-tap Today under each empty date */
+.pcell { display:flex; flex-direction:column; gap:3px; } .todaybtn { padding:3px 6px; font-size:12px; }
+.colsbar { background:var(--warnbg); color:var(--warntxt); padding:6px 16px; font-size:13px; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:center; flex-wrap:wrap; } .colsbar[hidden] { display:none; } .updatebar { background:var(--chipbg); color:var(--ink); } .colsbar button { font-size:12px; padding:2px 8px; }
+.colsitems { list-style:none; margin:8px 0; padding:0; } .colsitems li { margin:6px 0; padding:6px 8px; border-left:3px solid var(--line); background:var(--soft); font-size:13px; } .colsitems li.warn { border-left-color:var(--warn); } .colsitems li.error { border-left-color:#b00020; }
+.roster.att tr.here > td { background:rgba(46,160,67,.12); }      /* plan item 5: a row that is marked Present is tinted, so a tap is seen at a glance */
+#btnUnsavedEdits { border-radius:0; border-left:1px solid rgba(255,255,255,.45); padding-inline:6px; white-space:nowrap; }
+#btnUnsavedEdits > :first-child { color:#ffc04a; }
+#unsavedDetails { overflow-wrap:anywhere; }
+.splitbtn { display:inline-flex; } /* a successful save to Drive: green, fading back to blue (app-drive.js adds .saved; --savedms is how long) */
+:root { --savegreen:#1f8f4a; } @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --savegreen:#2a9d57; } }
+@keyframes savedfade { 0%, 12% { background:var(--savegreen); border-color:var(--savegreen); } 100% { background:var(--accent); border-color:var(--accent); } }
+.splitbtn.saved button.primary { animation:savedfade var(--savedms, 18s) ease-in forwards; }
+@media (prefers-reduced-motion: reduce) { .splitbtn.saved button.primary { animation:none; background:var(--savegreen); border-color:var(--savegreen); } }
+.splitbtn.on #btnSeasonSave, .splitbtn.on #btnImport { border-top-right-radius:0; border-bottom-right-radius:0; } .splitbtn .splitcaret { border-top-left-radius:0; border-bottom-left-radius:0; border-left:1px solid rgba(255,255,255,.45); padding:0 9px; min-width:28px; }
+#saveSplit #btnSeasonSave { border-top-right-radius:0; border-bottom-right-radius:0; }
+#fileInfoSrc { display:none; } .infolive { color:var(--mute); font-size:13px; }
+@media (min-width: 761px) { #seasonStatus:not(.dirty) { display:none; } }      /* on a computer the bar says only what needs attention (unsaved edits); the file's details are in the (i) */
+#infoTip { white-space:pre-line; }
+.savemenu { position:fixed; z-index:60; min-width:290px; max-width:min(92vw,360px); padding:4px 0; background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:6px; box-shadow:0 6px 18px rgba(0,0,0,.28); }
+.savemenu[hidden] { display:none; } .savemenu button { display:flex; align-items:center; gap:8px; width:100%; padding:7px 12px; border:0; border-radius:0; background:transparent; color:inherit; text-align:left; font:inherit; cursor:pointer; }
+.savemenu button:hover, .savemenu button:focus-visible { background:var(--head); outline:none; } .savemenu .tick { width:14px; flex:none; color:var(--accent); font-weight:700; } .savemenu .smhead { padding:6px 12px 2px; color:var(--mute); font-size:11px; text-transform:uppercase; letter-spacing:.04em; } .savemenu hr { margin:4px 0; border:0; border-top:1px solid var(--line); }
+@media (max-width: 760px) { .savemenu button { min-height:44px; } }
+/* Fill / Assign blanks preview (app-teamgrid.js) and the stale-calendar notice: 44px touch targets on a phone, the dialog scrolls, nothing pushes the page sideways */
+.tgprev { width:100%; } .tgprevbtns { flex-wrap:wrap; } .stalecal { margin:8px 0; }
+@media (max-width: 760px) { .tgprevbtns button { min-height:44px; flex:1 1 auto; } .stalecal button { min-height:44px; } .tgprev td, .tgprev th { padding:6px 4px; } }
+.uov { display:block; margin-top:2px; font-size:11px; color:var(--mute); white-space:nowrap; } .uov input { vertical-align:middle; }
+.sparkmode { display:block; margin:6px 0; color:var(--ink); font-size:13px; } .sparkmode input { vertical-align:top; }
+.teamorder { list-style:none; margin:6px 0; padding:0; } .teamorder li { display:flex; align-items:center; gap:8px; margin:4px 0; } .teamorder .team { min-width:72px; text-align:center; }
+.trailbar { display:flex; align-items:center; gap:8px; padding:4px 16px; background:var(--soft); border-bottom:1px solid var(--line); font-size:13px; position:relative; }
+/* (i) notes: desktop only (info.js, app-info.js). A phone keeps its screen clear; How it works has all of it. */
+i.info { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; margin:0 3px; border:1px solid var(--mute); border-radius:50%; color:var(--mute); font:italic 700 13px/1 Georgia,serif; cursor:pointer; vertical-align:middle; user-select:none; flex:none; }
+i.info:hover, i.info:focus-visible, i.info[aria-expanded="true"] { background:var(--accent); border-color:var(--accent); color:var(--onaccent); outline:none; }
+i.info:focus-visible { box-shadow:0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
+/* The full note of an (i): a popup over the page (app-info.js sets left, top and max-height), so opening one never moves the page's content. */
+.infobox { position:fixed; z-index:65; box-sizing:border-box; width:min(72ch, calc(100vw - 16px)); overflow-y:auto; padding:10px 34px 10px 14px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:6px; box-shadow:0 8px 24px var(--shadow, rgba(0,0,0,.35)); color:var(--ink); font-size:13px; line-height:1.45; white-space:normal; font-weight:400; text-align:left; }
+.flagpop { border-left-color:#e0a030; width:min(46ch, calc(100vw - 16px)); } .flagpop .fpnote { margin:6px 0 8px; } .flagpop textarea { width:100%; box-sizing:border-box; margin:4px 0; } .flagpop .dlgbtns { margin:0; }
+.infobox:focus { outline:none; } .infobox[hidden] { display:none; } .infobox p { margin:4px 0; } .infobox ul { margin:4px 0; padding-left:20px; } .infobox .infotitle { display:block; margin-bottom:2px; } .infobox .infomore { color:var(--mute); font-size:12px; }
+.infobox .infoclose { position:absolute; top:4px; right:6px; width:24px; height:24px; padding:0; border:0; border-radius:4px; background:transparent; color:var(--mute); font-size:20px; line-height:1; cursor:pointer; } .infobox .infoclose:hover, .infobox .infoclose:focus-visible { background:var(--soft); color:var(--ink); }
+#infoTip { position:fixed; z-index:60; max-width:300px; padding:5px 9px; background:#20262e; color:#fff; border-radius:4px; font:12px/1.35 system-ui,sans-serif; pointer-events:none; box-shadow:0 2px 8px rgba(0,0,0,.3); }
+#infoTip[hidden] { display:none; }
+.optnote { margin:0 0 12px; } .optnote h4 { margin:0 0 2px; font-size:14px; } .optnote > div { max-width:78ch; } .optnote.found, .found { background:var(--chgbg); transition:background .5s; }
+@media (max-width: 760px) { i.info, .infobox:not(.flagpop), #infoTip, .deskonly { display:none !important; } }
+.trailbar[hidden] { display:none; }
+.trailhead { color:var(--mute); white-space:nowrap; } .trailbtn { display:none; }
+.trailfold { padding:0 6px; line-height:1.4; font-size:12px; border:1px solid var(--line); background:transparent; color:var(--mute); border-radius:4px; cursor:pointer; } .trailbar.folded .trailfold { transform:rotate(-90deg); }
+.trailbar.folded .trailchips { display:none; } .trailbar.folded { padding-top:2px; padding-bottom:2px; }      /* one thin line: the Recent places bar sits above the scroller, so the scroll bar starts below it */
+.trailchips { display:flex; gap:6px; overflow-x:auto; flex:1; padding:2px 0; } .trailmenu { display:none; }
+/* Wide screens: the Recent places chip row is replaced by a Recent button after More, which opens the same list as a menu. */
+.trailtop { display:none; }
+.trailtopmenu { position:fixed; z-index:40; display:flex; flex-direction:column; min-width:220px; max-width:360px; max-height:60vh; overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:6px; box-shadow:0 8px 16px rgba(0,0,0,.18); padding:4px; }
+.trailtopmenu[hidden] { display:none; }
+.trailtopmenu .chip { border:0; background:transparent; text-align:left; max-width:none; padding:6px 10px; border-radius:4px; font-size:14px; }
+.trailtopmenu .chip:hover, .trailtopmenu .chip:focus-visible { background:var(--soft); }
+.trailtopmenu .chip[aria-current="true"] { font-weight:700; }
+@media (min-width: 761px) and (pointer: fine) { .trailbar { display:none !important; } .trailtop:not([hidden]) { display:inline-block; } }
+.chip { white-space:nowrap; max-width:240px; overflow:hidden; text-overflow:ellipsis; padding:2px 10px; border-radius:999px; border:1px solid var(--line); background:var(--panel); font-size:13px; flex:none; }
+.chip[aria-current="true"] { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
+@media (max-width: 760px) { .trailhead, .trailchips, .trailfold { display:none; } .trailbtn { display:block; min-height:44px; width:100%; text-align:left; }
+  .trailbar { padding:0 12px; } .trailmenu:not([hidden]) { display:flex; flex-direction:column; position:absolute; left:0; right:0; top:100%; z-index:40; background:var(--panel); border:1px solid var(--line); box-shadow:0 6px 16px rgba(0,0,0,.2); max-height:60vh; overflow:auto; }
+  .trailmenu .chip { border:0; border-radius:0; border-bottom:1px solid var(--line); max-width:none; text-align:left; min-height:44px; padding:8px 12px; font-size:15px; background:var(--panel); } .trailmenu .chip[aria-current="true"] { background:var(--accent); } }
+@media (max-width: 760px) { .teamorder button { min-width:44px; min-height:44px; } .pcell { flex:1 1 110px; } .pitem input { width:100%; } .todaybtn { min-height:44px; font-size:15px; font-weight:600; border-color:var(--accent); color:var(--accent); } }
+
+/* Color teams view: accepted warnings and the all-quarters schedule */
+.warnlist { margin:4px 0 8px; padding-left:20px; } .warnlist button { margin-left:8px; padding:2px 8px; font-size:12px; } details.accepted { margin:8px 0; color:var(--mute); }
+table.sched td.past { opacity:.55; } table.sched .sortcol { background:var(--soft); } table.sched tr.grouprow td { background:var(--head); font-weight:600; }
+.optsubs { margin-top:8px; }
+.petabs { flex-wrap:wrap; padding:0; margin:8px 0 12px; align-items:center; } .petabs select { padding:5px 8px; }
+.sheetarea { margin-top:4px; }
+.qpills { display:inline-flex; align-items:center; gap:6px; } .qpills button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
+.awsubs { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; padding:0 16px; } .awsubs select { max-width:100%; } .awsubs button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); } .awsubs .badge:empty { display:none; }
+.subtabs { display:flex; gap:6px; margin:0 0 10px; } .subtabs button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
+
+/* Roster: sortable headings and a filter row */
+button.sortbtn { border:0; background:none; padding:0; font:inherit; font-weight:600; cursor:pointer; color:inherit; } button.sortbtn:hover { color:var(--accent); } .sortbtn .arrow { color:var(--accent); }
+table.roster tr.filterrow th { top:30px; padding:2px 6px; font-weight:400; } .filterrow select, .filterrow input { width:100%; max-width:150px; font:inherit; padding:2px 4px; }
+
+.guesttag { font-size:11px; padding:0 6px; border:1px solid var(--chgline); border-radius:9px; background:var(--chgbg); color:var(--warntxt); }
+
+button.movebtn { padding:0 5px; font-size:16px; line-height:1.4; margin-left:4px; opacity:1; }
+
+/* Attendance: the Move button sits in the first column (the row number on a wide screen, the button alone on a phone), so names wrap as before and every box stays tappable */
+table.att td.mvcell { white-space:nowrap; } table.att td.mvcell .movebtn { margin-left:2px; }
+@media (max-width: 760px) { table.att td.mvcell .rn { display:none; } table.att td.mvcell .movebtn { margin:0 -6px; min-width:44px; min-height:44px; padding:0 6px; font-size:16px; opacity:1; } }
+/* R12: on a phone, unsaved work that has waited 20 edits or 15 minutes gets a Save bar at the bottom (app-season.js status()). A computer keeps the bold chip; print never shows it. z-index 35: above the pinned child bar (30), below the menus (40+) and the splash. */
+.savenudge { display:none; }
+@media (max-width: 760px), (pointer: coarse) and (max-height: 600px) {
+  .savenudge:not([hidden]) { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:35; gap:8px; align-items:center; padding:6px 8px calc(6px + env(safe-area-inset-bottom)); background:#fff3e0; color:#4e2c00; border-top:2px solid #ef6c00; font-weight:600; }
+  .savenudge span { flex:1 1 auto; } .savenudge button { min-height:44px; min-width:44px; }
+  body.nudging { padding-bottom:calc(72px + env(safe-area-inset-bottom)); } body.nudging #flash { bottom:calc(84px + env(safe-area-inset-bottom)); }
+}
+@media print { .savenudge { display:none !important; } body.nudging { padding-bottom:0; } }
+/* R12: the other phone targets are 44px too (test/touch-targets-browser.test.js): To do's boxes, pickers, buttons and ticks, name links in tables and on To do cards, and Uniforms' date and text boxes. 16px text keeps iOS from zooming on focus. A computer is unchanged. */
+@media (max-width: 760px) {
+  #tab-todo input[type=text], #tab-todo input[type=date], #tab-todo select, #tab-todo button, #uniWrap input[type=text], #uniWrap input[type=date], #uniWrap select, #uniWrap .todaybtn { min-height:44px; font-size:16px; }
+  /* UX-30: a bare checkbox in a Roster or Calendar cell was 22px with no room around it: a 32px box with 6px around it makes a 44px footprint (the Attendance sheet's pattern); a labelled checkbox elsewhere (Awards Hold) gets the 44px label */
+  table.roster td > input[type=checkbox] { width:32px; height:32px; margin:6px; } #awardsWrap label:has(> input[type=checkbox]) { display:inline-flex; align-items:center; gap:6px; min-height:44px; min-width:44px; }
+  #tab-todo label:has(> input[type=checkbox]), #uniWrap label.uov, #uniWrap label:has(> input[type=checkbox]) { display:inline-flex; align-items:center; gap:6px; min-height:44px; }
+  td a[data-person], .todocard h3 a[data-person] { display:inline-flex; align-items:center; min-height:44px; }
+  #tdNoteText { width:100%; }
+  #fQuarter { min-height:44px; font-size:16px; }
+}
+
+/* File pickers: the real input is visually hidden but stays focusable, so the label button works from the keyboard (Tab to it, Enter or Space) and shows a focus ring */
+.vh { position:absolute; width:1px; height:1px; margin:-1px; padding:0; border:0; overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; }
+label.btn { position:relative; } label.btn:focus-within { outline:2px solid var(--accent); outline-offset:2px; }
+
+.chip.due.picked { outline:2px solid var(--accent); background:var(--chipbg); font-weight:700; } label.pickrow { display:block; padding:4px 2px; }
+
+.chip.given { background:var(--okbg); border-color:var(--okline); } .chip label { cursor:pointer; } section.announce { border-color:var(--accent); } section.announce tr.held td { opacity:.6; } section.announce tr.held td:last-child { opacity:1; } section.waiting table { width:auto; }
+
+/* messages for refused or doubtful entries */
+#flash { position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:50; max-width:min(92vw,640px); padding:10px 16px; border-radius:8px; border:1px solid var(--line); background:var(--panel); box-shadow:0 4px 18px rgba(0,0,0,.25); cursor:pointer; }
+#flash.bad { border-color:var(--bad); color:var(--bad); font-weight:600; } #flash.warn { border-color:var(--chgline); background:var(--chgbg); color:var(--warntxt); } #flash[hidden] { display:none; }
+.warnfield { outline:2px solid var(--warn); outline-offset:1px; background:var(--warnbg); } tr.invalidrow td { background:var(--delbg); } #dlgErr ul { margin:4px 0 8px; padding-left:20px; }
+
+.emptynote { font-size:16px; font-weight:700; padding:10px 14px; margin:8px 0; border:2px solid var(--chgline); border-radius:8px; background:var(--chgbg); color:var(--warntxt); } .emptynote[hidden] { display:none; } #dlg button:disabled { opacity:.45; cursor:not-allowed; }
+
+/* Progress: the review row and the Given boxes sit on their own line under a block's sections */
+.prow { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; flex-basis:100%; }
+.pgive .pitem { font-size:12px; }
+.pgive { display:flex; flex-wrap:wrap; align-items:flex-end; gap:4px 16px; border:1px solid var(--line); border-radius:6px; padding:6px 10px; } .pgname { flex-basis:100%; font-size:12px; font-weight:600; }
+.pgf { display:flex; flex-wrap:wrap; align-items:flex-end; gap:4px 8px; } .pgf .uov { margin:0 0 4px; } .pgf .pitem input { width:130px; } .pgf .todaybtn { margin-bottom:0; }
+/* Achievement records and other printed sheets are always black on white paper: a finished box is light green with dark text, never the dark theme's green (the dates were unreadable on it) */
+#report .sheet .abox { border-color:#9a9a9a; background:#fff; } #report .sheet .abox i { color:#555; } #report .sheet .abox b { color:#111; } #report .sheet .abox.done { background:#dff0df; border-color:#6aa56a; }
+/* Previous / next arrows beside a picker (Attendance: night and room) */
+@media (max-width: 760px) {      /* UX-03: each stepper is a fixed 44px-wide, 38px-tall button, the select taking the rest, then another button; one stepper per row on a narrow phone, side by side from about 580px */
+  #attendBar .stepsel { display:flex; flex:1 1 280px; min-width:0; }
+  #attendBar .stepsel button { flex:0 0 44px; min-width:44px; min-height:38px; padding:0; }
+  #attendBar .stepsel label { flex:1 1 auto; min-width:0; }
+  #attendBar .stepsel select { flex:1 1 auto; width:auto; min-width:0; max-width:none; }
+}
+/* TOUCH SIZE NOTE (UX-03, decided by Mike): the Attendance Night and Room steppers use 38px-tall buttons on a phone, which is below the 44px touch rule in the README. This is deliberate: it matches the select beside them, and the phone attendance test is set around it. If a "too small to tap" comment comes in about these steppers, check here first. Any change to the height must also update the stepper tests in attend-steps-browser.test.js and phone-attendance.test.js. */
+.stepsel { display:inline-flex; align-items:center; gap:3px; } .stepsel button { padding:3px 9px; font-size:16px; line-height:1.1; } .stepsel button:disabled { opacity:.35; cursor:default; }
+@media (max-width: 760px), (pointer: coarse) { .stepsel button { min-width:36px; min-height:34px; padding:0 6px; font-size:20px; } .stepsel select { max-width:64vw; min-width:9em; } .stepsel label { display:inline-flex; flex-direction:row; align-items:center; gap:4px; } }
+/* Notes and flags: a small flag on each box and block, lit when something is flagged there */
+.pcell { position:relative; } .flagbtn { position:absolute; top:-3px; right:0; border:0; background:transparent; color:var(--mute); opacity:.35; font-size:12px; line-height:1; padding:2px 3px; cursor:pointer; }
+.plabel .flagbtn, .pf .flagbtn, .tgh .flagbtn { position:static; margin-left:4px; vertical-align:middle; }
+#attFlagWrap .flagbtn, .flagnote .flagbtn, .tsbar .flagbtn { position:static; margin-left:4px; vertical-align:middle; }
+#flagLayer { position:fixed; top:0; left:0; width:0; height:0; z-index:60; } #flagLayer .flagbtn { position:fixed; pointer-events:auto; width:20px; height:20px; margin:0; padding:0; border:1px solid #e0a030; border-radius:50%; background:var(--panel); font-size:12px; line-height:18px; text-align:center; } #flagLayer .flagbtn[hidden] { display:none; }
+.flagbtn:hover, .flagbtn:focus-visible { opacity:1; } .flagbtn.on { opacity:1; color:#e0a030; }      /* drawn only where a note exists */
+.pcell.flagged { outline:2px solid #e0a030; outline-offset:2px; border-radius:4px; } .flagrow { display:flex; flex-wrap:wrap; gap:6px; }
+.flagnote { margin:4px 0; padding:4px 8px; border-left:3px solid #e0a030; background:rgba(224,160,48,.10); } .flagmark { color:#e0a030; }
+.flashflag { animation:flagflash 2.4s ease-out; } @keyframes flagflash { 0%, 60% { box-shadow:0 0 0 4px rgba(224,160,48,.7); } 100% { box-shadow:0 0 0 0 rgba(224,160,48,0); } }
+/* Pace strip on the Progress sheet, and the pace watch list */
+.pacestrip { border:1px solid var(--line); border-radius:6px; padding:6px 10px; margin:6px 0; line-height:1.7; }
+.pacestrip .spark { font-size:18px; letter-spacing:2px; color:var(--accent); }
+.pacestrip .watch { color:var(--warn); font-weight:600; }
+.trend-down { color:var(--warn); } .trend-up { color:var(--okfg); }
+
+/* Desktop: the title bar, the tabs and the Apply bar stay on top, and only the page below them scrolls: <main> is the scroller, so the vertical scroll bar starts under the header instead of running the full height of the window.
+   (A phone has no such split: the page scrolls and only the tab bar sticks, see .tabwrap in the phone rules.) Printing is unaffected (see the print rules). */
+#stickyTop { display:contents; }
+@media screen and (min-width: 761px) {
+  html, body { height:100%; }
+  body { display:flex; flex-direction:column; height:100vh; height:100dvh; overflow:hidden; }
+  body > * { flex:none; }
+  #stickyTop { display:block; position:static; z-index:45; }      /* a flex item of body, so this z-index counts even though it is position:static: the whole header (and the More and Save menus inside it) is one layer, and it must sit above a tab's own sticky toolbar (Reports' .rhead is 20). Below #flash (50). */
+  .draftbar { position:static; }
+  main { flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; padding-top:0; }      /* no top padding: a sticky table heading sticks flush to the top of the scroller, not 12px below it */
+  main > section { padding-top:12px; }
+  table.roster th { top:0; }
+  #seasonStatus.dirty { background:#fff3e0; border:1px solid #ef6c00; border-radius:12px; padding:1px 10px; }      /* unsaved edits: one orange chip beside the buttons */
+  .testbanner { position:static; }      /* test sessions only: it scrolls away so it never hides the table headings under the sticky bar */
+}
+
+.prfoot { display:none; } @media (max-width: 760px) { .prfoot { display:flex; } }
+/* Phone: the Today and Same date buttons read "Now" and "Same" (shorter, so two fit in a row). The words in the page are unchanged (screen readers and tests still see Today and Same date); the text is swapped by CSS only. */
+@media (max-width: 760px) {
+  .todaybtn[data-today], .todaybtn[data-gtoday], .todaybtn[data-atoday], .todaybtn[data-recvtoday], .todaybtn[data-copylast], .todaybtn[data-gsame], .todaybtn[data-asame], .todaybtn[data-rsame] { font-size:0; padding-left:10px; padding-right:10px; }
+  .todaybtn[data-today]::after, .todaybtn[data-gtoday]::after, .todaybtn[data-atoday]::after, .todaybtn[data-recvtoday]::after { content:"Now"; font-size:15px; }
+  .todaybtn[data-copylast]::after, .todaybtn[data-gsame]::after, .todaybtn[data-asame]::after, .todaybtn[data-rsame]::after { content:"Same"; font-size:15px; }
+}
+/* Wide screens: on a child's Progress sheet the person bar (Person, Previous, Next, group, class) stays at the top of the page while the sheet scrolls under it. Phones have the pinned bar (.prpin) instead. */
+@media (min-width: 761px) { #tab-person:has(#progressWrap:not([hidden])) #personBar { position:sticky; top:0; z-index:6; background:var(--panel); padding:6px 0; margin-top:0; border-bottom:1px solid var(--line); } }
+/* (the old .prbooks book-button colors were here: the tabs are .booktabs now, styled above) */
+.shhead { margin:6px 0; }
+/* To do: one card per child, kept close together. The rows take only the room their text needs, so the Ignore button sits next to the message. */
+.todocard { padding:8px 12px; margin:6px 0; } .todocard h3 { margin:0 0 4px; font-size:15px; }
+.todocard table.roster { width:auto; min-width:60%; } .todocard table.roster td { padding:3px 8px; white-space:normal; vertical-align:middle; }
+#pagePick { flex-wrap:wrap; gap:6px 12px; align-items:center; } #pagePick label { white-space:nowrap; }
+@media (max-width: 760px) { #pagePick label { white-space:normal; overflow-wrap:anywhere; } }      /* a long page name wraps on a phone instead of scrolling the page sideways (UX-02) */
+#report .sheet .achild { margin:0 0 14px; padding-bottom:8px; border-bottom:1px dashed var(--line); } #report .sheet .achild h3 { margin:0 0 4px; }      /* awards earned per child: several children share a page */
+#report .sheet.skip { opacity:.35; } @media print { #report .sheet.skip { display:none; } }
+.prpin { display:none; }      /* phone only: the child, class and book stay in view under the tab menu once the pickers have scrolled away (shown by app-season.js) */
+@media (max-width: 760px) {
+  .prpin:not([hidden]) { display:flex; position:fixed; top:45px; left:0; right:0; z-index:30; align-items:center; gap:6px; padding:4px 8px; background:var(--panel); border-bottom:1px solid var(--line); box-shadow:0 2px 6px var(--shadow); }
+  .prpin button { flex:0 0 auto; min-width:48px; min-height:44px; font-size:22px; line-height:1; }
+  .prpin .prpinname { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+}
+
+.attfoot { display:none; } @media (max-width: 760px) { .attfoot { display:block; margin:6px 2px 0; font-size:14px; } }
+/* A tablet (wider than the phone breakpoint, but touch): attendance checkboxes get the same 44px tap area a phone has. A mouse keeps the compact rows. */
+@media (pointer: coarse) and (min-width: 761px) { table.att td.chk label { min-height:44px; min-width:44px; display:flex; align-items:center; justify-content:center; } table.att td.chk input { width:28px; height:28px; } }
+/* Touch tablet, Progress sheet: the date boxes, Today buttons and pickers get the phone's 44px tap size (the phone rules stop at 760px). */
+@media (pointer: coarse) and (min-width: 761px) { #progressWrap .todaybtn, #progressWrap select, #progressWrap input[type=date], #progressWrap .bar button { min-height:44px; } .todaybtn { font-weight:600; } }
+/* Color team balancing priorities (Options tab) */
+.prio { margin:6px 0; padding-left:22px; } .prio li { padding:4px 0; } .prio li[data-fixed] { color:var(--mute); } .prio button { margin-left:4px; }
+@media (max-width: 760px), (pointer: coarse) { .prio button { min-height:44px; min-width:44px; } .prio input[type=checkbox] { min-width:22px; min-height:22px; } }
+/* Color teams: the year grid */
+.tgscope { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:8px 0; } .tgscope button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
+table.tg th.tgh { text-align:center; } table.tg .tgh-locked { background:#37474f; color:#fff; } table.tg .tgh-ready { background:#a64300; color:#fff; } table.tg .tgh-projected { border-top:3px dashed var(--mute); }
+table.tg td[data-q] { text-align:center; } table.tg tfoot td, table.tg tfoot th { font-size:13px; text-align:left; } table.tg tfoot td[data-q] { text-align:left; }
+.tgchip.tgproj { background:transparent; border:2px dashed currentColor; color:var(--ink); padding:0 6px; } .tgchip.tgproj.team-Red { border-color:#c62828; } .tgchip.tgproj.team-Blue { border-color:#1565c0; } .tgchip.tgproj.team-Green { border-color:#2e7d32; } .tgchip.tgproj.team-Yellow { border-color:#b07d00; }
+.tgpin { font-size:12px; } .tgmoved { display:block; font-size:11px; line-height:1.2; color:var(--mute); } .tgwarn { display:block; font-size:11px; line-height:1.2; color:var(--bad); font-weight:600; } .tgnow { font-size:12px; padding:0 6px; }
+/* The year grid scrolls in the box, both ways, with a height capped to the screen so its horizontal scroll bar is always in view (flag 7); the header row sticks to the top of the box and the Name and Class columns to its left edge (flags 7, 8). All below menus (z-index 40+) and the header layer (45). */
+.tgscroll.scroll { overflow:auto; max-height:calc(100vh - 300px); max-height:calc(100dvh - 300px); min-height:220px; }
+table.tg thead th { position:sticky; top:0; z-index:3; background:var(--panel); }
+table.tg thead th:nth-child(1), table.tg tbody td:nth-child(1), table.tg tfoot th { position:sticky; left:0; background:var(--panel); } table.tg tbody td:nth-child(1), table.tg tfoot th { z-index:2; } table.tg thead th:nth-child(1) { z-index:4; }
+table.tg thead th:nth-child(1), table.tg tbody td:nth-child(1) { width:170px; min-width:170px; max-width:170px; overflow-wrap:anywhere; }
+table.tg thead th:nth-child(2), table.tg tbody td:nth-child(2) { position:sticky; left:170px; background:var(--panel); box-shadow:2px 0 0 var(--line); } table.tg tbody td:nth-child(2) { z-index:2; } table.tg thead th:nth-child(2) { z-index:4; }
+@media (max-width: 760px) { .tglayout { align-items:stretch; } .tgmain { width:100%; } table.tg thead th:nth-child(1), table.tg tbody td:nth-child(1) { width:108px; min-width:108px; max-width:108px; box-shadow:2px 0 0 var(--line); } table.tg thead th:nth-child(2) { left:auto; box-shadow:none; } table.tg tbody td:nth-child(2) { position:static; box-shadow:none; } .tgscroll.scroll { max-height:calc(100vh - 220px); max-height:calc(100dvh - 220px); }
+  /* Each quarter column was as wide as its team-size footer on one line (285px), so the grid was 1,386px wide and showed one quarter at a time. A fixed column lets the footers wrap (Fable review, phone grid). */
+  table.tg th[data-q], table.tg td[data-q] { width:150px; min-width:150px; max-width:150px; } table.tg tfoot td[data-q] { white-space:normal; overflow-wrap:anywhere; } }
+.tgmovebtn { border:0; cursor:pointer; padding:0 8px; } select.tgsel { max-width:100%; } .tgnone { background:transparent; border:1px dashed var(--line); color:var(--mute); }
+@media (max-width: 760px), (pointer: coarse) { table.tg select.tgsel, table.tg button.tgmovebtn { min-height:44px; min-width:64px; } }
+.tgbar { margin:8px 0; } .tglayout { display:flex; gap:16px; align-items:flex-start; } .tgmain { flex:1 1 auto; min-width:0; } .tgwhy { flex:0 0 320px; max-width:320px; font-size:14px; border:1px solid var(--line); border-radius:6px; padding:8px 12px; background:var(--panel); } .tgwhy h4 { margin:8px 0 4px; } .tgwhy details { margin:4px 0 8px; } .tgpreview { border-bottom:1px solid var(--line); margin-bottom:8px; } .tgpreview ul { padding-left:18px; margin:4px 0; } .tgpreview li { margin:4px 0; }
+@media (max-width: 760px) { .tglayout { flex-direction:column; } .tgwhy { flex:1 1 auto; max-width:none; width:100%; } .tgbar button, .tgpreview button { min-height:44px; } }
+.tglockbtn { font-size:12px; margin-top:4px; padding:2px 8px; } @media (max-width: 760px), (pointer: coarse) { .tglockbtn { min-height:44px; } }
+#lockAsk .dlgbtns { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; margin-top:12px; }
+
+/* the year grid's own controls: 44px on a phone and on any touch screen */
+@media (max-width: 760px), (pointer: coarse) { .tgscope button, .tgscope select, .tgbar button, .tgpreview button, .tgwhy summary { min-height:44px; } .tgwhy summary { display:flex; align-items:center; } .tgwhy details > table { margin-top:6px; } }
+.tgbalance p { margin:4px 0; }
+.tgbal { margin:8px 0 12px; } .tgbaltbl { margin:6px 0; width:auto; } .tgbaltbl caption { text-align:left; font-weight:600; padding:2px 0; } .tgbaltbl td, .tgbaltbl th { text-align:left; padding:2px 10px 2px 6px; }
+/* The attendance table in the side panel fits the panel (it was 432px wide in a 294px space, so the Rate text ran off the right edge): full panel width, and the text wraps rather than running past it. */
+.tgwhy table { width:100%; max-width:100%; } .tgwhy table td, .tgwhy table th { white-space:normal; overflow-wrap:anywhere; }
+/* An open "Attendance behind the turnout" list is no taller than the grid beside it: it scrolls inside itself and the page does not grow. */
+.tgwhy details[open] { max-height:calc(100vh - 300px); overflow-y:auto; }
+.tgmvopts { border:1px solid var(--line, #ccc); border-radius:6px; margin:8px 0; } .tgmvopts label { display:inline-flex; align-items:center; gap:4px; margin-right:12px; min-height:32px; } #tgMvWarn.bad { margin:6px 0; } .tgmvhist { margin:6px 0; width:auto; } .tgmvhist caption { text-align:left; font-weight:600; }
+@media (max-width: 760px), (pointer: coarse) { .tgbal .tgscope button, .tgmvopts label, #dlg #tgMvUse, #dlg #tgMvSave, #dlg #tgMvCancel { min-height:44px; } .tgmvopts input[type=radio] { width:22px; height:22px; } }
+
+/* Statistics: three groups, one showing at a time (app-stats.js). */
+.statsubs { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 12px; } .statsubs button { min-height:38px; padding:6px 14px; } .statsubs button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
+@media (max-width: 760px), (pointer: coarse) { .statsubs button { min-height:44px; } }
+.statspan { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px; } .statspan button { min-height:38px; padding:6px 10px; }
+.statspan button[aria-pressed="true"], .statspan button.on { font-weight:600; }
+.statspan button:disabled { opacity:.5; cursor:default; }
+@media (max-width: 760px), (pointer: coarse) { .statspan button { min-height:44px; } }
+@media (max-width: 760px) { .statsubs { flex-wrap:nowrap; } .statsubs button { flex:1 1 0; min-width:0; padding:6px 4px; font-size:14px; line-height:1.15; white-space:normal; } .statsubs button[data-sub="progress"] { flex-grow:2; } }      /* one row of three on a phone; the long middle one is twice as wide and wraps to two lines */
+@media (max-width: 760px), (pointer: coarse) { .pastyears button, #optPastYears button { min-height:44px; } }
+.bookdone .bdgroup { display:inline-block; margin-right:14px; } .bdone { display:inline-flex; align-items:center; gap:4px; margin-right:8px; } @media (max-width: 760px), (pointer: coarse) { .bdone { min-height:44px; } .bdone input { width:22px; height:22px; } }
+.bundle { margin:8px 0 14px; padding:8px 10px; border:1px solid var(--line); border-radius:6px; } .bitems { margin:6px 0; } .bitems li { margin:4px 0; } .bitems button { margin-left:4px; min-width:32px; } @media (max-width: 760px), (pointer: coarse) { .bitems button, .bundle select, .bundle > p > button { min-height:44px; } }
+
+.booktabs button.cur { font-weight:700; } .curdot { color:var(--okfg); font-size:11px; vertical-align:middle; } .recvrow { margin:8px 0 6px; } .recvrow input { margin-left:4px; } @media (max-width: 760px), (pointer: coarse) { .recvrow .todaybtn { min-height:44px; } }
+
+/* Desktop: the tab strip is one row. The rarely used tabs (.moretab) sit behind a More menu (built by app.js); the phone menu lists every tab as before. */
+#tabMore, #moreMenu { display:none; }
+@media screen and (min-width: 761px) {
+  .tabs { flex-wrap:nowrap; }
+  .tabs button.moretab { display:none; }
+  #tabMore { display:inline-block; } #tabMore.on { background:var(--bg); font-weight:600; }
+  .moremenu { position:fixed; z-index:40; min-width:180px; background:var(--panel); border:1px solid var(--line); border-radius:6px; box-shadow:0 8px 16px rgba(0,0,0,.18); padding:4px; }
+  #moreMenu:not([hidden]) { display:flex; flex-direction:column; }
+  .moremenu button { text-align:left; padding:6px 12px; border:0; background:transparent; border-radius:4px; font-size:14px; } .moremenu button:hover, .moremenu button:focus-visible { background:var(--soft); } .moremenu button.on { font-weight:700; }
+}
+/* Merge a data file (app-merge.js) */
+dialog.mergedlg { width:min(980px,96vw); } .mgcounts { margin:6px 0; font-size:15px; } .mgfilters { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:6px 0; }
+.mgcat { margin:8px 0; } .mgcat > summary { cursor:pointer; font-weight:600; padding:4px 0; } .mgtable td, .mgtable th { white-space:normal; overflow-wrap:anywhere; vertical-align:top; }
+.mgtag { display:inline-block; padding:0 8px; border-radius:9px; font-size:12px; border:1px solid var(--line); } .mgtag-review { background:var(--chgbg); border-color:var(--chgline); color:var(--warntxt); } .mgtag-added { background:var(--okbg, #e8f5e9); }
+.mgbtns { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; margin-top:12px; position:sticky; bottom:-16px; background:var(--panel); padding:8px 0; }
+@media (max-width:760px) { .mgbtns button { min-height:44px; } }
+/* Flag anything (app-flagmode.js): flag mode outlines what a click would flag */
+#btnBugMode.on, #btnFlagMode.on { background:var(--chgbg); border-color:var(--chgline); color:var(--warntxt); font-weight:700; } body.flagmode { cursor:crosshair; } body.flagmode .flagtarget { outline:2px dashed var(--chgline); outline-offset:1px; background:var(--chgbg); }
+@media print { #btnFlagMode, #btnBugMode { display:none; } }
+/* A yellow warning under an award given before its section was finished (app-season.js, ui.givenWarn): no pop-up, it stays until the file is saved */
+.pwarn { display:block; flex-basis:100%; margin:2px 0 0; padding:2px 8px; border:1px solid var(--chgline); border-radius:4px; background:var(--chgbg); color:var(--warntxt); font-size:12px; line-height:1.3; } .pwarn > span:first-child { color:#e0a800; font-size:14px; }
+@media print { .pwarn { display:none; } }
+@media (max-width: 760px) { #teamsWrap { padding-left:4px !important; padding-right:4px !important; } table.tg td > a[data-person] { flex-direction:column; align-items:flex-start; justify-content:center; } table.tg .tgln { display:block; padding-left:14px; } table.tg tbody td:nth-child(1) { line-height:1.25; } }      /* phone: the grid gets the page width, and a name takes two lines (first, then last indented) so it no longer runs under the next column */
+table.tg select.tgsel.tgproj { background-color:var(--panel); color:var(--ink); -webkit-text-fill-color:var(--ink); opacity:1; }      /* an unlocked quarter's color (projected or set by hand, the pin marks that) is a dashed outline in the team color with plain readable text; the touch-screen rule that boxes every roster select (table.roster select) had turned it dark on dark */
+@media (max-width: 760px), (pointer: coarse) { label.tdview { display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 10px; } label.tdview input { width:22px; height:22px; } }      /* S5: the To do Group by person / task choice is a 44px tap area */
+
+/* ---------- UX-10, UX-09, UX-19: the top bar ---------- */
+.overflowbtn { display:none; } .topsearch .srsp { display:none; } .filetxt { font-weight:600; }
+.overflowbtn.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
+#overflowMenu .tick { display:inline-block; width:1.2em; }
+@media (max-width: 760px) {
+  /* Undo and Download stay in the bar; Redo, Flag, Bug and Search live behind the "..." button, so nothing is clipped at the right edge and the bar never scrolls sideways */
+  #btnRedo, #btnFlagMode, #btnBugMode, #btnSearch { display:none !important; }
+  .overflowbtn { display:inline-block; min-width:44px; min-height:44px; font-size:20px; line-height:1; order:4; }
+  .actions { overflow:visible; -webkit-mask-image:none; mask-image:none; padding-right:0; }
+  .filetxt { display:none; } .top { padding-top:7px; padding-bottom:7px; }      /* keeps the bar at one slim row (60px) with the 44px "..." button */
+  /* The unsaved count next to Download replaces the status words on phones. */
+  #seasonStatus, #seasonStatus.dirty { display:none; }
+  #btnUnsavedEdits { min-width:44px; }
+  .actions:has(#btnUnsavedEdits:not([hidden])) { flex-wrap:wrap; gap:4px; }
+  #saveSplit:has(#btnUnsavedEdits:not([hidden])) #btnSeasonSave { padding-inline:6px; }
+}
+/* UX-06: the Tonight group is always open in the phone menu (any Tonight tab is two taps from anywhere); UX-07: Recent places are the last group of that menu, not a bar */
+.recentgrp { display:none; }
+@media (max-width: 760px) {
+  .tabgrp:first-child > button { display:block; width:100%; padding-left:24px; } .tabgrp:first-child > .grphead .tmcaret { display:none; }
+  .recentgrp:not([hidden]) { display:block; } .recentgrp .chip { display:none; } .recentgrp.open > .chip { display:block; width:100%; padding-left:24px; min-height:44px; text-align:left; border:0; border-bottom:1px solid var(--rowline); border-radius:0; background:transparent; font-size:16px; }
+  #trailBar { display:none !important; }
+}
+/* UX-07: Person filters (Show, Group, Class, Sort by, show inactive): in the bar on a computer; behind one Filter line on a phone */
+@media (min-width: 761px) { .pefilter, .pefilterbody { display:contents; } .pefilter > summary { display:none; } }
+@media (max-width: 760px) {
+  .pefilter { flex:1 1 100%; } .pefilter > summary { min-height:44px; display:flex; align-items:center; padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:var(--panel); font-size:15px; cursor:pointer; }
+  .pefilterbody { display:flex; flex-wrap:wrap; gap:8px; padding:8px 0; } .pefilterbody label { flex:1 1 140px; }
+}
+/* UX-12: the Tonight strip at the top of To do */
+.tonightstrip { border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:6px; background:var(--panel); padding:8px 12px; margin:0 0 10px; display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
+.tonightstrip button { min-height:32px; }
+@media (max-width: 760px) { .tonightstrip button { min-height:44px; min-width:44px; } }
+/* UX-11: Place and Spirit are tap buttons (a tap sets it, a second tap clears it) */
+.tapgrp { display:inline-flex; gap:4px; } .tapgrp button { min-width:36px; min-height:36px; padding:2px 8px; font-weight:600; } .tapgrp button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
+@media (max-width: 760px) { .tapgrp button { min-width:44px; min-height:44px; } #gamesWrap td button[data-clearrow] { min-height:44px; } .tapgrp { gap:2px; } .tapgrp button { padding:2px 4px; min-width:44px; font-size:16px; } }
+@media (max-width: 760px) {
+  /* UX-11: on a phone each team is a card: the team and Clear on the first line, Place and Spirit buttons on their own lines under a small caption */
+  #gamesWrap table.entry thead { display:none; } #gamesWrap table.entry, #gamesWrap table.entry tbody { display:block; }
+  #gamesWrap table.entry tr { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; padding:8px 0; border-bottom:1px solid var(--rowline); }
+  #gamesWrap table.entry td { display:block; padding:0; border:0; } #gamesWrap table.entry td:nth-child(2), #gamesWrap table.entry td:nth-child(3) { flex:1 1 100%; }
+  #gamesWrap table.entry td:nth-child(2)::before, #gamesWrap table.entry td:nth-child(3)::before { display:block; font-size:12px; color:var(--mute); } #gamesWrap table.entry td:nth-child(2)::before { content:"Place"; } #gamesWrap table.entry td:nth-child(3)::before { content:"Spirit"; }
+  #gamesWrap table.entry td:nth-child(4) { margin-left:auto; } #gamesWrap table.entry td:nth-child(4):not(:empty)::before { content:"Points "; font-size:12px; color:var(--mute); }
+}
+/* UX-23: To do groups its rows under one collapsible line per class */
+details.tdclass { margin:0 0 8px; } details.tdclass > summary { cursor:pointer; min-height:36px; display:flex; align-items:center; padding:4px 10px; font-weight:700; background:var(--soft); border:1px solid var(--line); border-radius:6px; }
+details.tdclass[open] > summary { border-bottom-left-radius:0; border-bottom-right-radius:0; } @media (max-width: 760px) { details.tdclass > summary { min-height:44px; } }
+/* UX-22: a caption (the column heading) over a box in a phone card; one line, 12px */
+@media (max-width: 760px) { .pcard table.roster td[data-label]::before { content:attr(data-label); display:block; font-size:12px; color:var(--mute); line-height:1.2; } }
+/* UX-29: Options sections are separate cards with a heading bar and 24px between them, under a sticky index */
+.optsec { margin-bottom:24px; scroll-margin-top:64px; } .optsec > h3 { background:var(--soft); margin:-8px -14px 12px; padding:9px 14px; font-size:16px; font-weight:700; border-bottom:1px solid var(--line); border-radius:8px 8px 0 0; }
+.optindex { position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin:0 0 16px; }
+.optindex a { font-size:14px; white-space:nowrap; } .optlinks { display:flex; flex-wrap:wrap; gap:4px 14px; } .optgosel { display:none; } .optindex .optsubs { margin:0 0 0 auto; }
+@media (max-width: 760px) { .optsec { scroll-margin-top:110px; } .optindex { top:var(--stickyh, 0px); } }
+@media (max-width: 600px) { .optlinks { display:none; } .optgosel { display:flex; flex:1 1 200px; gap:8px; align-items:center; } .optgosel select { flex:1; min-height:44px; font-size:16px; } .optindex .optsubs { margin:0; } .optindex button { min-height:44px; } }
+/* UX-24: the Add a person dialog groups its fields */
+fieldset.addgrp { border:1px solid var(--line); border-radius:6px; margin:0 0 10px; padding:6px 10px 8px; } fieldset.addgrp > legend { font-weight:700; padding:0 6px; }
+/* UX-13: the new club year checklist (Options, New season) */
+.nychecklist { border-top:1px solid var(--line); margin-top:10px; padding-top:6px; } .nylist { list-style:none; margin:4px 0 0; padding:0; } .nylist li { display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; padding:6px 0; border-bottom:1px solid var(--rowline); } .nymark { width:1.4em; text-align:center; } .nydone .nymark { color:var(--ok, #1a7f37); } .nytodo b { color:var(--ink); }
+@media (max-width: 760px) { .nylist button { min-height:44px; } }
+/* UX-08 (trial): the Help sheet reached from the "..." menu on a phone */
+dialog.helpsheet { max-width:min(92vw,640px); max-height:86vh; overflow:auto; border:1px solid var(--line); border-radius:10px; background:var(--panel); color:var(--ink); padding:14px 16px; } dialog.helpsheet::backdrop { background:rgba(0,0,0,.4); } .helpnote { border-top:1px solid var(--rowline); padding:8px 0; }
+@media (max-width: 760px) { dialog.helpsheet { width:calc(100vw - 16px); margin:auto 8px 8px; } dialog.helpsheet .dlgbtns button { min-height:44px; width:100%; } }
+/* UX-17: on a computer the Roster filters are the header row's dropdowns (the bar's Class, Role and Status are kept hidden as the state they share); a phone gets one Filter line */
+@media (min-width: 761px) { .rfilter { display:none; } }
+@media (max-width: 760px) {
+  .rfilter { flex:1 1 100%; } .rfilter > summary { min-height:44px; display:flex; align-items:center; padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:var(--panel); font-size:15px; cursor:pointer; }
+  .rfilterbody { display:flex; flex-wrap:wrap; gap:8px; padding:8px 0; } .rfilterbody select { flex:1 1 140px; min-height:44px; font-size:16px; }
+}
+.rshowing { margin:4px 16px 6px; } select.cfset { background:var(--chgbg); border-color:var(--chgline); font-weight:700; }
+/* Bug reports (Debug): the reply editor stacks its labels above the fields; the chosen filter is coloured like the Roster sub-tabs. */
+.bugedit { display:flex; flex-direction:column; align-items:stretch; gap:4px; min-width:14em; } .bugedit label { display:flex; flex-direction:column; gap:2px; font-weight:600; } .bugedit select, .bugedit textarea { font-weight:400; width:100%; box-sizing:border-box; } .bugedit button { align-self:flex-start; }
+.bugreply { margin:0 0 6px; overflow-wrap:anywhere; } .bugreply .linklike { font-size:11px; min-height:0; }      /* N17: one reply of a bug conversation */
+.bugfilter button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); font-weight:600; }
+/* Reports: "Choose pages" pop-up (a long run of pages): the names in columns, scrolling inside the pop-up. */
+.pglist { max-height:55vh; overflow:auto; columns:2 16em; column-gap:18px; padding:6px 2px; } .pglist label { display:block; break-inside:avoid; padding:3px 0; } #dlg .bar button + button { margin-left:6px; }
+/* Print class binders pop-up: the binders to pick and the option are two separate boxes. */
+fieldset.bindopt { background:color-mix(in srgb, var(--accent) 8%, transparent); border-style:dashed; margin-top:12px; } fieldset.bindpick .bar button + button { margin-left:6px; }
+/* Color teams list (Sparks, T&T): tighter rows on paper so a group of about 50 children fits one page instead of spilling onto a second. */
+@media print { #report table.grid.tight td, #report table.grid.tight th { padding:1px 6px; font-size:12px; line-height:1.2; } }
+/* Uniforms (1.51.15c): the text columns wrap so the tab fits at 1280px without a sideways scroll; on a phone each child is a card (CSS only: the same table, so every handler and the bulk buttons work unchanged). */
+table.uni th { white-space:normal; vertical-align:bottom; } table.uni td.wr { white-space:normal; overflow-wrap:break-word; }
+.uni-date-line { display:flex; flex-wrap:wrap; align-items:center; gap:3px 8px; }
+.uni-date-line .uov { margin:0; }
+@media (max-width:760px) {
+  #uniWrap.scroll { overflow:visible; }
+  table.uni, table.uni tbody { display:block; width:100%; } table.uni thead { display:none; }
+  table.uni tr { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; padding:10px 12px; margin:0 0 10px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+  table.uni td { display:block; padding:0; border:0; white-space:normal; min-width:0; }
+  table.uni td[data-label]::before { content:attr(data-label); display:block; font-size:12px; color:var(--mute); line-height:1.3; }
+  table.uni td.uname { font-weight:700; font-size:17px; } table.uni td.uclass { text-align:right; color:var(--mute); }
+  table.uni td.udate, table.uni td.unotes { grid-column:1 / -1; }
+  table.uni input[type=text], table.uni input[type=date] { width:100%; box-sizing:border-box; }
+}
+/* Year grid: a color set by hand is SOLID (the pin icon is gone), a suggested one keeps the dashed outline; a legend line says so. Dark text on the pastel fills reads in both schemes. */
+table.tg select.tgsel.tgset { opacity:1; color:#1b1f24; -webkit-text-fill-color:#1b1f24; border:2px solid #555; font-weight:600; }
+table.tg select.tgsel.tgset.team-Red { background-color:#ea9999; border-color:#c62828; } table.tg select.tgsel.tgset.team-Blue { background-color:#6d9eeb; border-color:#1565c0; } table.tg select.tgsel.tgset.team-Green { background-color:#b6d7a8; border-color:#2e7d32; } table.tg select.tgsel.tgset.team-Yellow { background-color:#ffe599; border-color:#b07d00; }
+.tglegend .tgkey { display:inline-block; padding:0 8px; margin:0 2px; border-radius:4px; font-size:12px; } .tglegend .tgkey-set { color:#1b1f24; border:2px solid #1565c0; font-weight:600; } .tglegend .tgkey-proj { background:transparent; border:2px dashed var(--mute); color:var(--ink); }
+/* Person > Progress: the + Add sheet menu sits at the end of the book tabs. */
+.booktabs select { align-self:center; }
+/* Long reports on screen: sheets off screen are not laid out until they scroll near (about a third of the time to show 100 progress sheets). Print and the PDF still lay out every page. */
+@media screen { #report > .onepage, #report > .sheet { content-visibility:auto; contain-intrinsic-size:auto 440px; } }
+/* Awards to hand out: a narrow strip per child (4.5in), two columns on landscape Letter, to cut apart for the distribution box. No colour, so it prints on any printer. */
+.sheet.strips .striprow { display:flex; width:calc(9in + 3px); max-width:100%; margin:0 auto; gap:3px; align-items:stretch; }      /* Mike 2026-11-20: 3px between strips, across and down (the dashed border is the cut line); as much of the page as possible */
+.sheet.strips .striprow + .striprow { margin-top:3px; }
+.strip { width:4.5in; box-sizing:border-box; border:1px dashed #000; padding:3px 8px 4px; break-inside:avoid; background:#fff; color:#000; }
+.stripname { display:flex; justify-content:space-between; gap:8px; font-size:10pt; line-height:1.25; border-bottom:1px solid #999; margin-bottom:2px; } .stripname span { font-size:9pt; }      /* type is 8 to 10pt on a strip (Mike 2026-11-20) */
+.stripaward { display:flex; align-items:center; gap:8px; min-height:0.24in; font-size:10pt; } .stlabel { flex:1; min-width:0; overflow-wrap:anywhere; } .stlabel small { color:#555; font-size:8pt; }
+.stdate { width:0.8in; height:0.22in; border:1px solid #000; flex:none; } .stinit { width:0.5in; height:0.22in; border:1px solid #000; flex:none; }
+.stcap { display:flex; justify-content:flex-end; gap:8px; font-size:8pt; line-height:1.1; color:#444; } .stcap .cd { width:0.8in; text-align:center; } .stcap .ci { width:0.5in; text-align:center; }
+/* Reports (1.51.15d): one bar in the order what > when > who > how many > go; Print is last. The old second bar and the separate "Quarter to print" select are gone (bundles use the Quarter pills). On a phone the bar scrolls away with the page instead of taking a third of the screen. */
+.barset { display:contents; } #dateBar[hidden] { display:none !important; } #rBar { align-items:center; row-gap:6px; } #rBar #btnPrint { margin-left:auto; }
+#reportOptionsTitle { margin-top:0; }
+.report-option-fields label { min-width:0; }
+.report-option-fields select, .report-option-fields input { max-width:100%; }
+#reportPageOptions fieldset { min-width:0; margin:0; border:1px solid var(--line); border-radius:6px; }
+#reportPageOptions .pglist label { overflow-wrap:anywhere; }
+#pagePick { display:inline-flex; flex-wrap:wrap; gap:6px 12px; align-items:center; padding:0; }
+@media (max-width:760px) {
+  #tab-reports > .rhead { position:static; }
+  #rBar #btnPrint { margin-left:0; }
+  #btnReportOptions, #reportOptions button, #reportOptions select, #reportOptions input:not([type=checkbox]) { min-height:44px; }
+  #reportPageOptions .pglist label { display:flex; gap:8px; align-items:center; min-height:44px; }
+}
+/* Award strips on a narrow screen (1.51.15e): two 4.5in strips need about 1000px, so below that the screen shows one strip per row, as wide as the screen up to 4.5in (print is unchanged: two across). The class may drop below a long name. */
+@media screen and (max-width: 1000px) {
+  .sheet.strips .striprow { flex-direction:column; align-items:center; width:auto; gap:8px; margin-bottom:8px; }
+  .sheet.strips .strip { width:100%; max-width:4.5in; flex:none; }
+}
+@media screen { .sheet.strips .stripname { flex-wrap:wrap; } .sheet.strips .stripname span { margin-left:auto; white-space:nowrap; } }
+/* N1: coaches binder notes sheet: a whole quarter in one table. Three framed major columns (date and workers, supply orders, notes) with a 3px gap between them (.gp cells have no border). */
+.sheet.notes .nsheet { width:100%; border-collapse:collapse; table-layout:fixed; }
+.sheet.notes .nsheet th, .sheet.notes .nsheet td { border:1px solid #000; font-size:10px; padding:0 3px; text-align:left; font-weight:400; overflow:hidden; }
+.sheet.notes .nsheet .gp { border:0; padding:0; }
+.sheet.notes .nsheet thead th { font-weight:700; font-size:11px; border-top:2px solid #000; border-bottom:2px solid #000; } .sheet.notes .nsheet thead th.gp { border:0; }
+.sheet.notes .nsheet thead th:first-child, .sheet.notes .nsheet th.nhead { border-left:2px solid #000; }
+.sheet.notes .nsheet th.nhead { vertical-align:top; line-height:1.15; padding:2px 2px 0; border-bottom:2px solid #000; } .sheet.notes .nsheet th.nhead b { display:block; font-size:11px; } .sheet.notes .nsheet th.nhead i { font-size:9px; font-weight:700; }
+.sheet.notes .nsheet tbody.nblock { break-inside:avoid; } .sheet.notes .nsheet tbody.nblock tr:last-child td:not(.gp) { border-bottom:2px solid #000; }
+.sheet.notes .nsheet .c3, .sheet.notes .nsheet .c8 { border-left:2px solid #000; } .sheet.notes .nsheet .r1, .sheet.notes .nsheet .r2, .sheet.notes .nsheet .c8 { border-right:2px solid #000; }
+.sheet.notes .nsheet tbody.ngap td { border:0; padding:0; height:5px; line-height:0; font-size:0; }      /* the gap between nights: 5px less the 1px of each 2px frame that collapses into it leaves about 3px of white */
+.sheet.notes .nsheet col.d { width:7%; } .sheet.notes .nsheet col.w1, .sheet.notes .nsheet col.w2 { width:9.7%; } .sheet.notes .nsheet col.g { width:5px; } .sheet.notes .nsheet col.s1 { width:12.5%; } .sheet.notes .nsheet col.s2 { width:7%; } .sheet.notes .nsheet col.s3 { width:11.5%; } .sheet.notes .nsheet col.s5 { width:5%; }      /* Notes (col.nt) takes what is left: about 41% */
+.sheet.notes .nsheet th.nhead { padding:2px 1px 0 3px; } .sheet.notes .nsheet th.nhead b { font-size:12px; white-space:nowrap; } .sheet.notes .nsheet th.nhead i { font-size:7.5px; overflow-wrap:anywhere; } .sheet.notes .nsheet th.nhead i.ts2 { font-size:6.5px; } .sheet.notes .nsheet th.nhead i.ts3 { font-size:6px; }
+.sheet.notes .nsheet th.nhead .nh { overflow:hidden; }      /* N16: a long theme is clipped to the block's own height; it never makes the block taller */
+@media screen and (max-width: 760px) { .sheet.notes .nsheet th, .sheet.notes .nsheet td { font-size:8px; padding:0 1px; } .sheet.notes .nsheet thead th { font-size:8px; } .sheet.notes .nsheet th.nhead b, .sheet.notes .nsheet th.nhead i { font-size:8px; } .sheet.notes .nsheet col.d { width:16%; } }
+.pextra { margin:14px 0 6px; padding:6px 10px; border-top:2px solid var(--line); border-bottom:1px dashed var(--line); font-weight:700; background:var(--soft); }      /* N32: the Silver and Gold extra-credit heading on a T&T progress page */
+/* N59: T&T progress sheet: emblem section with Silver and Gold rows directly underneath */
+.tnt-section { margin:8px 0; border:1px solid var(--line); border-radius:6px; padding:4px 8px; }
+.tnt-section .tnt-row { margin:2px 0; border:none; }
+.tnt-section .tnt-row:not(:last-child) { border-bottom:1px dashed var(--line); border-radius:0; }
+.tnt-section .tnt-row.done { background:var(--donebg); }
+.tnt-section .plabel { min-width:140px; }
+@media (max-width: 760px) { .tnt-section .pcell-ghost { display:none; } }
+
+/* N36 (moved 2026-11-19): while a Drive save runs, the Save button's label fades out and a floppy icon fades in where the label was; the header does not move. The text stays in the button for screen readers. */
+#btnSeasonSave { position: relative; transition: color .3s ease; }
+#btnSeasonSave::after { content: ""; position: absolute; left: 50%; top: 50%; width: 20px; height: 20px; margin: -10px 0 0 -10px; background: var(--on-accent, #fff); -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M4 3h13l3 3v13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2 0v5h10V3H6zm0 18h12v-7H6v7zm2-6h8v2H8v-2z'/></svg>") center / contain no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M4 3h13l3 3v13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2 0v5h10V3H6zm0 18h12v-7H6v7zm2-6h8v2H8v-2z'/></svg>") center / contain no-repeat; opacity: 0; transition: opacity .3s ease; pointer-events: none; }
+#btnSeasonSave.saving { color: transparent; }
+#btnSeasonSave.saving::after { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { #btnSeasonSave, #btnSeasonSave::after { transition: none; } }
+
+.offchip { display:inline-block; margin-right:8px; padding:4px 10px; border-radius:4px; background:var(--warnbg, #fff4d6); color:var(--warntxt, #6b4300); font-size:13px; max-width:min(320px, 46vw); white-space:normal; line-height:1.3; } .offchip[hidden] { display:none; }      /* N9 point 8: offline chip in the top bar */
+.actions:has(#offlineChip:not([hidden])) { flex-wrap:wrap; } #offlineChip:not([hidden]) { flex:0 0 100%; max-width:none; box-sizing:border-box; margin:0 0 6px; }      /* N9 point 8: while offline the chip takes its own line in the top bar, so the buttons never run off a phone */
+
+/* N42: the splash screen, organized: Open a file, Just looking, and a quiet footer. A remembered Drive file's name is cut off on screen; the full name is on hover. */
+.splash-card h3 { margin:14px 0 6px; font-size:15px; color:var(--mute, #5b6470); text-transform:uppercase; letter-spacing:.04em; }
+.splash-group { border-top:1px solid var(--line, #d7dce2); padding-top:4px; }
+.splash-intro { margin-top:0; }
+.splash-main { margin:8px 0; }
+.splash-main .btn { display:block; width:100%; box-sizing:border-box; text-align:center; }
+.splash-last { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+.splash-hint { margin:6px 0 10px; }
+.splash-try-group { margin-top:10px; }
+.splash-foot { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; justify-content:space-between; margin-top:16px; border-top:1px solid var(--line, #d7dce2); padding-top:8px; }
+@media (min-width: 761px) { .splash-main .btn { display:inline-block; width:auto; } }
+.recvrow .uov { display:inline-block; margin:0 0 0 8px; vertical-align:middle; }      /* N43: the no-date tick for Date received sits on the same line as its box */
+.notetext, .bugtext { white-space:pre-wrap; }      /* N45: a note or a bug reply keeps the line breaks it was typed with */
+
+
+/* N3: the family calendar, divided into columns before printing. */
+.clubcal .calcols { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1.2em; font-size:10.5pt; }
+.clubcal .calmonth { margin-bottom:.5em; break-inside:avoid; overflow-wrap:anywhere; }
+.clubcal .calmonth h3 { margin:.35em 0 .15em; font-size:1.05em; text-decoration:underline; }
+.clubcal .calevent { border:1px solid; padding:.15em .35em; margin:.35em 0; break-inside:avoid; }
+.clubcal .caldate small, .clubcal .callessons { font-size:.85em; }
+.clubcal .calq { font-weight:700; }

@@ -535,8 +535,26 @@
     const latest = c => Object.values(kid[c] || {}).filter(Boolean).sort().pop() || '';      // the book with the most recent sign-off
     return open.filter(latest).sort((a, b) => latest(a) < latest(b) ? 1 : -1)[0] || '';
   }
-  function childBook(s, id) {
-    const hb = bookKey(s, parseHandbook(s.handbooks[id]).code);
+  function receivedBookForGroup(s, id, group) {
+    if (group !== 'Cubbies' && group !== 'T&T') return '';
+    let book = '', latest = '';
+    for (const code of bookOrder(s, group)) {
+      if (!receivedOf(s, id, code)) continue;
+      const date = receivedShown(s, id, code);
+      if (!book || date > latest) {
+        book = code;
+        latest = date;
+      }
+    }
+    return book;
+  }
+  function childBook(s, id, group) {
+    const assigned = parseHandbook(s.handbooks[id]).code;
+    const hb = bookKey(s, assigned);
+    if (group === 'Cubbies' || group === 'T&T') {
+      const book = assigned ? hb : receivedBookForGroup(s, id, group);
+      if (book) return book;
+    }
     if (!hb || bookGroup(s, hb) === 'Sparks') { const d = sparksCurrent(s, id); if (d) return d; }
     if (hb) return hb;
     return hasProgress(s, id) ? (yearBook(s, 'Sparks') || '') : '';      // N26: a child with no progress has no current book (the year's book is only the guess once something is recorded)
@@ -1338,10 +1356,11 @@
     });
     return out;
   }
-  function handbookCounts(s, ids) {
+  function handbookCounts(s, ids, group) {
     const out = {};
     ids.forEach(id => {
-      const c = bookKey(s, parseHandbook(s.handbooks[id]).code);
+      const assigned = parseHandbook(s.handbooks[id]).code;
+      const c = assigned ? bookKey(s, assigned) : receivedBookForGroup(s, id, group);
       const name = (s.config.books[c] || {}).name || 'No Book Yet';
       out[name] = (out[name] || 0) + 1;
     });

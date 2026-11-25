@@ -90,7 +90,7 @@ function appContext(storage, playtest) {
       elements.set(id, {
         id, hidden: true, options: [], listeners: {},
         addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); },
-        setAttribute() {}, querySelectorAll: () => [],
+        setAttribute() {}, querySelectorAll: () => [], replaceChildren() {}, appendChild() {},
         classList: { add() {}, remove() {}, toggle() {} }, style: { setProperty() {} }
       });
     }
@@ -103,12 +103,12 @@ function appContext(storage, playtest) {
     Reports: { esc: String, LIST: [], bundlesOf: () => [] },
     navigator: {},
     document: {
-      getElementById: element, querySelector: element, querySelectorAll: () => [],
+      getElementById: element, querySelector: element, querySelectorAll: () => [], createElement: () => ({ replaceChildren() {}, appendChild() {} }),
       documentElement: element('html'), body: { children: [] }, addEventListener() {}
     },
     MutationObserver: class { observe() {} },
     Element: class {},
-    addEventListener() {}, setTimeout() {}, cancelAnimationFrame() {}, requestAnimationFrame() {}
+    addEventListener() {}, setTimeout() {}, clearTimeout() {}, cancelAnimationFrame() {}, requestAnimationFrame() {}
   });
   if (playtest) context.Playtest = require('../playtest/playtest.js');
   context.window = context;

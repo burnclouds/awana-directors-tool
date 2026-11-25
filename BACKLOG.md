@@ -23,11 +23,28 @@ This is the only place open work is tracked. The two review files in `docs/revie
 
 Each item in this section has a publication note directly below it. Use `<!-- publish: Public title | Anticipated scope -->` for a scrubbed, public-facing summary. Use `<!-- publish: private -->` for security-related or sensitive work. Keep real names, identifiers, club details, file paths, and screenshots out of the public fields. The deployment builds `backlog.html` from those fields. When completed work ships, move it to the archive with its publication note.
 
-- [ ] **N3. Make a club calendar in the app, with no Excel or CSV import.** PAUSED 2026-11-18 by Mike: work the printables first (N8 and anything else on paper), then come back to this. A quick way to create and print the calendar: pick the club day (day of week), the first and last club night, then edit any night by hand (theme, no club, event, end of quarter), with holiday detection. In progress: requirement questions first (Opus agent), then an implementation plan. Example: the club's Excel calendar sheet (Mike's screenshot of 2026-11-18).
+See the [unified implementation and test plan](docs/superpowers/plans/2026-11-23-unified-open-backlog-plan.md) for dependencies, sequencing and verification across the five open items.
+
+- [ ] **N3. Make a club calendar in the app, with no Excel or CSV import.** PAUSED 2026-11-18 by Mike: work the printables first (N8 and anything else on paper), then come back to this. A quick way to create and print the calendar: pick the club day (day of week), the first and last club night, then edit any night by hand (theme, no club, event, end of quarter), with holiday detection. The calendar maker and calendar safety plans are linked from the unified plan. Example: the club's Excel calendar sheet (Mike's screenshot of 2026-11-18).
   <!-- publish: Club calendar builder | Large, 2–4 days. Generate club nights, handle holidays and exceptions, and support editing and printing. Paused while print work is underway. -->
 
 - [ ] **N68. Review pace thresholds.** Wait until about 2026-11-25 for enough sign-off history, then review Stats > Pace and record any threshold changes separately.
   <!-- publish: Review progress pace thresholds | Small, under half a day once enough sign-off history is available. Check whether the existing thresholds reflect typical progress. -->
+
+- [ ] **N70. Share a location code from the Bug button.** Deferred for planning. Let a user click a spot, copy a code, and send it with their description outside the app. Add a code entry field in Debug that opens the closest matching screen and highlights the target when available. Include the active view filters, such as the attendance night, class and attendance status, or the report and quarter. Restore supported filters without changing saved settings or records. Show which requested filters or targets were unavailable in the recipient's file.
+  <!-- publish: Shareable bug location codes | Deferred. Copy or open a code that restores the screen and its filters across club files. Estimate after planning. -->
+  - General codes must work across organizations and with different or partial club files. Leave names and roster identifiers out of general codes. If exact-person navigation is added later, make it opt-in and resolve a random record ID only within the matching organization and file. Fall back to the general area when the record is unavailable.
+  - Keep the discussion and status tracking outside the app for new reports. Decide how to present existing reports during planning.
+
+- [ ] **N71. Integrate the Planning Center API for roster updates.** Fetch the data needed for the existing Planning Center update workflow directly in the app, so users can update without exporting a file. Keep Planning Center CSV import available as an option. Preserve the existing review and apply workflow. During planning, verify that the API exposes the fields needed by the current import and determine how each organization authorizes access. [Planning Center developer documentation](https://www.planningcenter.com/developers)
+  <!-- publish: Direct Planning Center updates | Planned. Fetch roster updates through the API and keep Planning Center CSV import as an option. Estimate after planning. -->
+
+- [ ] **N72. Cross-check attendance and sign-offs with Planning Center Check-Ins.** Match the Planning Center event, session and person to the local club night and roster. Show discrepancies between Check-Ins and AWANA attendance for review. Keep unmatched or unavailable Check-Ins data distinct from a confirmed discrepancy.
+  <!-- publish: Verify attendance and sign-offs | Planned. Compare Planning Center Check-Ins with club attendance and flag sign-off dates worth reviewing. Estimate after planning. -->
+  - Limit both the Check-Ins comparison and sign-off warnings to the current season in the open file. Use the app’s effective season start and rollover boundary to exclude earlier-year attendance and carried-forward sign-offs. A sign-off on a non-club date within the current season still qualifies for review.
+  - Flag a dated sign-off on a date that was not a club night or on a club night when the child was not marked present. Start with the local calendar and attendance so this check can work before Check-Ins is connected. Skip sign-offs marked as having no known date.
+  - Show the child, date and section so a leader can verify the student and date. Both cases can be legitimate. Warnings are for review and never block, move or change a sign-off or attendance mark.
+  - See the [N72 implementation and test plan](docs/superpowers/plans/2026-11-23-check-ins-attendance-signoffs-plan.md).
 
 The 2026-11-21 screenshot references are filenames in the local, Git-ignored `backlog screeshots/` folder.
 
@@ -38,6 +55,8 @@ The 2026-11-21 screenshot references are filenames in the local, Git-ignored `ba
 - **Mike (open from the 2026-11-20 list):** N62 (where the coloring sheet PDFs are and how a night's sheet is picked). Answered 2026-11-20: N50, N55/N61, N56 (all three), N57 (merge confirmed, blanks wanted), N59, N60.
 
 ## Decided not to build / by design
+
+- **Planning Center Calendar integration.** Skip for now. Revisit only if verifying definite no-club dates becomes worth the integration work.
 
 - Taller attendance rows (Mike: not needed).
 - **B5. No Photos list prints the Medical Notes field as "Parent note": by design (Mike, 2026-11-14).** Whoever holds the list is cleared for the full PII/PHI set. Pinned by `backlog-open-items` B5-by-design so it is not "fixed" later.
