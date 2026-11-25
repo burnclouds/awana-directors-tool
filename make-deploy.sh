@@ -71,7 +71,7 @@ list=$(cd deploy/app && find . -type f ! -path './try/*' ! -name sw.js | sed 's#
 json=$(printf '%s\n' "$list" | node -e 'const l=require("fs").readFileSync(0,"utf8").split("\n").filter(Boolean);process.stdout.write(JSON.stringify(l))')
 sed -e "s|__RELEASE__|$rel|" -e "s|__SHELL__|$json|" dev/app/sw.js > deploy/app/sw.js
 bad=$(find deploy -type f ! -path 'deploy/app/try/*' ! -path 'deploy/playtest/app/try/*' ! \( -name '*.js' -o -name '*.html' -o -name '*.css' -o -name manifest.json -o -name 'icon*.png' -o -name icon.svg \) -print)      # the web app manifest and its icons are allowed (PWA)
-bad="$bad$(find deploy/playtest/app/try -type f ! \( -name '*TEST*.json' -o -name '*TEST*.csv' -o -name manifest.json \))"      # the playtest demo folder: TEST files only, same rule as deploy/app/try
+[ -d deploy/playtest/app/try ] && bad="$bad$(find deploy/playtest/app/try -type f ! \( -name '*TEST*.json' -o -name '*TEST*.csv' -o -name manifest.json \))"      # the playtest demo folder: TEST files only, same rule as deploy/app/try
 bad="$bad$(find deploy/app/try -type f ! \( -name '*TEST*.json' -o -name '*TEST*.csv' -o -name manifest.json \))"
 if [ -n "$bad" ]; then echo "STOP: non-code files in deploy/:"; echo "$bad"; exit 1; fi
 echo "deploy/ refreshed:"; find deploy -type f | sort
