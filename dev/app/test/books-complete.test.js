@@ -151,4 +151,52 @@ test('childBook uses the worked-out book for Sparks (so jewels, labels and slide
   const s = S.blank('2026-27'); s.handbooks.k = 'WR 260916'; sparkSigns(s, 'k', 'WR', D); assert.strictEqual(S.childBook(s, 'k'), 'SS'); assert.strictEqual(S.jewelName(s, 'k', 1), 'SS Blue Jewel 1');
   s.handbooks.t = 'AoG 260916'; assert.strictEqual(S.childBook(s, 't'), 'AoG');
 });
+function assertReportBook(s, group, code) {
+  assert.strictEqual(S.childBook(s, 'k', group), code);
+  const name = code ? s.config.books[code].name : 'No Book Yet';
+  assert.deepStrictEqual(S.handbookCounts(s, ['k'], group), { [name]: 1 });
+}
+test('the latest dated receipt selects the T&T book', () => {
+  const s = S.blank('2026-27');
+  S.setReceived(s, 'k', 'AoG', '2026-09-16');
+  S.setReceived(s, 'k', 'DoG', D);
+  assertReportBook(s, 'T&T', 'DoG');
+});
+test('a Cubbies received tick counts, and a dated receipt takes precedence', () => {
+  const s = S.blank('2026-27');
+  S.setReceived(s, 'k', 'AS', '', { noDate: true });
+  assertReportBook(s, 'Cubbies', 'AS');
+  S.setReceived(s, 'k', 'HC', D);
+  assertReportBook(s, 'Cubbies', 'HC');
+});
+test('T&T receipt ties follow the configured book order', () => {
+  const s = S.blank('2026-27');
+  s.config.bookOrder = { 'T&T': ['DoG', 'AoG'] };
+  S.setReceived(s, 'k', 'AoG', D);
+  S.setReceived(s, 'k', 'DoG', D);
+  assertReportBook(s, 'T&T', 'DoG');
+});
+test('cleared receipts and wrong-group or unknown keys do not count', () => {
+  const s = S.blank('2026-27');
+  S.setReceived(s, 'k', 'AoG', D);
+  S.setReceived(s, 'k', 'AoG', '');
+  s.received.k = { AoG: '', HC: D, ZZ: D };
+  assertReportBook(s, 'T&T', '');
+});
+test('an explicit T&T handbook assignment wins over a receipt for another book', () => {
+  const s = S.blank('2026-27');
+  s.handbooks.k = 'AoG';
+  S.setReceived(s, 'k', 'DoG', D);
+  assertReportBook(s, 'T&T', 'AoG');
+});
+test('Cubbies and T&T report receipts take precedence over historical Sparks records', () => {
+  const s = S.blank('2026-27');
+  S.setReceived(s, 'k', 'HG', '2025-09-17');
+  S.setReceived(s, 'k', 'HC', D);
+  S.setReceived(s, 'k', 'AoG', D);
+  assertReportBook(s, 'Cubbies', 'HC');
+  assertReportBook(s, 'T&T', 'AoG');
+  assert.strictEqual(S.childBook(s, 'k'), 'HG');
+  assert.deepStrictEqual(S.handbookCounts(s, ['k']), { 'No Book Yet': 1 });
+});
 console.log(passed + ' passed, ' + failed + ' failed'); process.exit(failed ? 1 : 0);

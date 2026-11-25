@@ -6,6 +6,7 @@ What changed in each app version (the `app-version` in `dev/app/index.html`, sho
 
 ## 1.51.21b (unreleased)
 - **Options.** AppleSeed appears above HoneyComb in Books. One help button covers book codes and this year’s book.
+- **Handbooks by book.** Cubbies and T&T children with no handbook assignment are counted under the book most recently marked received on Progress.
 
 ## 1.51.21a (built 2026-11-23)
 - **Debug.** Shows what each check finds, with examples and the effect of each fix. The main scan includes bare handbook codes and flags red Progress tabs without a received entry or sign-offs. The bulk Cubbies handbook assignment was removed.
