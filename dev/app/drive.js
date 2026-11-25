@@ -80,6 +80,34 @@
     // A file's or folder's name and parent folders (only for what the person has picked or this app made).
     async function meta(id) { return (await api(FILES + '/' + encodeURIComponent(id) + '?supportsAllDrives=true&fields=id,name,parents')).json(); }
 
+    // BEGIN PLAYTEST
+    async function findPlaytestFile(name, parent, driveId) {
+      const quote = value => "'" + value.replace(/[\\']/g, '\\$&') + "'";
+      const params = new URLSearchParams({
+        q: 'trashed = false and name = ' + quote(name) + ' and ' + quote(parent) + ' in parents',
+        supportsAllDrives: 'true', includeItemsFromAllDrives: 'true',
+        corpora: driveId ? 'drive' : 'user',
+        fields: 'nextPageToken,incompleteSearch,files(id,name,parents)'
+      });
+      if (driveId) params.set('driveId', driveId);
+      let match;
+      do {
+        const result = await (await api(FILES + '?' + params, { cache: 'no-store' })).json();
+        if (result.incompleteSearch) throw new DriveError('Google Drive could not search the whole folder.');
+        for (const file of result.files || []) {
+          if (file.name !== name || !file.parents?.includes(parent)) continue;
+          if (match && match.id !== file.id) throw new DriveError('More than one Drive file is named ' + name + '.');
+          match = file;
+        }
+        if (!result.nextPageToken) return match;
+        params.set('pageToken', result.nextPageToken);
+      } while (true);
+    }
+
+    async function playtestMeta(id) {
+      return (await api(FILES + '/' + encodeURIComponent(id) + '?supportsAllDrives=true&fields=id,name,parents,driveId', { cache: 'no-store' })).json();
+    }
+    // END PLAYTEST
     async function readContent(id, revision) {
       const url = FILES + '/' + encodeURIComponent(id) + '?supportsAllDrives=true';
       const text = await (await api(url + '&alt=media', { cache: 'no-store' })).text();
@@ -127,7 +155,7 @@
       return { id: file.id, name: file.title, headRevisionId: file.headRevisionId };
     }
 
-    const storageKey = 'awana-drive-pending', corruptKey = storageKey + '-corrupt';
+    const storageKey = /* PLAYTEST: 'playtest:' + */ 'awana-drive-pending', corruptKey = storageKey + '-corrupt';
     let storage, warnedAboutStorage = false, corruptChecks = [], preserveBlocked = false;
     const pendingWrites = new Map(), dirty = new Set();
     const validEntry = entry => Array.isArray(entry) && typeof entry[0] === 'string' &&
@@ -459,7 +487,7 @@
       const t = token; token = null; expires = 0;
       try { if (t && google() && google().accounts) google().accounts.oauth2.revoke(t, () => {}); } catch (e) { /* already gone */ }
     }
-    return { configured, preload, connect, pick, meta, read, readContent, save, head, update, updateMerged, clearPending, pendingFor, unreadableWarnings, verifyReopened, revisions, readRevision, pin, disconnect, connected: (marginMs) => !!token && now() < expires - (marginMs || 0) };
+    return { /* PLAYTEST: findPlaytestFile, playtestMeta, */ configured, preload, connect, pick, meta, read, readContent, save, head, update, updateMerged, clearPending, pendingFor, unreadableWarnings, verifyReopened, revisions, readRevision, pin, disconnect, connected: (marginMs) => !!token && now() < expires - (marginMs || 0) };
   }
 
   const api = { create, DriveError, SCOPE };

@@ -108,6 +108,126 @@ const { makeDialog } = require('./lib/app-dialogs.js');
       assert.deepEqual((await state()).attendance, before.attendance);
     });
   }
+  // BEGIN PLAYTEST
+  const cancelDates = ['2040-09-05', '2040-09-12', '2040-09-19', '2040-09-26'];
+  const openCancellation = (page, options = {}) => page.evaluate(({ dates, recorded, planned, event }) => {
+    const s = Season.blank('2040-41');
+    s.fake = true;
+    s.calendar = dates.map(Date => Object.assign(Calendar.blank(), { Date, Quarter: 'Q1', Theme: 'Test meeting' }));
+    s.config.blueJewelWeeks = [2, 4];
+    if (recorded != null) {
+      s.attendance[dates[recorded]] = { 'kid-a': { a: 1 } };
+      s.progress = { 'kid-a': { HG: { 'R.1': dates[recorded] } } };
+    }
+    if (planned) s.calendar[2] = Calendar.setState(s.calendar[2], 'planned');
+    if (event) s.calendar[3].Type = 'Event';
+    App.openSeason(Season.toJson(s), { refresh: true });
+    App.showTab('calendar');
+  }, { dates: cancelDates, ...options });
+  const cancelBox = (page, index) => page.locator('#calWrap tr[data-i="' + index + '"] [data-cancel-box]');
+  const notices = page => page.locator('#calEditNotices p');
+  const cancellationState = page => page.evaluate(() => {
+    const s = App.season, calendar = App.calendar;
+    const snapshot = Season.snapshot(s);
+    const records = Object.fromEntries(['attendance', 'awards', 'progress', 'given', 'games', 'adults', 'teamMoves',
+      'absences', 'flags'].map(key => [key, snapshot[key]]));
+    return {
+      calendar, records, start: Season.seasonStart(s), first: Season.firstNight(s),
+      held: Season.heldNights(s, calendar), weeks: Season.blueJewelRequirements(s, calendar),
+      jewels: Season.blueJewels(s, 'kid-a', calendar),
+      locks: Calendar.QUARTERS.map(q => TeamPlan.stateOf(s, calendar, q, App.today())),
+      quarter: Calendar.currentQuarter(calendar, App.today()), badge: document.getElementById('todoBadge').textContent
+    };
+  });
+  const historyLength = page => page.evaluate(() => App.season.history.length);
+  const cancelDialog = page => openDialog(page, 'Cancel club night');
+  const confirmCancellation = page => cancelDialog(page).getByRole('button', { name: 'Cancel this night', exact: true }).click();
+
+  for (const recorded of [false, true]) {
+    await test('the cancelled checkbox moves the season start and Undo restores a ' +
+      (recorded ? 'recorded' : 'empty') + ' first night', '2040-09-20', async page => {
+      await openCancellation(page, recorded ? { recorded: 0 } : {});
+      const before = await cancellationState(page), history = await historyLength(page);
+      await cancelBox(page, 0).click();
+      await cancelDialog(page).waitFor();
+      const message = await cancelDialog(page).textContent();
+      assert.match(message, /Season start moves from 2040-09-05 to 2040-09-12/);
+      assert.match(message, recorded ? /Recorded activity: 1 child/ : /No recorded activity on this night/);
+      await confirmCancellation(page);
+      await page.waitForFunction(() => Calendar.stateOf(App.calendar[0]) === 'cancelled');
+      assert.equal(await page.locator('#ask[open]').count(), 0);
+      const after = await cancellationState(page);
+      assert.equal(after.start, cancelDates[1]);
+      assert.equal(after.first, cancelDates[1]);
+      assert.equal(after.calendar[0].Cancelled, 'Cancelled');
+      assert.equal(after.calendar[0]['Recorded Night'], recorded ? '0' : undefined);
+      assert.deepEqual(after.records, before.records);
+      assert.equal(await notices(page).count(), 1);
+      assert.equal(await historyLength(page), history + 1);
+      await page.click('#btnUndo');
+      assert.deepEqual(await cancellationState(page), before);
+      assert.equal(await historyLength(page), history + 2);
+      assert.equal(await cancelBox(page, 0).isChecked(), false);
+      assert.equal(await page.locator('#calWrap tr[data-i="0"] [data-c="State"]').inputValue(), 'meets');
+      assert.equal(await notices(page).count(), 0);
+      await page.click('#btnRedo');
+      assert.deepEqual(await cancellationState(page), after);
+    });
+  }
+
+  await test('recorded checkbox cancellation confirms once and restore describes exact Undo', '2040-09-20', async page => {
+    await openCancellation(page, { recorded: 1 });
+    const before = await cancellationState(page), history = await historyLength(page);
+    await cancelBox(page, 1).click();
+    await cancelDialog(page).waitFor();
+    assert.match(await cancelDialog(page).textContent(), /Recorded activity: 1 child/);
+    assert.deepEqual(await cancellationState(page), before);
+    await confirmCancellation(page);
+    await page.waitForFunction(() => Calendar.stateOf(App.calendar[1]) === 'cancelled');
+    assert.equal(await page.locator('#ask[open]').count(), 0);
+    assert.equal(await historyLength(page), history + 1);
+    assert.deepEqual((await cancellationState(page)).records, before.records);
+    await page.click('#btnUndo');
+    assert.deepEqual(await cancellationState(page), before);
+    await page.click('#btnRedo');
+    await cancelBox(page, 1).click();
+    const restore = openDialog(page, 'Restore club night');
+    await restore.waitFor();
+    assert.match(await restore.textContent(), /Only Undo restores the row exactly\./);
+    await restore.getByRole('button', { name: 'Restore this night', exact: true }).click();
+    await page.waitForFunction(() => Calendar.stateOf(App.calendar[1]) === 'meets');
+    assert.equal(await page.locator('#calWrap tr[data-i="1"] [data-c="State"]').inputValue(), 'meets');
+  });
+
+  await test('an empty future cancellation shows one notice and planned and event rows protect their state', '2040-09-04', async page => {
+    await openCancellation(page, { planned: true, event: true });
+    assert.equal(await cancelBox(page, 2).isDisabled(), true);
+    assert.equal(await cancelBox(page, 3).count(), 0);
+    const history = await historyLength(page);
+    await cancelBox(page, 1).click();
+    await page.waitForFunction(() => Calendar.stateOf(App.calendar[1]) === 'cancelled');
+    assert.equal(await page.locator('#ask[open]').count(), 0);
+    assert.equal(await notices(page).count(), 1);
+    assert.match(await notices(page).textContent(), /No recorded activity.*Undo reverses/);
+    assert.equal(await historyLength(page), history + 1);
+    await page.click('#btnUndo');
+    assert.equal(await notices(page).count(), 0);
+    await page.locator('#calWrap tr[data-i="1"] [data-c="State"]').selectOption('cancelled');
+    assert.equal(await cancelBox(page, 1).isChecked(), true);
+  });
+
+  await test('a stale checkbox review asks for a fresh review and leaves the meeting open', '2040-09-20', async page => {
+    await openCancellation(page, { recorded: 1 });
+    await cancelBox(page, 1).click();
+    await cancelDialog(page).waitFor();
+    await page.evaluate(day => Season.setMark(App.season, day, 'kid-b', 'a', true), cancelDates[1]);
+    await confirmCancellation(page);
+    await page.waitForFunction(() => document.getElementById('flash').textContent.includes('Review the correction again'));
+    assert.equal(await cancelBox(page, 1).isChecked(), false);
+    assert.equal(await page.locator('#calWrap tr[data-i="1"] [data-c="State"]').inputValue(), 'meets');
+  });
+  // END PLAYTEST
+
   for (const recorded of [true, false]) {
     await test(recorded ? 'cancelling a recorded night confirms once and is undoable' :
       'cancelling an empty night applies without confirmation', recorded ? '2040-09-12' : '2040-09-04', async page => {

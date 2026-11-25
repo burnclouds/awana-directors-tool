@@ -45,3 +45,27 @@ The closest Node files recorded 93 passes and 0 failures. The new calendar confi
 Implemented sections 1–4 of the [round 7 brief](superpowers/plans/2026-11-24-n3-fix-round-7.md) on `n-backlog-integration` at `13c1cfb`. Drive preserves the unreadable save-check text before replacing the primary value and warns again after reload until the affected files pass their reopen checks. Tests cover failed storage adds and updates. Recorded closures now use the same weekly lessons notice as other calendar changes. Recorded date moves keep all three confirmation steps, with the excusing warning in the correction review.
 
 The four closest Node files recorded 102 passes and 0 failures. The browser suite, live Drive, and names checks were excluded. The new lesson notice and excused move browser cases remain to be verified when authorized. Session usage figures were unavailable. No commit or push.
+
+## Playtest channel, 2026-11-24
+
+Implemented the [playtest channel brief](superpowers/plans/2026-11-24-playtest-channel.md) on `playtest` at `4edcca2`, with work uncommitted. `make-deploy.sh` generated `deploy/playtest/`. Local imports obtain the parent directory from a folder picker. Drive imports retain the selected file’s parent ID. Saves write the playtest sibling and display its name. Playtest caches and remembered Drive selections use separate keys. Drive access still uses the existing per-file authorization.
+
+Focused Node totals were 62 passed and 1 failed. The release-consistency failure reproduced on the baseline checkout and concerns the tracked live deploy. Clean public rebuilds with and without the playtest changes were byte-identical. The generated playtest channel and Drive lookup passed Node smoke assertions with invented data. No browser suite, real Drive, commit, push, or publication. Session usage figures were unavailable. The remaining verification is browser and provider behavior when authorized.
+
+## Playtest fixes, 2026-11-24
+
+Applied the [playtest fixes brief](superpowers/plans/2026-11-24-playtest-fixes.md) on `playtest` at `4edcca2`. Debug shows a short message when READABLE export is selected in playtest. Season saves still write the playtest sibling. Playtest browser storage uses the `playtest:` prefix for pending writes and recovery, retired settings cleanup, the remembered Drive file, and the reload handoff. Regenerated `deploy/playtest/` locally as `-playtest.2`.
+
+Focused Node checks recorded 94 passes and 0 failures. Clean live deploy output matched the build from `4edcca2` byte for byte. The browser suite and real-provider checks were skipped. The next step is review of the uncommitted changes. Session usage figures were unavailable.
+
+## Playtest merge export, 2026-11-24
+
+Implemented option (a) from the [merge export brief](superpowers/plans/2026-11-24-playtest-merge-export.md) on `playtest` at `4edcca2`, with work uncommitted. The calendar review dialog disables Export local copy in playtest and shows a short message. The browser controls the destination of a plain download, so it could place the export in the playtest folder.
+
+`playtest-channel.test.js` passed 10 cases and `datamerge.test.js` passed 32, with zero failures. The changed module's minified live output matched the previous output byte for byte. The browser suite was skipped and generated playtest files still reflect the previous build. The next step is to regenerate the local playtest build when needed. Session usage figures were unavailable.
+
+## Playtest cancellation checkbox, 2026-11-25
+
+Implemented the [cancellation checkbox brief](superpowers/plans/2026-11-25-cancellation-checkbox-brief.md) on `playtest` at `4edcca2`. The checkbox uses the existing structural calendar edit and one Undo step. An opening cancellation moves the season start to the next counted night even when records exist. Recorded closures still earn attendance grace when there is child or game activity. Attendance and progress reports mark cancelled dates and retain recorded marks and sign-offs. The playtest source suffix is `-playtest.3`.
+
+The two focused Node files recorded 57 passes and 0 failures. All 55 live JS and HTML sources matched their HEAD versions after the live source transform. Five browser cases were added and await an authorized run. The next step is to review those cases in the browser and generate the local playtest build when authorized. Session usage figures were unavailable.

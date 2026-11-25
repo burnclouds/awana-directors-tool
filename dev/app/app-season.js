@@ -31,7 +31,10 @@
     status(); App.refresh(); }
   // The merge screen (app-merge.js): the open file brought up to date with what is on screen, and the merged file put in its place as an unsaved change (the roster is reloaded from it, no Planning Center review).
   App.mergeIn = { current: () => { syncData(); return season; }, apply: s => { setSeason(s, { noImport: true }); markEdit('Merged data files'); status(); App.updateStatus(); App.refresh(); } };
-  function adopt(s) { season = s; App.season = s; draftTab = ''; undo.length = redo.length = 0; rebase(); status(); App.refresh(); }     // a new data file around what is already open
+  // BEGIN PLAYTEST
+  function resetPlaytestTarget() { if (App.playtest) App.resetPlaytestTarget(); }
+  // END PLAYTEST
+  function adopt(s) { /* PLAYTEST: resetPlaytestTarget(); */ season = s; App.season = s; draftTab = ''; undo.length = redo.length = 0; rebase(); status(); App.refresh(); }     // a new data file around what is already open
   // ---------- drafts ----------
   // On the record-editing tabs (and on Attendance when "Hold changes" is ticked) an edit changes the data in memory at once, so every screen shows it, but it is not logged or undoable until
   // the person presses Apply changes. Discard puts the tab back as it was at the last Apply. The draft is the difference between `snap` (the data at the last commit) and the data now.
@@ -345,6 +348,13 @@
     const go = async () => {
       syncData();
       const savingSeason = season, s0 = seq;
+      // BEGIN PLAYTEST
+      if (App.playtest) {
+        const sent = await App.download('awana-' + season.year + '.json', Season.toJson(season), 'application/json', { auto });
+        if (sent && season === savingSeason) markSaved(s0);
+        status(); App.updateStatus(); return resolve(sent);
+      }
+      // END PLAYTEST
       if (!single) {
         // Clear only the edits included in the confirmed save. A refused or failed Drive save leaves them unsaved. (R11)
         const text = Season.toJson(season); let sent, failed = false;
@@ -1425,8 +1435,18 @@
       ' changes) from the file you are working on. A backup of the current file downloads first.', { title: 'Restore this version?', ok: 'Restore', danger: true }))) return;
     if (!(await askRestorePhrase())) { App.flash('Nothing was restored.', 'info'); return; }
     App.guardedSave(async () => {
+      // BEGIN PLAYTEST
+      if (App.playtest) {
+        const saved = await App.download(Season.fileName(season.year, new Date(), 'before-restore'), Season.toJson(season), 'application/json', { playtestBackup: true });
+        if (!saved || !(await App.ask.confirm('The playtest backup saved. Go back to version ' + v + '?', { title: 'Backup saved', ok: 'Go back', danger: true }))) return;
+      } else
+      {
+      // END PLAYTEST
       App.download(Season.fileName(season.year, new Date(), 'before-restore'), Season.toJson(season), 'application/json');
       if (!(await App.ask.confirm('The backup was downloaded. Check that it saved, then go back to version ' + v + '.', { title: 'Backup downloaded', ok: 'It saved: go back', danger: true }))) return;
+      // BEGIN PLAYTEST
+      }
+      // END PLAYTEST
       ui.hFrom = null; ui.hLatest = true;
       setSeason(Season.restoreTo(season, v).season, { noImport: true }); markEdit('Restored History version ' + v); status();
     });

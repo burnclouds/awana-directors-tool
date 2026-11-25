@@ -1,5 +1,11 @@
 (this.AwanaVersions = this.AwanaVersions || {})['app.js'] = '1.77.15';
 (function () {
+  // BEGIN PLAYTEST
+  const playtest = window.Playtest;
+  /* PLAYTEST: if (!playtest) throw new Error('The playtest build could not start.'); */
+  let playtestTarget;
+  let playtestWrites = Promise.resolve();
+  // END PLAYTEST
   const { C, X } = Model;
   const { esc } = Reports;
   const $ = id => document.getElementById(id);
@@ -8,7 +14,7 @@
   // In-memory settings for this page. Nothing here is stored in the browser: the club title typed by hand lives in the data file (config.clubTitle), and the quarter follows the calendar.
   let settings = { quarter: 'Q1', club: '', clubCustom: false };
   // Browser settings retired by plan item 1 (they now live in the data file or are not kept). Removed once on load, so nothing stale is left behind.
-  ['awana.settings', 'awana-drive-style', 'awana-drive-keepname', 'awana-drive-dirs', 'awana-updates', 'awana-autosave', 'awana-todo-view', 'awana-att-hold', 'awana-trail-folded'].forEach(k => { try { localStorage.removeItem(k); } catch (e) { /* storage may be blocked */ } });
+  ['awana.settings', 'awana-drive-style', 'awana-drive-keepname', 'awana-drive-dirs', 'awana-updates', 'awana-autosave', 'awana-todo-view', 'awana-att-hold', 'awana-trail-folded'].forEach(k => { try { localStorage.removeItem( /* PLAYTEST: 'playtest:' + */k); } catch (e) { /* storage may be blocked */ } });
   // The report title is "AWANA Club 26-27" for the season of the open data file (or of today's date) unless a different title has been typed into the file.
   function autoClub() {
     const y = /^(\d{4})-(\d{2,4})$/.exec(String((App.season && App.season.year) || '').trim()), t = new Date();
@@ -62,6 +68,9 @@
     // opts.single (plan item 1, stage 2): save the data file over one chosen file. Chrome and Edge keep a handle to it for later saves in this page
     // (App.localHandle, reset when a file is opened); other browsers download the file. Resolves false when the person cancels the Save as box.
     download(name, text, type, opts) {
+      // BEGIN PLAYTEST
+      if (playtest && type === 'application/json') return savePlaytest(name, text, opts);
+      // END PLAYTEST
       const final = testFiles.size ? testName(name) : name, local = () => {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })); a.download = final;
@@ -87,6 +96,54 @@
     },
   };
 
+  // BEGIN PLAYTEST
+  App.playtest = !!playtest;
+  App.isPlaytestSeason = text => kindOf(text) === 'season';
+  function setPlaytestTarget(file) {
+    playtestTarget = file;
+    App.openedName = file?.name || '';
+    $('playtestFile').textContent = App.openedName;
+    if (!file?.id) App.playtestLocalOpened?.();
+    App.playtestSaveLabel();
+  }
+  App.resetPlaytestTarget = () => setPlaytestTarget(null);
+  App.playtestSaveLabel = () => {
+    const button = $('btnSeasonSave');
+    button.textContent = playtestTarget?.id ? 'Save playtest copy to Drive' : 'Save playtest copy';
+    button.title = App.openedName || '';
+  };
+
+  async function savePlaytest(name, text, opts) {
+    const season = App.season;
+    const auto = !!opts?.auto;
+    const backupName = opts?.playtestBackup ? playtest.fileName(name) : null;
+    let target = playtestTarget;
+    try {
+      if (!target?.playtestSave) {
+        if (auto) return false;
+        if (target && !target.demo) throw new Error('Reopen the data file to reconnect to its folder.');
+        if (!window.showDirectoryPicker) throw new Error('Saving a playtest file requires a browser that can open folders.');
+        const folder = await window.showDirectoryPicker({ mode: 'readwrite' });
+        if (season !== App.season || target !== playtestTarget) return false;
+        const copyName = target?.name || playtest.fileName(name);
+        target = { name: copyName, playtestSave: (body, backup) => playtest.saveLocal(folder, backup || copyName, body) };
+        setPlaytestTarget(target);
+      }
+      const write = playtestWrites.then(() => {
+        if (season !== App.season || target !== playtestTarget) return false;
+        return target.playtestSave(text, backupName, auto);
+      });
+      playtestWrites = write.catch(() => {});
+      return await write;
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        if (auto) App.flash(err.message, 'warn');
+        else App.ask.alert(err.message, { title: 'Playtest save' });
+      }
+      return false;
+    }
+  }
+  // END PLAYTEST
   // Save over the chosen file (Chrome and Edge). The first save asks where (Save as); later saves write to the same file. Anything else falls back to a download.
   async function saveOver(name, text, type, fallback) {
     try {
@@ -1387,6 +1444,15 @@
   }
   const CAL_TEXT = ['Theme', 'Notes', 'Puggles Lesson', 'Cubbies Lesson', 'Sparks Lesson', 'T&T Lesson'];
   let calSub = 'dates';      // N2: the Calendar tab has two views of the same rows: Dates (everything about a night) and Lessons by week (the lesson for each group, night by night)
+  // BEGIN PLAYTEST
+  const cancelBoxRows = new WeakSet();
+  function cancelBox(row) {
+    const state = Calendar.stateOf(row);
+    const disabled = state === 'planned' ? ' disabled title="No club is planned on this night; use the Meets list."' : '';
+    return '<label><input type="checkbox" data-cancel-box="1"' +
+      (state === 'cancelled' ? ' checked' : '') + disabled + '> Cancelled</label>';
+  }
+  // END PLAYTEST
   function renderCalendar() {
     if (applyQuarter()) { renderRoster(); renderReport(); }
     renderCalStatus();
@@ -1407,6 +1473,11 @@
         ['Start Time', 'End Time'].map(c => '<td><input type="time" data-c="' + c + '" value="' + esc(r[c] || '') + '"></td>').join('') +
         CAL_TEXT.map(c => '<td><input type="text" data-c="' + esc(c) + '" value="' + esc(r[c]) + '" size="' + (c === 'Theme' || c === 'Notes' ? 26 : 14) + '"></td>').join('') +
         '<td><button data-del="' + i + '">Delete</button></td></tr>').join('') + '</tbody></table>';
+    // BEGIN PLAYTEST
+    $('calWrap').querySelectorAll('tr[data-i] [data-c="State"]').forEach(select => {
+      select.insertAdjacentHTML('afterend', cancelBox(calendar[+select.closest('tr').dataset.i]));
+    });
+    // END PLAYTEST
   }
   // Only the Calendar maker calls this after checking a fresh proposal inside commitScope.
   App.applyCalendarProposal = (rows, settings, cutoffReason) => {
@@ -1513,6 +1584,12 @@
     return person ? Model.fullName(person) || id : id;
   };
   let calendarNoticeTimer;
+  // BEGIN PLAYTEST
+  App.onRefresh.push(() => {
+    clearTimeout(calendarNoticeTimer);
+    $('calEditNotices').replaceChildren();
+  });
+  // END PLAYTEST
   async function structuralCalendarEdit(index, field, row, apply) {
     const noticeBox = $('calEditNotices');
     clearTimeout(calendarNoticeTimer);
@@ -1545,6 +1622,9 @@
         App.importChanged(commit);
         refresh();
       } else apply();
+      // BEGIN PLAYTEST
+      if (cancelBoxRows.has(row)) return;
+      // END PLAYTEST
       showSeasonStartNotices();
       if (lessons.length && field !== 'Delete') App.flash(lessons.length + ' weekly lesson' + (lessons.length === 1 ? ' is' : 's are') + ' affected. Review Lessons by week.', 'info');
     };
@@ -1578,6 +1658,33 @@
         list: recordedList(n)
       };
     };
+    // BEGIN PLAYTEST
+    if (cancelBoxRows.has(row)) {
+      const { needsDialog, title, ok, danger, lines, list, label } =
+        CalendarSafety.cancellationSummary(openFile, calendar, candidate, index, App.today(), App.calendarChildName);
+      const before = snapshot();
+      renderCalendar();
+      if (needsDialog && !await App.ask.confirm(lines.join('\n'), { title, ok, cancel: 'Keep as is', danger, list })) return;
+      App.commitScope(() => {
+        if (App.season !== openFile || snapshot() !== before ||
+            JSON.stringify(noteImpact()) !== JSON.stringify(activity) ||
+            JSON.stringify(CalendarSafety.compare(openFile, calendar, candidate, App.today()).blocks) !== JSON.stringify(comparison.blocks)) {
+          renderCalendar();
+          App.flash('The calendar or club records changed. Review the correction again.', 'warn');
+          return;
+        }
+        finish(label);
+        const notices = comparison.notices.map(n => CalendarSafety.noticeText(n, App.calendarChildName));
+        if (!needsDialog) notices.push(lines[0], lines[1], lines.at(-1));
+        if (!notices.length) {
+          const start = lines.find(line => line.startsWith('Season start would be lost'));
+          if (start) notices.push(start);
+        }
+        if (notices.length) addNotice(notices.join(' '));
+      });
+      return;
+    }
+    // END PLAYTEST
     if (stateEdit && activity.recorded && Calendar.isExcused(row)) {
       renderCalendar();
       const before = snapshot(), date = row.Date;
@@ -1655,6 +1762,20 @@
     });
   }
   function commitCal(t) {
+    // BEGIN PLAYTEST
+    if (t.dataset.cancelBox) {
+      const index = +t.closest('tr')?.dataset.i, row = calendar[index];
+      if (!row || t.disabled || !['meets', 'cancelled'].includes(Calendar.stateOf(row))) return;
+      const state = t.checked ? 'cancelled' : 'meets';
+      if (state === Calendar.stateOf(row)) return;
+      const next = Calendar.setState(row, state, row.Cancelled);
+      cancelBoxRows.add(next);
+      structuralCalendarEdit(index, 'State', next, () => {
+        calendar[index] = next; Calendar.sort(calendar); calTouch(); renderCalendar(); renderReport();
+      });
+      return;
+    }
+    // END PLAYTEST
     const c = t.dataset.c, tr = t.closest('tr'); if (!c || !tr) return;
     const r = calendar[+tr.dataset.i]; if (!r) return;
     const input = t.type === 'checkbox' ? (t.checked ? '1' : '') : t.value;
@@ -1805,6 +1926,12 @@
           calendar = candidate; App.changed(); renderCalendar(); renderReport(); App.onRefresh.forEach(f => f());
         }
         else if (it.kind === 'rotation') problems.push(it.name + ': the nightly rotation is not tracked here any more, so this file was left out.');
+        // BEGIN PLAYTEST
+        else if (playtest && it.kind === 'season') {
+          if (!it.file.playtestSave && !it.file.demo) throw new Error('Use Import to choose the folder that contains this file.');
+          if (await App.openSeason(it.text)) { setPlaytestTarget(it.file); openedSeasonFile = it.file; }
+        }
+        // END PLAYTEST
         else if (it.kind === 'season') { App.openedName = it.name; App.localHandle = null; if (await App.openSeason(it.text)) openedSeasonFile = it.file; }      // a new file: the next save asks where it goes
         else if (it.kind === 'progresspatch') problems.push(it.name + ': importing a progress patch (from the photo-to-progress agent) was removed, so this file was left out.');
         else problems.push(it.name + ': not a file this app knows how to open.');
@@ -1816,6 +1943,39 @@
     return openedSeasonFile;
   }
   $('btnImport').addEventListener('click', () => { if (App.importDefault && App.importDefault() === 'drive') App.importFromDrive(); else $('fileAny').click(); });      // the file picker, or Drive's when saving to Drive is on (app-drive.js)
+  // BEGIN PLAYTEST
+  async function openPlaytestFolder() {
+    try {
+      if (!window.showDirectoryPicker) throw new Error('Opening a local playtest data file requires a browser that can open folders.');
+      const folder = await window.showDirectoryPicker({ mode: 'readwrite' });
+      const names = [];
+      for await (const handle of folder.values()) {
+        if (handle.kind === 'file' && /\.(json|csv|txt|bak)$/i.test(handle.name)) names.push(handle.name);
+      }
+      if (!names.length) throw new Error('This folder has no data files.');
+      names.sort((a, b) => a.localeCompare(b));
+      const picked = await App.ask.form({
+        title: 'Open a playtest file', ok: 'Open',
+        fields: [{ name: 'file', label: 'File in ' + folder.name, type: 'select', options: names.map(n => [n, n]) }]
+      });
+      if (!picked) return;
+      const handle = await folder.getFileHandle(picked.file);
+      if (playtest.isDataName(handle.name)) await openFiles([await playtest.openLocal(folder, handle)]);
+      else {
+        const file = await handle.getFile();
+        await openFiles([kindOf(await file.text()) === 'season' ? await playtest.openLocal(folder, handle) : file]);
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') App.ask.alert(err.message, { title: 'Open a playtest file' });
+    }
+  }
+  if (playtest) {
+    App.playtestSaveLabel();
+    for (const id of ['fileAny', 'splashFiles']) {
+      $(id).addEventListener('click', e => { e.preventDefault(); openPlaytestFolder(); });
+    }
+  }
+  // END PLAYTEST
   $('fileAny').addEventListener('change', e => { const files = [...e.target.files]; e.target.value = ''; return openFiles(files); });
 
   // ---------- try it out: an invented club kept on the server (try/manifest.json lists the files). Fetched only when a button is pressed ----------
@@ -1824,6 +1984,9 @@
     if (!r.ok) throw new Error('could not read ' + name + ' (' + r.status + ')');
     let text = await r.text();
     if (/\.json$/.test(name)) { const t = new Date(); text = Season.freshenFake(text, t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0')); }      // the demo club's dates follow today
+    // BEGIN PLAYTEST
+    if (playtest && /\.json$/i.test(name)) return { name: playtest.fileName(name), demo: true, lastModified: Date.now(), text: async () => text };
+    // END PLAYTEST
     return { name, lastModified: Date.now(), text: async () => text };
   };
   let tryManifest = null;

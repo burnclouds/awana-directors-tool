@@ -163,7 +163,7 @@
       ['Versions in the history', String(s.history.length)], ['Last edit', last ? esc(new Date(last.t).toLocaleString()) : '–'],
       ['Planning Center data as of', esc((s.roster && s.roster.pcAsOf) || '–')], ['Unsaved changes', App.dirty() ? 'yes' : 'no'],
       ['Last big draw', App.drawStats ? esc(App.drawStats.n + ' ' + App.drawStats.what + ' in ' + (App.drawStats.ms / 1000).toFixed(2) + ' s') : 'none yet']] : null;
-    let storage = '–'; try { storage = Object.keys(localStorage).filter(k => k.startsWith('awana')).join(', ') || 'none'; } catch (e) { storage = 'blocked'; }
+    let storage = '–'; try { storage = Object.keys(localStorage).filter(k => k.startsWith( /* PLAYTEST: 'playtest:' + */'awana')).join(', ') || 'none'; } catch (e) { storage = 'blocked'; }
     $('debugWrap').innerHTML =
       '<section aria-labelledby="dbgLocationHeading"><h3 id="dbgLocationHeading">Open a location code</h3><p>Paste a code shared from the Bug button to open its screen and available filters.</p>' +
       '<form id="dbgLocationForm"><label for="dbgLocationCode">Location code</label> <input id="dbgLocationCode" type="text" required autocomplete="off" spellcheck="false" maxlength="' + LocationCode.MAX + '">' +
@@ -207,6 +207,9 @@
   $('debugWrap').addEventListener('click', e => {
     const id = e.target.id, s = App.season;
     if (s && id === 'dbgOddCheck') { odd = oddList(s); renderDebug(); return; }
+    // BEGIN PLAYTEST
+    if (App.playtest && s && id === 'dbgReadable') return App.ask.alert('READABLE export is disabled in playtest.');
+    // END PLAYTEST
     if (s && id === 'dbgReadable') { App.testGate(e.target, () => App.download('awana-' + s.year + '-READABLE-' + App.today().replace(/-/g, '') + '.json', JSON.stringify(Season.readableCopy(s), null, 1), 'application/json', { local: true })); return; }
     const fixCheck = e.target.dataset && e.target.dataset.oddfix;
     if (s && fixCheck) {      // one click is one History entry of its own (labelled, never folded into an earlier edit) and one Undo step

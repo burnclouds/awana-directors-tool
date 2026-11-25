@@ -43,6 +43,9 @@
     if (st.wait?.kind === 'calendar' && st.cur?.season !== App.season) st.wait = null;
     b.textContent = st.save ? 'Save to Google Drive' : 'Download data file';
     b.title = st.save ? (st.style === 'inplace' ? 'Updates the Drive file in place (and merges in changes others saved since you opened it)' : 'Saves a new dated file to Google Drive; older files stay as backups') : '';
+    // BEGIN PLAYTEST
+    if (App.playtest) App.playtestSaveLabel();
+    // END PLAYTEST
     s.hidden = !st.save; s.textContent = st.save ? 'Google Drive' + (st.wait ? ': ' + waitText(st.wait) : st.last ? ': ' + st.last : '') : '';
     reviewButton.hidden = !(st.save && st.style === 'inplace' && st.cur?.season === App.season && st.cur?.review);
     const im = $('btnImport'); im.textContent = st.save ? 'Import from Drive\u2026' : 'Import\u2026';
@@ -85,12 +88,33 @@
     } catch (err) { App.ask.alert('Google Drive: ' + err.message, { title: 'Google Drive' }); }
   }
   // N41: the last Drive data file opened in this browser (its ID and exact name). Kept after sign-out. Blocked storage just means nothing is remembered.
-  const LAST_KEY = 'awana-drive-last';
+  const LAST_KEY = /* PLAYTEST: 'playtest:' + */ 'awana-drive-last';
   const rememberLast = f => { try { localStorage.setItem(LAST_KEY, JSON.stringify({ id: f.id, name: f.name })); } catch (e) { /* storage blocked */ } };
   const lastFile = () => { try { const v = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); return v && v.id && v.name ? v : null; } catch (e) { return null; } };
   // Load the picked Drive files (the same for the picker and the remembered file). The data file is remembered after a successful open.
   function openPicks(picks) { return queue(() => openPicksRun(picks)); }
   async function openPicksRun(picks) {
+    // BEGIN PLAYTEST
+    if (App.playtest) {
+      const files = [];
+      for (const p of picks) {
+        const meta = await D.playtestMeta(p.id);
+        if (Playtest.isDataName(meta.name)) {
+          files.push(await Playtest.openDrive(D, meta));
+        } else {
+          const file = await D.read(p.id);
+          files.push(App.isPlaytestSeason(file.text) ? await Playtest.openDrive(D, meta, () => file) :
+            { name: file.name, lastModified: file.lastModified, text: async () => file.text });
+        }
+      }
+      await App.openFiles(files, opened => {
+        rememberLast(opened);
+        st.save = true;
+        label();
+      });
+      return;
+    }
+    // END PLAYTEST
     const files = [], datas = []; let folder = null;
     for (const p of picks) {
       const f = await D.read(p.id);
@@ -390,6 +414,9 @@
       else if (id === 'settings') showSettings(); else if (id === 'out') { D.disconnect(); st.save = false; label(); }
     },
   };
+  // BEGIN PLAYTEST
+  if (App.playtest) App.playtestLocalOpened = () => { st.save = false; label(); };
+  // END PLAYTEST
   App.importDefault = () => st.save ? 'drive' : 'local'; App.importFromDrive = () => { preload(); openFromDrive(); };
   $('splashDrive').addEventListener('click', () => { D.preload().then(openFromDrive, err => App.ask.alert('Google Drive: ' + err.message, { title: 'Google Drive' })); });
   // N41: the remembered file on the splash, as its exact name (a long name is cut off on screen; the full name is on hover). It opens with no picker; if Google refuses it, the picker opens instead.

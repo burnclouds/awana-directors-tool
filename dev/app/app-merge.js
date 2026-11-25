@@ -110,6 +110,13 @@
       panel.querySelector('[data-export]').onclick = () => {
         if (file === App.season) App.download(Season.fileName(file.year), App.snapshotJson(), 'application/json', { local: true });
       };
+      // BEGIN PLAYTEST
+      if (App.playtest) {
+        const exportButton = panel.querySelector('[data-export]');
+        exportButton.disabled = true;
+        exportButton.insertAdjacentText('afterend', ' Export is disabled in playtest.');
+      }
+      // END PLAYTEST
       panel.querySelector('[data-close]').onclick = () => finish(null);
       apply.onclick = () => {
         if (file !== App.season) { finish(null); return; }

@@ -416,7 +416,8 @@ test('removing an existing first night lists the affected awards and allows Appl
   assert.deepEqual(Season.snapshot(s), before);
 });
 
-test('recorded closures preserve records and the season boundary while excluding attendance and granting grace', () => {
+// BEGIN PLAYTEST
+test('recorded cancellations preserve records, move the season boundary and grant grace', () => {
   const s = Season.blank('2026-27');
   const first = '2026-10-07', next = '2026-10-14', empty = '2026-10-21';
   s.calendar = [night(first), night(next), night(empty)];
@@ -428,7 +429,7 @@ test('recorded closures preserve records and the season boundary while excluding
     row, Calendar.setState(row, 'cancelled'), Safety.noteImpact(s, row.Date).recorded
   ));
   const reloaded = Season.fromJson(Season.toJson(s));
-  assert.equal(Season.seasonStart(reloaded), first);
+  assert.equal(Season.seasonStart(reloaded), next);
   assert.equal(Season.firstNight(reloaded), next);
   assert.equal(Season.totals(reloaded, 'child', reloaded.calendar).year.a, 1);
   assert.equal(Season.totals(reloaded, 'other', reloaded.calendar).year.a, 1);
@@ -443,6 +444,7 @@ test('recorded closures preserve records and the season boundary while excluding
   assert.equal(s.calendar[0]['Recorded Night'], undefined);
 });
 
+// END PLAYTEST
 test('a late recorded closure preserves earned jewel dates and dropped jewels', () => {
   const s = Season.blank('2026-27');
   const dates = ['02', '09', '16', '23', '30'].map(day => '2026-09-' + day);

@@ -39,6 +39,9 @@
   function setState(row, state, reason) {
     if (row.Type === 'Event' || !['meets', 'planned', 'cancelled'].includes(state)) throw new Error('Choose Meets, No club or Cancelled for a club night.');
     const next = Object.assign({}, row, { 'No Club': state === 'meets' ? '' : '1', 'No Club By Hand': '1' });
+    // BEGIN PLAYTEST
+    if (state === 'cancelled' && next['Recorded Night'] === '1') delete next['Recorded Night'];
+    // END PLAYTEST
     if (state === 'cancelled') next.Cancelled = String(reason || '').trim() || 'Cancelled';
     else delete next.Cancelled;
     delete next['Generated Break'];

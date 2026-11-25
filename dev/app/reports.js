@@ -60,11 +60,20 @@
     let list = kids(master);
     if (opts.room) list = list.filter(p => M.room(p) === opts.room);
     return roomsOf(list).map(r => {
+      // BEGIN PLAYTEST
+      const reportNights = (ctx.calendar || []).filter(row => (!s.quarter || row.Quarter === s.quarter) &&
+        (Cal.isNight(row) || Cal.stateOf(row) === 'cancelled'));
+      // END PLAYTEST
       const g = M.groupOf(r), marks = MARKS[g] || [], dates = nightDates(ctx), withTeam = M.hasColorTeams(g);
       const people = list.filter(p => M.room(p) === r).sort(byFirst);
       const span = Math.max(1, marks.length), oneMark = marks.length === 1;      // N8: one box a night (Puggles): the date alone heads the column, no rotated word
       const pages = Math.max(1, Math.ceil(people.length / ROWS_PER_PAGE));      // N11: 20 rows a page (room for the punch holes); a bigger class goes on to a second page
       const isoNights = ctx.calendar && ctx.calendar.length ? Cal.nights(ctx.calendar, ctx.settings.quarter).map(x => x.Date) : [];
+      // BEGIN PLAYTEST
+      dates.splice(0, dates.length, ...reportNights.map(row =>
+        Cal.short(row.Date) + (Cal.stateOf(row) === 'cancelled' ? ' (Cancelled)' : '')));
+      isoNights.splice(0, isoNights.length, ...reportNights.map(row => row.Date));
+      // END PLAYTEST
       const MARK_KEY = { Attendance: 'a', Handbook: 'h', Participation: 'p', Extra: 'x' };
       const markTick = (p, iso, key) => { const night = ctx.season && iso ? (ctx.season.attendance || {})[iso] : null; if (!night || !p) return ''; const m = night[p[M.X.ID]] || {}; return m[key] ? '&#10003;' : ''; };
       const hrows = marks.length && !oneMark ? 2 : 1;
@@ -447,5 +456,9 @@
   }
 
   const api = { LIST, DEFAULT_BUNDLES, bundlesOf, runBundle, nextQuarter, firstNightOf, calendarChanges, esc, NIGHTS_PER_PAGE, rowsFor, TEAM_COLORS, kids, roomsOf, nightDates, uniformRows, uniformHead, UNI_HEAD, table };
+  // BEGIN PLAYTEST
+  api.cancelledDates = ctx => [...new Set((ctx.calendar || ctx.season?.calendar || [])
+    .filter(row => Cal.stateOf(row) === 'cancelled').map(row => row.Date))].sort();
+  // END PLAYTEST
   if (typeof module !== 'undefined') module.exports = api; else root.Reports = api;
 })(this);

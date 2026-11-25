@@ -332,6 +332,93 @@
       (blocks.length > 8 ? ' and ' + (blocks.length - 8) + ' more' : '');
   }
 
+  // BEGIN PLAYTEST
+  function cancellationSummary(season, before, after, index, today, nameOf = id => id) {
+    const row = before[index], date = row.Date;
+    const cancelling = Calendar.stateOf(after[index]) === 'cancelled';
+    const activity = Season.recordedNightActivity(season, date);
+    const games = activity.other.games || 0;
+    const { blocks, notices } = compare(season, before, after, today);
+    const previous = { ...season, calendar: before }, next = { ...season, calendar: after };
+    const childTest = (root.Model || require('./model.js')).childTestOf(season.roster);
+    const children = n => n + (n === 1 ? ' child' : ' children');
+    const number = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
+    const other = Object.entries(activity.other).map(([kind, count]) => kind + ' (' + count + ')');
+    const counts = [...(activity.children.length ? [children(activity.children.length)] : []), ...other];
+    const list = activity.children.map(nameOf).concat(other);
+    const lines = [
+      [date, row.Theme, row.Quarter].filter(Boolean).join(' · '),
+      counts.length ? 'Recorded activity: ' + counts.join('; ') : 'No recorded activity on this night.'
+    ];
+    const heldBefore = Season.heldNights(previous, before), heldAfter = Season.heldNights(next, after);
+    lines.push('Club nights held: ' + heldBefore.length + ' → ' + heldAfter.length + '.');
+    if ((cancelling ? heldBefore : heldAfter).includes(date)) {
+      const marks = Object.entries(season.attendance[date] || {})
+        .filter(([id, mark]) => childTest(id) && Season.MARKS.some(key => mark[key])).length;
+      const verb = cancelling ? 'lose' : 'regain';
+      lines.push('Attendance totals: ' + children(marks) + ' ' + verb + (marks === 1 ? 's' : '') + ' this night.');
+    }
+    if (games) lines.push('Game points: games on this night ' + (cancelling ? 'leave' : 'return to') + ' the totals.');
+
+    const startBefore = Season.seasonStart(previous), startAfter = Season.seasonStart(next);
+    const startChanged = startBefore !== startAfter;
+    if (startBefore && !startAfter) lines.push('Season start would be lost (no counted night left).');
+    else if (startChanged) lines.push('Season start moves from ' + (startBefore || '—') + ' to ' + startAfter + '.');
+    else lines.push('Season start: unchanged (' + (startBefore || '—') + ').');
+    const earlier = notices.flatMap(n => n.records);
+    if (earlier.length) lines.push(number(earlier.length, 'record') + ' dated before ' + startAfter + ' will belong to an earlier year.');
+
+    const graceChanged = Season.graceDates(previous, before).length !== Season.graceDates(next, after).length;
+    if (graceChanged) {
+      const from = Season.blueJewelRequirements(previous, before), to = Season.blueJewelRequirements(next, after);
+      const ordinals = ['1st', '2nd', '3rd'];
+      lines.push('Blue Jewel requirements for attendance after ' + date + ': ' +
+        from.map((weeks, i) => (ordinals[i] || (i + 1) + 'th') + ' ' + weeks + ' → ' + to[i]).join(', ') + '.');
+      lines.push('Jewels already earned keep their requirement and date.');
+      const ids = new Set(Object.values(season.attendance).flatMap(night => Object.keys(night)));
+      const reached = [...ids].filter(id => childTest(id) &&
+        Season.blueJewels(next, id, after).length > Season.blueJewels(previous, id, before).length);
+      if (reached.length) lines.push('Newly reached: ' + children(reached.length) + '.');
+      list.push(...reached.map(id => 'Blue Jewel: ' + nameOf(id)));
+    } else lines.push('Blue Jewel requirements: unchanged.');
+
+    let lockChanged = false, anchorChanged = false;
+    const handLocks = TeamPlan.config(season).locked;
+    for (const q of Calendar.QUARTERS) {
+      const from = TeamPlan.stateOf(previous, before, q, today), to = TeamPlan.stateOf(next, after, q, today);
+      const first = TeamPlan.firstNight(before, q, previous), last = TeamPlan.firstNight(after, q, next);
+      if (from === to && first === last) continue;
+      lockChanged ||= from !== to;
+      anchorChanged ||= first !== last;
+      lines.push(q + ': ' + from + ' → ' + to + ' (first night ' + (first || '—') + ' → ' + (last || '—') + ').' +
+        (handLocks[q] ? ' Hand locks stay as set.' : ''));
+    }
+    if (!lockChanged && !anchorChanged) lines.push('Quarter locks: unchanged.');
+    const qBefore = Calendar.currentQuarter(before, today), qAfter = Calendar.currentQuarter(after, today);
+    if (qBefore !== qAfter) lines.push('Current quarter: ' + qBefore + ' → ' + qAfter + '.');
+
+    if (graceChanged) {
+      const later = new Set(after.filter(r => r.Date > date && Calendar.countsNight(r)).map(r => r.Date)).size;
+      lines.push(number(later, 'later club night') + ' this season ' + (later === 1 ? 'uses' : 'use') + ' the new requirement.');
+    }
+    const lessons = Calendar.lessonChanges(before, after, season.config).length;
+    if (lessons) lines.push(number(lessons, 'weekly lesson') + ' affected.');
+    if (!cancelling) lines.push('Only Undo restores the row exactly.');
+    lines.push('Every record stays on its original date. Undo reverses this change.');
+    list.push(...earlier.map(r => [r.kind, nameOf(r.id), r.item].filter(Boolean).join(' · ')));
+
+    const title = cancelling ? 'Cancel club night' : 'Restore club night';
+    const danger = activity.recorded || blocks.length > 0;
+    return {
+      needsDialog: !cancelling || danger || startChanged || lockChanged || qBefore !== qAfter,
+      danger, title, ok: cancelling ? 'Cancel this night' : 'Restore this night', lines, list,
+      label: (cancelling && activity.recorded ? 'Calendar note' : title) + ' · ' + date
+    };
+  }
+  // END PLAYTEST
   const api = { activityAt, noteImpact: Season.recordedNightActivity, noticeText, inspect, compare, correctionImpact, propose, mergeConflicts, reviewDates, reviewedCalendar, summary };
+  // BEGIN PLAYTEST
+  api.cancellationSummary = cancellationSummary;
+  // END PLAYTEST
   if (typeof module !== 'undefined') module.exports = api; else root.CalendarSafety = api;
 })(this);

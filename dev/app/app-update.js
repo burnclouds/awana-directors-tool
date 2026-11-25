@@ -11,7 +11,7 @@
   const RUN = { version: meta(doc, 'app-version'), build: meta(doc, 'app-build') };
   // True only when version a is newer than b (1.50.45 > 1.50.44; 1.50.45b after 1.50.45). An older copy of the site (a stale cache) is not an update.
   const newerVersion = (a, b) => { const na = String(a || '').match(/\d+/g) || [], nb = String(b || '').match(/\d+/g) || []; for (let i = 0; i < Math.max(na.length, nb.length); i++) { const x = +(na[i] || 0), y = +(nb[i] || 0); if (x !== y) return x > y; } return String(a || '').localeCompare(String(b || '')) > 0; };
-  const HANDOFF = 'awana-handoff';
+  const HANDOFF = /* PLAYTEST: 'playtest:' + */ 'awana-handoff';
   const DEF_U = { on: true, minutes: 10 }, DEF_A = { on: false, minutes: 5 };
   const LAUNCH_CHECK_MS = 1500;      // after the page's load event: past the session restore (which runs at load + 0 ms) and the first paint
   // The two timers' settings live in the data file (config.autoUpdate, config.autoSave). Before a file is open, the code defaults apply; App.fileSettingsLoaded runs when a file opens.
@@ -61,6 +61,12 @@
   }
   async function apply() {
     if (!U.found) return false;
+    // BEGIN PLAYTEST
+    if (App.playtest && App.season) {
+      App.ask.alert('Save your work, then reload and reopen your playtest file to reconnect to its folder.', { title: 'Update playtest' });
+      return false;
+    }
+    // END PLAYTEST
     if (App.resolveDraft && !App.resolveDraft(() => apply())) return false;
     if (App.master && App.dirty()) { const ok = await App.saveNow(); if (!ok) { App.flash('The update was not applied: your changes were not saved.', 'error'); return false; }
       if (App.dirty()) { App.flash('The update was not applied: you changed something while it was saving. Press Update now again.', 'info'); return false; } }      // the reload carries the file as saved, so an edit made during the save would be lost or wrongly merged (R7)

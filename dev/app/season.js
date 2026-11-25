@@ -786,7 +786,18 @@
   const isRecordedClosure = (s, row) => !!s && Calendar.isExcused(row) && isRealDate(row.Date) &&
     recordedNightActivity(s, row.Date).recorded;
   const isQuarterNight = (s, row) => Calendar.countsNight(row) || isRecordedClosure(s, row);
+  // BEGIN PLAYTEST
+  function hasGraceActivity(s, row) {
+    const date = row.Date;
+    if (!Object.keys(s.adults?.[date] || {}).length) return true;
+    const { children, other } = recordedNightActivity(s, date);
+    return children.length > 0 || !!other.games;
+  }
+  // END PLAYTEST
   const graceDates = (s, rows) => [...new Set(rows.filter(row => row && row.Date > (s.config.carriedThrough || '') &&
+    // BEGIN PLAYTEST
+    hasGraceActivity(s, row) &&
+    // END PLAYTEST
     isRecordedClosure(s, row)).map(row => row.Date))].sort();
   const reducedWeeks = (weeks, grace) => Math.max(1, weeks - grace);
   function blueJewelRequirements(s, calRows, id) {
@@ -1484,6 +1495,17 @@
   const dayAfter = d => { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + 1); return t.toISOString().slice(0, 10); };
   function seasonStart(s) {
     // Recorded closures preserve the existing classification of awards and sign-offs.
+    // BEGIN PLAYTEST
+    // A cancelled opening night moves the boundary to the next counted meeting.
+    const opening = (s.calendar || []).filter(r => r && isRealDate(r.Date) &&
+      (Calendar.countsNight(r) || Calendar.stateOf(r) === 'cancelled' || isRecordedClosure(s, r)))
+      .reduce((first, row) => !first || row.Date < first.Date ||
+        (row.Date === first.Date && Calendar.countsNight(row)) ? row : first, null);
+    if (opening && Calendar.stateOf(opening) === 'cancelled') {
+      const next = firstNight(s), cutoff = (s.config || {}).carriedThrough;
+      return isRealDate(cutoff) && (!next || next <= cutoff) ? dayAfter(cutoff) : next;
+    }
+    // END PLAYTEST
     const closed = (s.calendar || []).filter(r => r && isRecordedClosure(s, r)).map(r => r.Date);
     const f = [firstNight(s), ...closed].filter(Boolean).sort()[0] || '';
     const t = (s.config || {}).carriedThrough;
@@ -1759,5 +1781,8 @@
     booksStarted, toHandOut, jewelWaitsForWing, addFlagReply, orphanHandbook, setHandbook, noDateBookKids, oddballs, fixOddball, readableCopy, setFlagReply, removeFlagReply, teamOrder, setTeamOrder, DEFAULT_TEAM_ORDER, YEAR_BOOK_GROUPS, SPARKS_BOOKS, usesYearBook, bookGroup, hasProgress, yearBook, setYearBook, setBookOrder, setSparksBooks, setCubbiesDetail, bookOrder, sheetsOf, progressTabBooks, movesOf, setTeamMove, removeTeamMove, setNightTeam, teamOn, quarterColor, teamResolver, setGame, teamPoints, kidGamePoints, colorHistory, teamStory, standings, addAward, removeAward, announce, setAnnounced, pendingAwards, slidePending, awardLedger, earnedAwards, isEndOfYear, assumedGiven, clearAssumedGiven, awardsOf, setGiven, waitingToGive, parseHandbook, bookCode, handbookParts, formatHandbook, setHandbook, bookKey, tidyHandbookCodes, handbookCounts,
     setProgress, addExtraSheet, blueWingPlan, sparkJewels, heldGems, grantBlue, dropBlue, isAnnNoDate, setAnnNoDate, noDateSigns, isSignNoDate, signShown, signsShown, unsignedIn, markSignsNoDate, baseAward, jewelName, awardLabel, childBook, sparksCurrent, receivedOf, receivedShown, isReceivedNoDate, setReceived, completedBlocks, finishedBooks, bookStatus, bookTabStatus, completionAwards, setBookDone, reviewsDoneBefore, setReviewsDone, suggestedAwards, firstNight, pastYearAwards, markPastYearsGiven, counted,
     normDriveDirs, isGivenNoDate, givenShown, isHeld, setHold, addFlag, setFlagNote, clearFlag, setFlagHidden, isFlagHidden, todoNotes, notAnAward, NOT_AWARDS, upgradeNotAwards, setBugStatus, addBugReply, removeBugReply, bugThread, bugStatusOf, BUG_STATUS, BUG_BY, noteList, bugList, flagList, flagsOf, flagsAt, flagsAtPlace, renameAward, snapshot, diff, merge3, applyChanges, record, labelOf, at, replayDiff, reconcile, tag, restoreTo, compare, kindOf, describe, MERGE_MINUTES };
+  // BEGIN PLAYTEST
+  api.graceDates = graceDates;
+  // END PLAYTEST
   if (typeof module !== 'undefined') module.exports = api; else root.Season = api;
 })(this);

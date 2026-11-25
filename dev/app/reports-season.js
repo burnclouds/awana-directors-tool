@@ -150,6 +150,13 @@
   }
   // One page: the child's name, class and club year as the title, then the record body. The Progress Sheets report prints the current book.
   function recordSheet(ctx, p, book, opts) {
+    // BEGIN PLAYTEST
+    const cancelled = R.cancelledDates(ctx);
+    if (cancelled.length) {
+      return '<section class="sheet portrait rec punch"><h2>' + esc(M.fullName(p) + ' — ' + M.room(p) + ' · ' + ctx.season.year) +
+        '</h2>' + recordBody(ctx, p, book, opts) + cancelledNotice(cancelled) + '</section>';
+    }
+    // END PLAYTEST
     return '<section class="sheet portrait rec punch"><h2>' + esc(M.fullName(p) + ' — ' + M.room(p) + ' · ' + ctx.season.year) + '</h2>' + recordBody(ctx, p, book, opts) + '</section>';
   }
   // N57: a blank sheet for a class: the class and the club year are printed, the name and the book are written in, nothing else is filled.
@@ -224,9 +231,27 @@
   }
 
   // ---------- dates attended, by class: one row per child, the nights they were marked present (attendance mark 'a') ----------
+  // BEGIN PLAYTEST
+  const cancelledNotice = dates => '<p class="sub">Cancelled club nights: ' + dates.map(d => esc(paper(d))).join(', ') + '</p>';
+  // END PLAYTEST
   function attendDates(ctx) {
     const { master, season, calendar, opts } = ctx; if (!season) return need;
     const g = opts.group || 'Sparks', kids = inGroup(master, g).filter(p => !opts.room || M.room(p) === opts.room), nights = Season.heldNights(season, calendar || season.calendar || []);      // club nights only, the same rule as every total (an Event date with a present mark is not a night)
+    // BEGIN PLAYTEST
+    const cancelled = R.cancelledDates(ctx);
+    if (cancelled.length) {
+      const closed = new Set(cancelled);
+      const dates = [...new Set([...nights, ...cancelled])].sort();
+      const rows = kids.map(p => {
+        const id = idOf(p), got = dates.filter(d => season.attendance[d]?.[id]?.a);
+        const shown = got.map(d => esc(paper(d)) + (closed.has(d) ? ' (Cancelled)' : ''));
+        return [esc(M.fullName(p)), esc(M.room(p)), String(got.filter(d => !closed.has(d)).length),
+          shown.length ? shown.join(', ') : '<span class="status">none yet</span>'];
+      });
+      return sheet('Dates attended — ' + (opts.room || g), cancelledNotice(cancelled) +
+        R.table(['Name', 'Class', 'Nights', 'Dates attended'], rows, 'wrap'), 'landscape');
+    }
+    // END PLAYTEST
     const rows = kids.map(p => { const id = idOf(p), got = nights.filter(d => ((season.attendance[d] || {})[id] || {}).a);
       return [esc(M.fullName(p)), esc(M.room(p)), String(got.length), got.length ? got.map(d => esc(paper(d))).join(', ') : '<span class="status">none yet</span>']; });
     const body = rows.length ? R.table(['Name', 'Class', 'Nights', 'Dates attended'], rows, 'wrap') : '<p class="empty">No children in ' + esc(g) + '.</p>';

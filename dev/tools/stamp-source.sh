@@ -6,5 +6,10 @@
 f="$1"; repo="${2:-.}"
 src=$(git -C "$repo" rev-parse --short HEAD 2>/dev/null) || src=""
 [ -n "$src" ] || src=unknown
-if [ "$src" != unknown ] && ! git -C "$repo" diff --quiet HEAD -- dev/app 2>/dev/null; then src="$src+changes"; fi
+if [ "$src" != unknown ]; then
+  case "${3:-auto}" in
+    dirty) src="$src+changes" ;;
+    auto) if ! git -C "$repo" diff --quiet HEAD -- dev/app 2>/dev/null; then src="$src+changes"; fi ;;
+  esac
+fi
 sed -i "s|<meta name=\"app-build\"\([^>]*\)>|<meta name=\"app-build\"\1>\n<meta name=\"app-source\" content=\"$src\">|" "$f"
